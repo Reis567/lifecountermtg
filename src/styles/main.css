@@ -633,6 +633,40 @@ select {
     box-shadow: 0 0 30px rgba(34, 197, 94, 0.5);
 }
 
+/* Monarch Epic Visual */
+.player-card.is-monarch {
+    border-color: #ffd700;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.4), 0 0 40px rgba(255, 215, 0, 0.2);
+    animation: monarchGlow 2s ease-in-out infinite;
+}
+
+@keyframes monarchGlow {
+    0%, 100% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.4), 0 0 40px rgba(255, 215, 0, 0.2); }
+    50% { box-shadow: 0 0 30px rgba(255, 215, 0, 0.6), 0 0 60px rgba(255, 215, 0, 0.3); }
+}
+
+.monarch-crown {
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 2rem;
+    z-index: 10;
+    animation: crownFloat 3s ease-in-out infinite, crownShine 2s ease-in-out infinite;
+    filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.8));
+    pointer-events: none;
+}
+
+@keyframes crownFloat {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(-5px); }
+}
+
+@keyframes crownShine {
+    0%, 100% { filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.8)); }
+    50% { filter: drop-shadow(0 0 20px rgba(255, 215, 0, 1)) brightness(1.2); }
+}
+
 .player-card.random-highlight {
     border-color: var(--warning);
     box-shadow: 0 0 30px rgba(245, 158, 11, 0.6);
@@ -846,6 +880,202 @@ select {
         opacity: 0;
         transform: translate(-50%, -150%) scale(1);
     }
+}
+
+/* Particle Effects Container */
+.particle-container {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 15;
+    border-radius: inherit;
+}
+
+/* Fire Particles (Damage) */
+.particle.fire {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: radial-gradient(circle, #ff6b35, #ff4500, transparent);
+    border-radius: 50%;
+    opacity: 0;
+    animation: fireParticle 0.8s ease-out forwards;
+}
+
+@keyframes fireParticle {
+    0% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-60px) scale(0.3);
+    }
+}
+
+/* Heal Particles (Green Sparkles) */
+.particle.heal {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background: radial-gradient(circle, #22c55e, #16a34a, transparent);
+    border-radius: 50%;
+    opacity: 0;
+    animation: healParticle 1s ease-out forwards;
+    box-shadow: 0 0 6px #22c55e;
+}
+
+@keyframes healParticle {
+    0% {
+        opacity: 1;
+        transform: translateY(0) translateX(0) scale(0.5);
+    }
+    50% {
+        opacity: 1;
+        transform: translateY(-30px) translateX(var(--tx, 0)) scale(1.2);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-60px) translateX(var(--tx, 0)) scale(0.5);
+    }
+}
+
+/* Poison Particles (Purple) */
+.particle.poison {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: radial-gradient(circle, #a855f7, #7c3aed, transparent);
+    border-radius: 50%;
+    opacity: 0;
+    animation: poisonParticle 1.2s ease-out forwards;
+    box-shadow: 0 0 8px rgba(168, 85, 247, 0.6);
+}
+
+@keyframes poisonParticle {
+    0% {
+        opacity: 0.8;
+        transform: translateY(0) scale(0.8);
+    }
+    50% {
+        opacity: 1;
+        transform: translateY(-20px) scale(1.3);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-50px) scale(0.4);
+    }
+}
+
+/* Energy Particles (Blue Lightning) */
+.particle.energy {
+    position: absolute;
+    width: 4px;
+    height: 12px;
+    background: linear-gradient(to bottom, #3b82f6, #60a5fa, transparent);
+    opacity: 0;
+    animation: energyParticle 0.6s ease-out forwards;
+    box-shadow: 0 0 6px #3b82f6;
+}
+
+@keyframes energyParticle {
+    0% {
+        opacity: 1;
+        transform: translateY(0) rotate(var(--rot, 0deg)) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-40px) rotate(var(--rot, 0deg)) scale(0.5);
+    }
+}
+
+/* Experience Particles (Gold Stars) */
+.particle.experience {
+    position: absolute;
+    font-size: 12px;
+    opacity: 0;
+    animation: expParticle 1s ease-out forwards;
+    filter: drop-shadow(0 0 4px #fbbf24);
+}
+
+@keyframes expParticle {
+    0% {
+        opacity: 1;
+        transform: translateY(0) scale(0.5) rotate(0deg);
+    }
+    50% {
+        opacity: 1;
+        transform: translateY(-25px) scale(1.2) rotate(180deg);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-50px) scale(0.5) rotate(360deg);
+    }
+}
+
+/* Life Shortcuts Popup */
+.life-shortcuts-popup {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.8);
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-lg);
+    z-index: 20;
+    opacity: 0;
+    visibility: hidden;
+    transition: all var(--transition-fast);
+}
+
+.life-shortcuts-popup.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.life-shortcut-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 3rem;
+    height: 2.5rem;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    border-radius: var(--border-radius);
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.life-shortcut-btn[data-amount^="-"] {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--danger);
+}
+
+.life-shortcut-btn[data-amount^="-"]:hover,
+.life-shortcut-btn[data-amount^="-"]:active {
+    background: rgba(239, 68, 68, 0.4);
+    transform: scale(1.05);
+}
+
+.life-shortcut-btn[data-amount^="+"] {
+    background: rgba(34, 197, 94, 0.2);
+    color: var(--success);
+}
+
+.life-shortcut-btn[data-amount^="+"]:hover,
+.life-shortcut-btn[data-amount^="+"]:active {
+    background: rgba(34, 197, 94, 0.4);
+    transform: scale(1.05);
 }
 
 /* Player Footer - Counters Preview */
@@ -1916,6 +2146,261 @@ select {
     font-weight: 700;
     color: var(--success);
     margin-bottom: 2rem;
+}
+
+/* Epic Victory Confetti */
+.winner-confetti {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 201;
+}
+
+.confetti-piece {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    opacity: 0;
+    animation: confettiFall var(--fall-duration, 3s) linear forwards;
+    animation-delay: var(--delay, 0s);
+}
+
+.confetti-piece.square {
+    border-radius: 2px;
+}
+
+.confetti-piece.circle {
+    border-radius: 50%;
+}
+
+.confetti-piece.ribbon {
+    width: 8px;
+    height: 20px;
+    border-radius: 3px;
+}
+
+@keyframes confettiFall {
+    0% {
+        opacity: 1;
+        transform: translateY(-100px) rotate(0deg) scale(1);
+    }
+    25% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(100vh) rotate(720deg) scale(0.5);
+    }
+}
+
+/* Firework Burst */
+.firework-container {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 200;
+}
+
+.firework {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    animation: fireworkBurst 1.5s ease-out forwards;
+}
+
+@keyframes fireworkBurst {
+    0% {
+        transform: translate(0, 0) scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(var(--tx, 0), var(--ty, 0)) scale(0);
+        opacity: 0;
+    }
+}
+
+/* Sparkle effect on trophy */
+.winner-trophy {
+    position: relative;
+}
+
+.winner-overlay.active .winner-trophy::before,
+.winner-overlay.active .winner-trophy::after {
+    content: '✨';
+    position: absolute;
+    font-size: 1.5rem;
+    animation: sparkle 0.8s ease-in-out infinite;
+}
+
+.winner-overlay.active .winner-trophy::before {
+    top: 0;
+    left: -20px;
+    animation-delay: 0s;
+}
+
+.winner-overlay.active .winner-trophy::after {
+    top: 0;
+    right: -20px;
+    animation-delay: 0.4s;
+}
+
+@keyframes sparkle {
+    0%, 100% { opacity: 0; transform: scale(0.5); }
+    50% { opacity: 1; transform: scale(1.2); }
+}
+
+/* Victory glow effect */
+.winner-overlay.active {
+    background: radial-gradient(circle at center, rgba(34, 197, 94, 0.3), rgba(0, 0, 0, 0.95));
+}
+
+.winner-overlay.active .winner-content {
+    text-shadow: 0 0 20px rgba(34, 197, 94, 0.5);
+}
+
+/* Dice Roller Modal */
+.dice-roller-modal .modal-content {
+    max-width: 400px;
+}
+
+.dice-roller-content {
+    text-align: center;
+}
+
+.dice-result-area {
+    padding: 2rem 1rem;
+    margin-bottom: 1rem;
+}
+
+.dice-result {
+    font-size: 5rem;
+    line-height: 1;
+    margin-bottom: 0.5rem;
+    transition: transform 0.3s ease;
+}
+
+.dice-result.rolling {
+    animation: diceRoll 0.5s ease-in-out infinite;
+}
+
+@keyframes diceRoll {
+    0%, 100% { transform: rotate(0deg) scale(1); }
+    25% { transform: rotate(-15deg) scale(1.1); }
+    50% { transform: rotate(15deg) scale(1.2); }
+    75% { transform: rotate(-10deg) scale(1.1); }
+}
+
+.dice-result-value {
+    font-size: 3rem;
+    font-weight: 800;
+    color: var(--accent-primary);
+    min-height: 3.5rem;
+}
+
+.dice-result-value.crit {
+    color: var(--success);
+    text-shadow: 0 0 20px rgba(34, 197, 94, 0.8);
+    animation: critPulse 0.5s ease;
+}
+
+.dice-result-value.fail {
+    color: var(--danger);
+    animation: failShake 0.5s ease;
+}
+
+@keyframes critPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.3); }
+    100% { transform: scale(1); }
+}
+
+@keyframes failShake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-5px); }
+    40% { transform: translateX(5px); }
+    60% { transform: translateX(-5px); }
+    80% { transform: translateX(5px); }
+}
+
+.dice-options {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+    padding: 0 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.dice-btn {
+    padding: 1rem;
+    background: var(--bg-tertiary);
+    border: 2px solid var(--border-color);
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.dice-btn:hover,
+.dice-btn:active {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    transform: scale(1.05);
+}
+
+.dice-btn.coin-btn {
+    grid-column: span 3;
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    border-color: #f59e0b;
+    color: #000;
+}
+
+.dice-btn.coin-btn:hover {
+    background: linear-gradient(135deg, #fcd34d, #fbbf24);
+    border-color: #fbbf24;
+}
+
+.dice-history {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius-sm);
+    font-size: 0.875rem;
+}
+
+.dice-history-label {
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.dice-history-list {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.dice-history-item {
+    padding: 0.25rem 0.5rem;
+    background: var(--bg-tertiary);
+    border-radius: var(--border-radius-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.dice-history-item.crit {
+    background: rgba(34, 197, 94, 0.3);
+    color: var(--success);
+}
+
+.dice-history-item.fail {
+    background: rgba(239, 68, 68, 0.3);
+    color: var(--danger);
 }
 
 /* Special Moment Overlay */

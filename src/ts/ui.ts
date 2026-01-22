@@ -13,6 +13,7 @@ import {
     THEMES,
     EASTER_EGG_MESSAGES,
     SPECIAL_MOMENTS,
+    TAUNT_PHRASES,
     ThemePreset,
     RandomAnimationType,
 } from './types.js';
@@ -25,6 +26,7 @@ let currentCommanderDamagePlayerId: string | null = null;
 // Hold timers for +/- buttons
 let holdInterval: number | null = null;
 let holdTimeout: number | null = null;
+let activeLifeShortcutsPlayerId: string | null = null;
 
 // Turn timer
 let turnTimerInterval: number | null = null;
@@ -53,6 +55,9 @@ const playerMediaPaused: Map<string, { avatar: boolean; background: boolean }> =
 // Collapsed counters state
 const collapsedCounters: Set<string> = new Set();
 
+// Dice roller history
+const diceHistory: Array<{ dice: string; result: string | number }> = [];
+
 // Debounce for life changes (mobile touch sensitivity fix)
 let lastLifeChangeTime = 0;
 const LIFE_CHANGE_DEBOUNCE_MS = 150;
@@ -71,14 +76,99 @@ function isButtonDebounced(buttonId: string): boolean {
     return false;
 }
 
+// Shake detection for "Shake to Roll"
+let lastShakeTime = 0;
+const SHAKE_THRESHOLD = 15;
+const SHAKE_TIMEOUT = 1000;
+let shakeCount = 0;
+let lastAcceleration = { x: 0, y: 0, z: 0 };
+
+function setupShakeDetection(): void {
+    if (!('DeviceMotionEvent' in window)) return;
+
+    // Request permission for iOS 13+
+    const requestPermission = (DeviceMotionEvent as any).requestPermission;
+    if (typeof requestPermission === 'function') {
+        // Will be triggered by user gesture
+        document.body.addEventListener('click', async () => {
+            try {
+                const permission = await requestPermission();
+                if (permission === 'granted') {
+                    window.addEventListener('devicemotion', handleDeviceMotion);
+                }
+            } catch (e) {
+                console.warn('DeviceMotion permission denied');
+            }
+        }, { once: true });
+    } else {
+        window.addEventListener('devicemotion', handleDeviceMotion);
+    }
+}
+
+function handleDeviceMotion(event: DeviceMotionEvent): void {
+    const state = gameState.getState();
+    if (!state.gameStarted) return; // Only work during game
+
+    const acceleration = event.accelerationIncludingGravity;
+    if (!acceleration || acceleration.x === null || acceleration.y === null || acceleration.z === null) return;
+
+    const deltaX = Math.abs(acceleration.x - lastAcceleration.x);
+    const deltaY = Math.abs(acceleration.y - lastAcceleration.y);
+    const deltaZ = Math.abs(acceleration.z - lastAcceleration.z);
+
+    lastAcceleration = {
+        x: acceleration.x || 0,
+        y: acceleration.y || 0,
+        z: acceleration.z || 0
+    };
+
+    const totalDelta = deltaX + deltaY + deltaZ;
+
+    if (totalDelta > SHAKE_THRESHOLD) {
+        const now = Date.now();
+        if (now - lastShakeTime > 100) {
+            shakeCount++;
+            lastShakeTime = now;
+
+            // Trigger after 3 shakes within timeout
+            if (shakeCount >= 3) {
+                shakeCount = 0;
+                triggerShakeRoll();
+            }
+
+            // Reset count after timeout
+            setTimeout(() => {
+                shakeCount = 0;
+            }, SHAKE_TIMEOUT);
+        }
+    }
+}
+
+function triggerShakeRoll(): void {
+    if (isRandomStarterRunning) return;
+
+    // Vibrate if available
+    if (navigator.vibrate) {
+        navigator.vibrate([100, 50, 100]);
+    }
+
+    audioManager.play('click');
+    startRandomStarterAnimation();
+}
+
 // Initialize UI
 export function initUI(): void {
+    console.log('initUI called - v2');
     setupEventListeners();
+    console.log('Event listeners setup complete');
     gameState.subscribe(render);
     render(gameState.getState());
 
     // Start undo check interval
     undoCheckInterval = window.setInterval(updateUndoButton, 1000);
+
+    // Setup shake detection for "Shake to Roll"
+    setupShakeDetection();
 
     // Apply initial theme
     applyTheme(gameState.getState().settings.theme);
@@ -245,6 +335,34 @@ function setupGameScreenListeners(): void {
 
     $('close-history-btn')?.addEventListener('click', () => {
         $('history-panel').classList.remove('active');
+    });
+
+    // Dice roller button
+    const diceRollerBtn = $('dice-roller-btn');
+    const diceRollerModal = $('dice-roller-modal');
+    console.log('Dice roller setup:', { btn: diceRollerBtn, modal: diceRollerModal });
+    diceRollerBtn?.addEventListener('click', () => {
+        console.log('Dice roller clicked');
+        openModal(diceRollerModal);
+    });
+
+    // Dice options
+    document.querySelectorAll('.dice-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const dice = (btn as HTMLElement).dataset.dice;
+            if (dice) {
+                rollDice(dice);
+            }
+        });
+    });
+
+    // Global click handler to close life shortcuts popup
+    document.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        // Don't close if clicking on the popup itself or life controls
+        if (!target.closest('.life-shortcuts-popup') && !target.closest('.life-control')) {
+            hideLifeShortcutsPopup();
+        }
     });
 }
 
@@ -903,6 +1021,7 @@ function renderPlayers(state: GameState): void {
             isCriticalLife && !player.isEliminated ? 'critical-life' : '',
             player.isEliminated ? 'eliminated' : '',
             player.id === state.winner ? 'winner' : '',
+            player.isMonarch ? 'is-monarch' : '',
             state.settings.gifPaused ? 'gif-paused' : '',
         ].filter(Boolean).join(' ');
 
@@ -919,11 +1038,14 @@ function renderPlayers(state: GameState): void {
 
         const countersCollapsed = collapsedCounters.has(player.id);
 
+        const monarchCrown = player.isMonarch ? '<div class="monarch-crown">👑</div>' : '';
+
         return `
             <div class="player-card ${classes}"
                  data-player-id="${player.id}"
                  data-rotation="${rotation}"
                  style="--player-color: ${player.color}; grid-area: p${index};">
+                ${monarchCrown}
                 ${player.background ? `<div class="player-card-background has-background" style="${backgroundStyle}"></div>` : ''}
                 <div class="player-header">
                     <div class="player-info">
@@ -948,6 +1070,12 @@ function renderPlayers(state: GameState): void {
                     </div>
                     <button class="life-control plus" data-action="life" data-amount="1">+</button>
                     <div class="life-change-indicator"></div>
+                    <div class="life-shortcuts-popup" data-player-id="${player.id}">
+                        <button class="life-shortcut-btn" data-amount="-10">-10</button>
+                        <button class="life-shortcut-btn" data-amount="-5">-5</button>
+                        <button class="life-shortcut-btn" data-amount="+5">+5</button>
+                        <button class="life-shortcut-btn" data-amount="+10">+10</button>
+                    </div>
                 </div>
                 <div class="player-footer ${countersCollapsed ? 'collapsed' : ''}" data-player-id="${player.id}">
                     ${countersHtml}
@@ -1028,6 +1156,11 @@ function renderPlayers(state: GameState): void {
                 e.stopPropagation();
                 gameState.changeCounter(badgePlayerId, counterType, 1);
                 audioManager.play('click');
+                // Create particles based on counter type
+                const particleType = counterType === 'poison' ? 'poison' :
+                                     counterType === 'energy' ? 'energy' :
+                                     counterType === 'experience' ? 'experience' : 'fire';
+                createParticles(badgePlayerId, particleType, 5);
             });
 
             // Right click or long press to decrement
@@ -1152,7 +1285,7 @@ function updateSettingsControls(state: GameState): void {
     });
 }
 
-// Life change with hold support
+// Life change with hold support - shows shortcuts popup on hold
 function startLifeChange(playerId: string, baseAmount: number, event: Event): void {
     event.preventDefault();
 
@@ -1169,14 +1302,55 @@ function startLifeChange(playerId: string, baseAmount: number, event: Event): vo
 
     changeLifeWithFeedback(playerId, baseAmount);
 
-    let holdCount = 0;
+    // Show shortcuts popup after holding for 300ms
     holdTimeout = window.setTimeout(() => {
-        holdInterval = window.setInterval(() => {
-            holdCount++;
-            const multiplier = holdCount > 20 ? 10 : holdCount > 10 ? 5 : 1;
-            changeLifeWithFeedback(playerId, baseAmount * multiplier);
-        }, 100);
+        showLifeShortcutsPopup(playerId);
     }, 300);
+}
+
+// Show life shortcuts popup
+function showLifeShortcutsPopup(playerId: string): void {
+    // Hide any existing popup first
+    hideLifeShortcutsPopup();
+
+    activeLifeShortcutsPlayerId = playerId;
+    const popup = document.querySelector(`.life-shortcuts-popup[data-player-id="${playerId}"]`) as HTMLElement;
+    if (popup) {
+        popup.classList.add('visible');
+
+        // Add click listeners to shortcut buttons
+        popup.querySelectorAll('.life-shortcut-btn').forEach(btn => {
+            const amount = parseInt((btn as HTMLElement).dataset.amount || '0');
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                changeLifeWithFeedback(playerId, amount);
+                hideLifeShortcutsPopup();
+                audioManager.play('click');
+            }, { once: true });
+        });
+
+        // Vibrate to indicate popup appeared
+        if (navigator.vibrate) {
+            navigator.vibrate(30);
+        }
+
+        audioManager.play('click');
+    }
+}
+
+// Hide life shortcuts popup
+function hideLifeShortcutsPopup(): void {
+    if (activeLifeShortcutsPlayerId) {
+        const popup = document.querySelector(`.life-shortcuts-popup[data-player-id="${activeLifeShortcutsPlayerId}"]`) as HTMLElement;
+        if (popup) {
+            popup.classList.remove('visible');
+        }
+        activeLifeShortcutsPlayerId = null;
+    }
+    // Also hide any visible popup
+    document.querySelectorAll('.life-shortcuts-popup.visible').forEach(popup => {
+        popup.classList.remove('visible');
+    });
 }
 
 function stopLifeChange(): void {
@@ -1188,6 +1362,7 @@ function stopLifeChange(): void {
         clearInterval(holdInterval);
         holdInterval = null;
     }
+    // Note: Don't hide popup here - let user interact with it
 }
 
 // Fullscreen functionality
@@ -1257,13 +1432,34 @@ function changeLifeWithFeedback(playerId: string, amount: number): void {
         setTimeout(() => {
             indicator.classList.remove('show');
         }, 800);
+
+        // Create particles based on damage/heal amount
+        const particleCount = Math.min(Math.abs(amount) * 2, 15);
+        if (amount < 0) {
+            createParticles(playerId, 'fire', particleCount);
+        } else if (amount > 0) {
+            createParticles(playerId, 'heal', particleCount);
+        }
     }
 
-    // Check for special moments
+    // Check for special moments and taunts
     const playerAfter = newState.players.find(p => p.id === playerId);
     if (playerAfter && newState.settings.showSpecialMoments) {
+        // Near death special message
         if (playerAfter.life === SPECIAL_MOMENTS.NEAR_DEATH && lifeBefore > SPECIAL_MOMENTS.NEAR_DEATH) {
             showSpecialMoment(`${playerAfter.name} está com 1 de vida!`, 'danger');
+        }
+        // Big damage taunt (5+ damage at once)
+        else if (amount <= -5) {
+            showTaunt('bigDamage');
+        }
+        // Big heal taunt (5+ heal at once)
+        else if (amount >= 5) {
+            showTaunt('bigHeal');
+        }
+        // Critical life taunt (entered danger zone)
+        else if (playerAfter.life <= SPECIAL_MOMENTS.LOW_LIFE && lifeBefore > SPECIAL_MOMENTS.LOW_LIFE && playerAfter.life > 0) {
+            showTaunt('criticalLife');
         }
     }
 }
@@ -1766,6 +1962,33 @@ function updateTurnTimer(state: GameState): void {
     turnTimerInterval = window.setInterval(updateTimer, 100);
 }
 
+// Taunt system
+let lastTauntTime = 0;
+const TAUNT_COOLDOWN = 3000; // 3 seconds between taunts
+
+function getRandomTaunt(category: keyof typeof TAUNT_PHRASES): string {
+    const phrases = TAUNT_PHRASES[category];
+    return phrases[Math.floor(Math.random() * phrases.length)];
+}
+
+function showTaunt(category: keyof typeof TAUNT_PHRASES): void {
+    const state = gameState.getState();
+    if (!state.settings.showSpecialMoments) return;
+
+    const now = Date.now();
+    if (now - lastTauntTime < TAUNT_COOLDOWN) return;
+    lastTauntTime = now;
+
+    const taunt = getRandomTaunt(category);
+    const type = category === 'bigHeal' || category === 'monarch' || category === 'criticalRoll'
+        ? 'success'
+        : category === 'comeback'
+            ? 'warning'
+            : 'danger';
+
+    showSpecialMoment(taunt, type);
+}
+
 // Special moments
 function showSpecialMoment(message: string, type: 'danger' | 'success' | 'warning' = 'danger'): void {
     const overlay = $('special-moment-overlay');
@@ -1782,11 +2005,256 @@ function showSpecialMoment(message: string, type: 'danger' | 'success' | 'warnin
     }, 1500);
 }
 
-// Winner display
+// Dice roller functionality
+let isRolling = false;
+
+function rollDice(diceType: string): void {
+    if (isRolling) return;
+
+    const resultEl = $('dice-result');
+    const valueEl = $('dice-result-value');
+    if (!resultEl || !valueEl) return;
+
+    isRolling = true;
+    resultEl.classList.add('rolling');
+    valueEl.textContent = '';
+    valueEl.className = 'dice-result-value';
+
+    audioManager.play('click');
+
+    // Vibrate while rolling
+    if (navigator.vibrate) {
+        navigator.vibrate([50, 30, 50, 30, 50]);
+    }
+
+    // Rolling animation duration
+    setTimeout(() => {
+        resultEl.classList.remove('rolling');
+        isRolling = false;
+
+        let result: string | number;
+        let emoji: string;
+        let isCrit = false;
+        let isFail = false;
+
+        if (diceType === 'coin') {
+            result = Math.random() < 0.5 ? 'Cara' : 'Coroa';
+            emoji = result === 'Cara' ? '😀' : '🦅';
+        } else {
+            const max = parseInt(diceType);
+            result = Math.floor(Math.random() * max) + 1;
+            emoji = getDiceEmoji(max);
+
+            // Check for critical success or failure (D20 specific)
+            if (max === 20) {
+                if (result === 20) isCrit = true;
+                if (result === 1) isFail = true;
+            } else {
+                if (result === max) isCrit = true;
+                if (result === 1) isFail = true;
+            }
+        }
+
+        resultEl.textContent = emoji;
+        valueEl.textContent = String(result);
+
+        if (isCrit) {
+            valueEl.classList.add('crit');
+            audioManager.play('win');
+            // Show taunt for critical roll (D20 only)
+            if (diceType === '20') {
+                showTaunt('criticalRoll');
+            }
+        } else if (isFail) {
+            valueEl.classList.add('fail');
+            audioManager.play('damage');
+            // Show taunt for critical fail (D20 only)
+            if (diceType === '20') {
+                showTaunt('criticalFail');
+            }
+        }
+
+        // Add to history
+        addDiceHistory(diceType, result, isCrit, isFail);
+
+    }, 800);
+}
+
+function getDiceEmoji(sides: number): string {
+    switch (sides) {
+        case 4: return '🔺';
+        case 6: return '🎲';
+        case 8: return '💎';
+        case 10: return '🔟';
+        case 12: return '⬢';
+        case 20: return '🎯';
+        default: return '🎲';
+    }
+}
+
+function addDiceHistory(diceType: string, result: string | number, isCrit: boolean, isFail: boolean): void {
+    const historyList = $('dice-history-list');
+    if (!historyList) return;
+
+    // Add to beginning of history
+    diceHistory.unshift({ dice: diceType, result });
+
+    // Keep only last 8 rolls
+    if (diceHistory.length > 8) {
+        diceHistory.pop();
+    }
+
+    // Render history
+    historyList.innerHTML = diceHistory.map((item, index) => {
+        const label = item.dice === 'coin' ? '🪙' : `D${item.dice}`;
+        let className = 'dice-history-item';
+        if (index === 0) {
+            if (isCrit) className += ' crit';
+            if (isFail) className += ' fail';
+        }
+        return `<span class="${className}">${label}: ${item.result}</span>`;
+    }).join('');
+}
+
+// Particle effect system
+type ParticleType = 'fire' | 'heal' | 'poison' | 'energy' | 'experience';
+
+function createParticles(playerId: string, type: ParticleType, count: number = 8): void {
+    const state = gameState.getState();
+    if (!state.settings.animationsEnabled) return;
+
+    const card = document.querySelector(`.player-card[data-player-id="${playerId}"]`);
+    if (!card) return;
+
+    // Create or get particle container
+    let container = card.querySelector('.particle-container') as HTMLElement;
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'particle-container';
+        card.appendChild(container);
+    }
+
+    // Create particles
+    for (let i = 0; i < count; i++) {
+        const particle = document.createElement('div');
+        particle.className = `particle ${type}`;
+
+        // Random position within card
+        const x = 20 + Math.random() * 60; // 20-80% of card width
+        const y = 30 + Math.random() * 40; // 30-70% of card height
+        const delay = Math.random() * 0.3;
+
+        particle.style.left = `${x}%`;
+        particle.style.top = `${y}%`;
+        particle.style.animationDelay = `${delay}s`;
+
+        // Type-specific customizations
+        if (type === 'heal') {
+            const tx = -20 + Math.random() * 40; // Random horizontal drift
+            particle.style.setProperty('--tx', `${tx}px`);
+        } else if (type === 'energy') {
+            const rot = -30 + Math.random() * 60;
+            particle.style.setProperty('--rot', `${rot}deg`);
+        } else if (type === 'experience') {
+            particle.textContent = '⭐';
+        }
+
+        container.appendChild(particle);
+    }
+
+    // Clean up particles after animation
+    setTimeout(() => {
+        container.querySelectorAll('.particle').forEach(p => {
+            if (p.parentNode === container) {
+                p.remove();
+            }
+        });
+    }, 1500);
+}
+
+// Winner display with epic animations
 function showWinner(player: Player): void {
     $('winner-name').textContent = player.name;
     $('winner-overlay').classList.add('active');
     audioManager.play('win', player.id);
+
+    // Create epic confetti
+    createConfetti();
+
+    // Create firework bursts
+    setTimeout(() => createFireworks(), 200);
+    setTimeout(() => createFireworks(), 600);
+    setTimeout(() => createFireworks(), 1000);
+
+    // Vibrate for celebration
+    if (navigator.vibrate) {
+        navigator.vibrate([100, 50, 100, 50, 200]);
+    }
+}
+
+// Create confetti particles
+function createConfetti(): void {
+    const container = document.querySelector('.winner-confetti');
+    if (!container) return;
+
+    // Clear existing confetti
+    container.innerHTML = '';
+
+    const colors = ['#f43f5e', '#ec4899', '#8b5cf6', '#6366f1', '#3b82f6', '#22c55e', '#eab308', '#f97316'];
+    const shapes = ['square', 'circle', 'ribbon'];
+
+    for (let i = 0; i < 100; i++) {
+        const piece = document.createElement('div');
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        const shape = shapes[Math.floor(Math.random() * shapes.length)];
+        const leftPos = Math.random() * 100;
+        const delay = Math.random() * 2;
+        const duration = 2 + Math.random() * 2;
+
+        piece.className = `confetti-piece ${shape}`;
+        piece.style.cssText = `
+            left: ${leftPos}%;
+            background: ${color};
+            --delay: ${delay}s;
+            --fall-duration: ${duration}s;
+        `;
+        container.appendChild(piece);
+    }
+
+    // Clean up after animation
+    setTimeout(() => {
+        container.innerHTML = '';
+    }, 5000);
+}
+
+// Create firework burst
+function createFireworks(): void {
+    const container = document.querySelector('.winner-confetti');
+    if (!container) return;
+
+    const colors = ['#f43f5e', '#ec4899', '#8b5cf6', '#22c55e', '#eab308', '#3b82f6'];
+    const centerX = 20 + Math.random() * 60; // Random X between 20-80%
+    const centerY = 20 + Math.random() * 40; // Random Y between 20-60%
+
+    for (let i = 0; i < 20; i++) {
+        const particle = document.createElement('div');
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        const angle = (i / 20) * 2 * Math.PI;
+        const distance = 50 + Math.random() * 100;
+        const tx = Math.cos(angle) * distance;
+        const ty = Math.sin(angle) * distance;
+
+        particle.className = 'firework';
+        particle.style.cssText = `
+            left: ${centerX}%;
+            top: ${centerY}%;
+            background: ${color};
+            box-shadow: 0 0 6px ${color};
+            --tx: ${tx}px;
+            --ty: ${ty}px;
+        `;
+        container.appendChild(particle);
+    }
 }
 
 // Modal helpers

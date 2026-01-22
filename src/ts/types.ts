@@ -255,3 +255,67 @@ export const SPECIAL_MOMENTS = {
     COMMANDER_DANGER: 15,
     COMMANDER_LETHAL: 21,
 };
+
+// Taunt phrases (friendly provocations)
+export const TAUNT_PHRASES = {
+    // When taking big damage (5+ at once)
+    bigDamage: [
+        "Isso vai deixar marca! 💥",
+        "Ui, isso doeu! 🤕",
+        "Alguém chamou uma ambulância? 🚑",
+        "F no chat! 📉",
+        "Brutal! Sem piedade! 😈",
+        "Ouch! Ninguém merece! 😬",
+        "Cuidado, está sangrando! 🩸",
+    ],
+    // When healing a lot (5+ at once)
+    bigHeal: [
+        "De volta ao jogo! 💚",
+        "Ainda não acabou! 🏥",
+        "Que recuperação! 🌟",
+        "Nunca subestime a cura! ✨",
+        "Vida é vida! 💪",
+    ],
+    // When a player gets eliminated
+    elimination: [
+        "GG! Até a próxima! 👋",
+        "Caiu mais um! 💀",
+        "Descanse em paz... até a revanche! ⚰️",
+        "Eliminated! 🎯",
+        "Better luck next time! 🍀",
+        "De férias! 🏖️",
+    ],
+    // When reaching critical life (5 or less)
+    criticalLife: [
+        "Tá suando frio! 😰",
+        "Modo sobrevivência ativado! 🆘",
+        "Uma topdeckada e já era! 🎴",
+        "Vida por um fio! 🧵",
+        "Hora de rezar! 🙏",
+    ],
+    // When someone becomes the Monarch
+    monarch: [
+        "Longa vida ao rei! 👑",
+        "A coroa pesa... 🏰",
+        "Draw extra, baby! 🎴",
+        "Quem quer ser rei? 👑",
+    ],
+    // Random comebacks when at low life
+    comeback: [
+        "A virada está chegando! 🔄",
+        "Ainda tenho 1 de vida! 😤",
+        "Nunca desista! 💪",
+    ],
+    // When rolling a nat 20
+    criticalRoll: [
+        "NAT 20! Lendário! 🎯",
+        "Os deuses te abençoaram! ⚡",
+        "Crítico perfeito! 🌟",
+    ],
+    // When rolling a 1
+    criticalFail: [
+        "NAT 1! Oof... 😅",
+        "Os dados te odeiam! 🎲",
+        "Melhor tentar de novo... 🤷",
+    ],
+};
