@@ -17,6 +17,8 @@ export interface Player {
     commanderDeaths: number; // Number of times commander died (for Commander Tax)
     customSounds: PlayerSounds;
     rotation: number; // Rotation in degrees for table mode
+    teamId: string | null; // Team ID for Two-Headed Giant mode
+    borderStyle: CardBorderStyle; // Card border style
 }
 
 export interface PlayerCounters {
@@ -38,6 +40,15 @@ export interface PlayerSounds {
     death: string | null;
     win: string | null;
     damage: string | null;
+}
+
+export interface Team {
+    id: string;
+    name: string;
+    color: string;
+    playerIds: string[];
+    life: number;
+    isEliminated: boolean;
 }
 
 export interface LayoutConfig {
@@ -64,14 +75,32 @@ export interface GameSettings {
     gifPaused: boolean;
     gifFpsReduced: boolean;
     easterEggsEnabled: boolean;
+    animatedBgEnabled: boolean;
+    animatedBgStyle: AnimatedBgStyle;
+    fontStyle: FontStyle;
+    ambientMusicEnabled: boolean;
+    ambientMusicVolume: number;
+    ambientMusicTrack: AmbientMusicTrack;
+    narratorEnabled: boolean;
+    narratorVoice: string;
+    narratorSpeed: number;
+    soundPack: SoundPack;
 }
 
-export type ThemePreset = 'casual' | 'dark' | 'streamer' | 'custom';
+export type AmbientMusicTrack = 'none' | 'epic' | 'dark' | 'nature' | 'mystical';
+export type SoundPack = 'default' | 'medieval' | 'scifi' | 'horror' | 'arcade';
+
+export type AnimatedBgStyle = 'none' | 'stars' | 'mana' | 'sparks' | 'bubbles' | 'matrix';
+export type CardBorderStyle = 'default' | 'foil' | 'borderless' | 'extended' | 'etched' | 'showcase';
+export type FontStyle = 'default' | 'beleren' | 'pixel' | 'gothic' | 'elegant' | 'rounded';
+
+export type ThemePreset = 'casual' | 'dark' | 'streamer' | 'custom' | 'mana-white' | 'mana-blue' | 'mana-black' | 'mana-red' | 'mana-green' | 'high-contrast';
 export type RandomAnimationType = 'highlight' | 'roulette' | 'flash';
-export type GameMode = 'standard' | 'planechase' | 'archenemy';
+export type GameMode = 'standard' | 'planechase' | 'archenemy' | 'two-headed';
 
 export interface GameState {
     players: Player[];
+    teams: Team[];
     settings: GameSettings;
     currentTurn: number;
     activePlayerIndex: number;
@@ -226,6 +255,54 @@ export const THEMES: Record<ThemePreset, ThemeConfig> = {
         textPrimary: '#ffffff',
         accent: '#6366f1',
     },
+    'mana-white': {
+        name: 'White Mana',
+        bgPrimary: '#f5f5f0',
+        bgSecondary: '#e8e8e0',
+        bgCard: '#ffffff',
+        textPrimary: '#1a1a1a',
+        accent: '#f9e076',
+    },
+    'mana-blue': {
+        name: 'Blue Mana',
+        bgPrimary: '#0a1628',
+        bgSecondary: '#0f2744',
+        bgCard: '#1a3a5c',
+        textPrimary: '#ffffff',
+        accent: '#0ea5e9',
+    },
+    'mana-black': {
+        name: 'Black Mana',
+        bgPrimary: '#0a0a0a',
+        bgSecondary: '#121212',
+        bgCard: '#0f0f0f',
+        textPrimary: '#ffffff',
+        accent: '#a855f7',
+    },
+    'mana-red': {
+        name: 'Red Mana',
+        bgPrimary: '#1a0a0a',
+        bgSecondary: '#2a1010',
+        bgCard: '#2d1212',
+        textPrimary: '#ffffff',
+        accent: '#ef4444',
+    },
+    'mana-green': {
+        name: 'Green Mana',
+        bgPrimary: '#0a1a0a',
+        bgSecondary: '#102810',
+        bgCard: '#122d12',
+        textPrimary: '#ffffff',
+        accent: '#22c55e',
+    },
+    'high-contrast': {
+        name: 'High Contrast',
+        bgPrimary: '#000000',
+        bgSecondary: '#0a0a0a',
+        bgCard: '#000000',
+        textPrimary: '#ffffff',
+        accent: '#ffff00',
+    },
 };
 
 export interface ThemeConfig {
@@ -319,3 +396,72 @@ export const TAUNT_PHRASES = {
         "Melhor tentar de novo... 🤷",
     ],
 };
+
+// MTG Keywords and Rules
+export interface MTGKeyword {
+    name: string;
+    description: string;
+    category: 'combat' | 'mana' | 'abilities' | 'counters' | 'other';
+    reminder?: string;
+}
+
+export const MTG_KEYWORDS: MTGKeyword[] = [
+    // Combat Keywords
+    { name: 'Primeiro Ataque', description: 'Esta criatura causa dano de combate antes de criaturas sem primeiro ataque.', category: 'combat', reminder: 'First Strike' },
+    { name: 'Golpe Duplo', description: 'Esta criatura causa dano tanto no passo de primeiro ataque quanto no passo normal.', category: 'combat', reminder: 'Double Strike' },
+    { name: 'Vigilância', description: 'Atacar não faz esta criatura ser virada.', category: 'combat', reminder: 'Vigilance' },
+    { name: 'Atropelar', description: 'Dano em excesso ao bloqueador é causado ao jogador defensor.', category: 'combat', reminder: 'Trample' },
+    { name: 'Voar', description: 'Esta criatura só pode ser bloqueada por criaturas com voar ou alcance.', category: 'combat', reminder: 'Flying' },
+    { name: 'Alcance', description: 'Esta criatura pode bloquear criaturas com voar.', category: 'combat', reminder: 'Reach' },
+    { name: 'Toque Mortífero', description: 'Qualquer quantidade de dano que esta criatura cause a uma criatura é suficiente para destruí-la.', category: 'combat', reminder: 'Deathtouch' },
+    { name: 'Vínculo com a Vida', description: 'O dano causado por esta criatura também faz você ganhar essa quantidade de vida.', category: 'combat', reminder: 'Lifelink' },
+    { name: 'Iniciativa', description: 'Quando esta criatura entra ou causa dano de combate, você pega a iniciativa e entra na dungeon.', category: 'combat', reminder: 'Initiative' },
+    { name: 'Provocar', description: 'Todas as criaturas capazes de bloquear esta criatura devem fazê-lo.', category: 'combat', reminder: 'Menace' },
+    { name: 'Ameaçar', description: 'Esta criatura não pode ser bloqueada exceto por duas ou mais criaturas.', category: 'combat', reminder: 'Menace' },
+    { name: 'Inquebrável', description: 'Dano e efeitos que dizem "destrua" não destroem esta permanente.', category: 'combat', reminder: 'Indestructible' },
+    { name: 'Proteção', description: 'Esta permanente não pode ser alvo, bloqueada, encantada ou equipada pelo tipo especificado.', category: 'combat', reminder: 'Protection from X' },
+    { name: 'Hexproof', description: 'Esta permanente não pode ser alvo de mágicas ou habilidades que seus oponentes controlam.', category: 'combat', reminder: 'Hexproof' },
+    { name: 'Ímpeto', description: 'Esta criatura pode atacar e usar habilidades de virar assim que entra sob seu controle.', category: 'combat', reminder: 'Haste' },
+    { name: 'Defensor', description: 'Esta criatura não pode atacar.', category: 'combat', reminder: 'Defender' },
+
+    // Mana Keywords
+    { name: 'Florescer', description: 'Se você gastou mana de cores diferentes para conjurar esta mágica, ela ganha efeitos adicionais.', category: 'mana', reminder: 'Converge' },
+    { name: 'Devoção', description: 'Conta símbolos de mana de uma cor específica no custo de mana de permanentes que você controla.', category: 'mana', reminder: 'Devotion' },
+    { name: 'Affinity', description: 'Esta mágica custa menos para conjurar para cada permanente do tipo especificado.', category: 'mana', reminder: 'Affinity' },
+    { name: 'Convocação', description: 'Suas criaturas podem ajudar a conjurar esta mágica. Cada criatura virada paga 1 ou mana de sua cor.', category: 'mana', reminder: 'Convoke' },
+    { name: 'Delve', description: 'Cada card exilado do seu cemitério paga 1 mana genérico.', category: 'mana', reminder: 'Delve' },
+    { name: 'Improvise', description: 'Seus artefatos podem ajudar a conjurar esta mágica. Cada artefato virado paga 1 mana genérico.', category: 'mana', reminder: 'Improvise' },
+
+    // Abilities Keywords
+    { name: 'Lampejo', description: 'Você pode conjurar esta mágica a qualquer momento que poderia conjurar um instantâneo.', category: 'abilities', reminder: 'Flash' },
+    { name: 'Retornar', description: 'Você pode conjurar este card do seu cemitério pelo custo de retornar.', category: 'abilities', reminder: 'Flashback' },
+    { name: 'Cascata', description: 'Quando você conjura esta mágica, exile cards até exilar um não-terreno com custo menor, e conjure-o sem pagar seu custo.', category: 'abilities', reminder: 'Cascade' },
+    { name: 'Tempestade', description: 'Quando você conjura esta mágica, copie-a para cada mágica conjurada antes dela neste turno.', category: 'abilities', reminder: 'Storm' },
+    { name: 'Kicker', description: 'Você pode pagar um custo adicional ao conjurar esta mágica para efeitos extras.', category: 'abilities', reminder: 'Kicker' },
+    { name: 'Replicar', description: 'Quando conjurar, você pode pagar o custo de replicar várias vezes e copiar a mágica.', category: 'abilities', reminder: 'Replicate' },
+    { name: 'Transmutar', description: 'Pague o custo, descarte este card: Busque um card com o mesmo custo de mana.', category: 'abilities', reminder: 'Transmute' },
+    { name: 'Embalsamar', description: 'Exile este card do seu cemitério: Crie uma cópia token dele, exceto que é um Zumbi branco.', category: 'abilities', reminder: 'Embalm' },
+    { name: 'Eternizar', description: 'Exile este card do seu cemitério: Crie uma cópia token 4/4 preta Zumbi dele.', category: 'abilities', reminder: 'Eternalize' },
+    { name: 'Escape', description: 'Você pode conjurar este card do seu cemitério pelo custo de escape.', category: 'abilities', reminder: 'Escape' },
+    { name: 'Transformar', description: 'Este card tem duas faces e pode se transformar na outra face.', category: 'abilities', reminder: 'Transform' },
+    { name: 'Ward', description: 'Sempre que esta permanente se tornar alvo, o oponente deve pagar um custo ou a habilidade é anulada.', category: 'abilities', reminder: 'Ward' },
+
+    // Counter Keywords
+    { name: 'Infeccionar', description: 'Esta criatura causa dano a jogadores na forma de contadores de veneno e a criaturas na forma de contadores -1/-1.', category: 'counters', reminder: 'Infect' },
+    { name: 'Veneno', description: 'Dano causado a jogadores resulta em contadores de veneno. 10 contadores de veneno = derrota.', category: 'counters', reminder: 'Poison' },
+    { name: 'Murchar', description: 'Esta criatura causa dano a criaturas na forma de contadores -1/-1.', category: 'counters', reminder: 'Wither' },
+    { name: 'Modular', description: 'Esta criatura entra com contadores +1/+1. Quando morre, você pode mover esses contadores.', category: 'counters', reminder: 'Modular' },
+    { name: 'Persistir', description: 'Quando esta criatura morre, se não tinha contadores -1/-1, retorne-a com um contador -1/-1.', category: 'counters', reminder: 'Persist' },
+    { name: 'Inextinguível', description: 'Quando esta criatura morre, se tinha contadores +1/+1, retorne-a com um contador +1/+1 a menos.', category: 'counters', reminder: 'Undying' },
+    { name: 'Energia', description: 'Contadores de energia são um recurso do jogador usados para pagar custos.', category: 'counters', reminder: 'Energy' },
+    { name: 'Experiência', description: 'Contadores de experiência no jogador, frequentemente usados por comandantes.', category: 'counters', reminder: 'Experience' },
+
+    // Other/General
+    { name: 'Lendário', description: 'Você só pode controlar uma permanente lendária com o mesmo nome.', category: 'other', reminder: 'Legendary' },
+    { name: 'Dano de Comandante', description: 'Dano de combate causado por um comandante é rastreado separadamente. 21 dano de um comandante = derrota.', category: 'other', reminder: 'Commander Damage' },
+    { name: 'Commander Tax', description: 'Cada vez que você conjura seu comandante da zona de comando, custa 2 mana a mais.', category: 'other', reminder: 'Commander Tax' },
+    { name: 'Parceiro', description: 'Você pode ter dois comandantes se ambos tiverem parceiro.', category: 'other', reminder: 'Partner' },
+    { name: 'Monarch', description: 'O monarca compra um card extra no fim do turno. Dano de combate rouba a coroa.', category: 'other', reminder: 'Monarch' },
+    { name: 'Annihilator', description: 'Sempre que esta criatura ataca, o defensor sacrifica permanentes.', category: 'other', reminder: 'Annihilator' },
+    { name: 'Affinidade', description: 'Custa menos mana para conjurar baseado em permanentes que você controla.', category: 'other', reminder: 'Affinity' },
+];

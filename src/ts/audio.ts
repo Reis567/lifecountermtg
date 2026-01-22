@@ -2,17 +2,24 @@
 
 import { gameState } from './state.js';
 
+type SoundPackType = 'default' | 'medieval' | 'scifi' | 'horror' | 'arcade';
+
 class AudioManager {
     private sounds: Map<string, HTMLAudioElement>;
     private customSounds: Map<string, string>; // Base64 encoded audio
     private audioContext: AudioContext | null = null;
     private lastPlayTime: Map<string, number> = new Map();
     private readonly MIN_PLAY_INTERVAL = 50; // Minimum ms between same sound
+    private soundPack: SoundPackType = 'default';
 
     constructor() {
         this.sounds = new Map();
         this.customSounds = new Map();
         this.loadCustomSounds();
+    }
+
+    setSoundPack(pack: SoundPackType): void {
+        this.soundPack = pack;
     }
 
     // Get or create audio context (reuse single instance)
@@ -105,6 +112,39 @@ class AudioManager {
         }
     }
 
+    // Get sound parameters based on pack
+    private getSoundConfig(soundName: string): { freq: number; type: OscillatorType; duration: number; freqEnd?: number } {
+        const packConfigs: Record<SoundPackType, Record<string, { freq: number; type: OscillatorType; duration: number; freqEnd?: number }>> = {
+            default: {
+                damage: { freq: 200, type: 'sawtooth', duration: 0.1 },
+                heal: { freq: 440, type: 'sine', duration: 0.2, freqEnd: 880 },
+                click: { freq: 1000, type: 'sine', duration: 0.05 },
+            },
+            medieval: {
+                damage: { freq: 150, type: 'square', duration: 0.15 },
+                heal: { freq: 330, type: 'triangle', duration: 0.25, freqEnd: 660 },
+                click: { freq: 800, type: 'triangle', duration: 0.08 },
+            },
+            scifi: {
+                damage: { freq: 100, type: 'sawtooth', duration: 0.15, freqEnd: 400 },
+                heal: { freq: 600, type: 'sine', duration: 0.2, freqEnd: 1200 },
+                click: { freq: 2000, type: 'square', duration: 0.03 },
+            },
+            horror: {
+                damage: { freq: 80, type: 'sawtooth', duration: 0.2 },
+                heal: { freq: 200, type: 'triangle', duration: 0.3, freqEnd: 400 },
+                click: { freq: 300, type: 'square', duration: 0.1 },
+            },
+            arcade: {
+                damage: { freq: 300, type: 'square', duration: 0.08 },
+                heal: { freq: 523, type: 'square', duration: 0.15, freqEnd: 784 },
+                click: { freq: 1500, type: 'square', duration: 0.02 },
+            },
+        };
+
+        return packConfigs[this.soundPack]?.[soundName] || packConfigs.default[soundName] || { freq: 440, type: 'sine', duration: 0.1 };
+    }
+
     // Play default built-in sound
     private playDefaultSound(soundName: string, volume: number): void {
         // Get shared audio context
@@ -120,22 +160,27 @@ class AudioManager {
 
             gainNode.gain.value = volume * 0.3;
 
+            // Use pack-specific config for basic sounds
+            const config = this.getSoundConfig(soundName);
+
             switch (soundName) {
                 case 'damage':
-                    oscillator.frequency.value = 200;
-                    oscillator.type = 'sawtooth';
-                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                    oscillator.frequency.value = config.freq;
+                    oscillator.type = config.type;
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + config.duration);
                     oscillator.start();
-                    oscillator.stop(audioContext.currentTime + 0.1);
+                    oscillator.stop(audioContext.currentTime + config.duration);
                     break;
 
                 case 'heal':
-                    oscillator.frequency.value = 440;
-                    oscillator.type = 'sine';
-                    oscillator.frequency.exponentialRampToValueAtTime(880, audioContext.currentTime + 0.15);
-                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                    oscillator.frequency.value = config.freq;
+                    oscillator.type = config.type;
+                    if (config.freqEnd) {
+                        oscillator.frequency.exponentialRampToValueAtTime(config.freqEnd, audioContext.currentTime + config.duration * 0.75);
+                    }
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + config.duration);
                     oscillator.start();
-                    oscillator.stop(audioContext.currentTime + 0.2);
+                    oscillator.stop(audioContext.currentTime + config.duration);
                     break;
 
                 case 'death':
@@ -190,6 +235,79 @@ class AudioManager {
                     oscillator.stop(audioContext.currentTime + 0.1);
                     break;
 
+                case 'commander_damage':
+                    // Heavy impact sound - deep and powerful
+                    oscillator.frequency.value = 150;
+                    oscillator.type = 'sawtooth';
+                    gainNode.gain.value = volume * 0.4;
+                    oscillator.frequency.exponentialRampToValueAtTime(80, audioContext.currentTime + 0.2);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.25);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.25);
+                    break;
+
+                case 'poison':
+                    // Sinister bubbling sound
+                    oscillator.frequency.value = 300;
+                    oscillator.type = 'triangle';
+                    gainNode.gain.value = volume * 0.25;
+                    // Create wobble effect
+                    const lfo = audioContext.createOscillator();
+                    const lfoGain = audioContext.createGain();
+                    lfo.frequency.value = 15;
+                    lfoGain.gain.value = 50;
+                    lfo.connect(lfoGain);
+                    lfoGain.connect(oscillator.frequency);
+                    lfo.start();
+                    lfo.stop(audioContext.currentTime + 0.3);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.3);
+                    break;
+
+                case 'energy':
+                    // Electric zap sound
+                    oscillator.frequency.value = 880;
+                    oscillator.type = 'square';
+                    gainNode.gain.value = volume * 0.2;
+                    oscillator.frequency.exponentialRampToValueAtTime(440, audioContext.currentTime + 0.1);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.15);
+                    break;
+
+                case 'experience':
+                    // Magical chime - ascending
+                    oscillator.frequency.value = 660;
+                    oscillator.type = 'sine';
+                    gainNode.gain.value = volume * 0.25;
+                    oscillator.frequency.exponentialRampToValueAtTime(990, audioContext.currentTime + 0.2);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.25);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.25);
+                    break;
+
+                case 'monarch':
+                    // Royal fanfare - two notes
+                    oscillator.frequency.value = 523.25; // C5
+                    oscillator.type = 'sine';
+                    gainNode.gain.value = volume * 0.3;
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.15);
+                    // Second note
+                    const osc2 = audioContext.createOscillator();
+                    const gain2 = audioContext.createGain();
+                    osc2.connect(gain2);
+                    gain2.connect(audioContext.destination);
+                    osc2.frequency.value = 783.99; // G5
+                    osc2.type = 'sine';
+                    gain2.gain.value = volume * 0.3;
+                    gain2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.45);
+                    osc2.start(audioContext.currentTime + 0.15);
+                    osc2.stop(audioContext.currentTime + 0.3);
+                    break;
+
                 default:
                     oscillator.frequency.value = 440;
                     oscillator.type = 'sine';
@@ -232,3 +350,334 @@ class AudioManager {
 
 // Export singleton instance
 export const audioManager = new AudioManager();
+
+// ===== Ambient Music Manager =====
+
+type AmbientTrack = 'none' | 'epic' | 'dark' | 'nature' | 'mystical';
+
+class AmbientMusicManager {
+    private audioContext: AudioContext | null = null;
+    private masterGain: GainNode | null = null;
+    private oscillators: OscillatorNode[] = [];
+    private gains: GainNode[] = [];
+    private isPlaying: boolean = false;
+    private currentTrack: AmbientTrack = 'none';
+    private volume: number = 0.3;
+
+    private getAudioContext(): AudioContext | null {
+        if (!this.audioContext) {
+            try {
+                this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+            } catch (e) {
+                console.warn('Failed to create AudioContext for ambient music:', e);
+                return null;
+            }
+        }
+        if (this.audioContext.state === 'suspended') {
+            this.audioContext.resume();
+        }
+        return this.audioContext;
+    }
+
+    setVolume(volume: number): void {
+        this.volume = volume / 100;
+        if (this.masterGain) {
+            this.masterGain.gain.value = this.volume * 0.15; // Keep ambient quiet
+        }
+    }
+
+    setTrack(track: AmbientTrack): void {
+        if (track === this.currentTrack) return;
+        this.stop();
+        this.currentTrack = track;
+        if (track !== 'none' && this.isPlaying) {
+            this.play();
+        }
+    }
+
+    play(): void {
+        if (this.currentTrack === 'none') return;
+        this.isPlaying = true;
+
+        const ctx = this.getAudioContext();
+        if (!ctx) return;
+
+        this.stop(); // Clean up any existing
+
+        this.masterGain = ctx.createGain();
+        this.masterGain.gain.value = this.volume * 0.15;
+        this.masterGain.connect(ctx.destination);
+
+        switch (this.currentTrack) {
+            case 'epic':
+                this.playEpicTrack(ctx);
+                break;
+            case 'dark':
+                this.playDarkTrack(ctx);
+                break;
+            case 'nature':
+                this.playNatureTrack(ctx);
+                break;
+            case 'mystical':
+                this.playMysticalTrack(ctx);
+                break;
+        }
+    }
+
+    private playEpicTrack(ctx: AudioContext): void {
+        // Low drone with subtle rhythm
+        const drone = ctx.createOscillator();
+        const droneGain = ctx.createGain();
+        drone.type = 'sawtooth';
+        drone.frequency.value = 55; // A1
+        droneGain.gain.value = 0.3;
+        drone.connect(droneGain);
+        droneGain.connect(this.masterGain!);
+        drone.start();
+        this.oscillators.push(drone);
+        this.gains.push(droneGain);
+
+        // Fifth harmony
+        const fifth = ctx.createOscillator();
+        const fifthGain = ctx.createGain();
+        fifth.type = 'sine';
+        fifth.frequency.value = 82.4; // E2
+        fifthGain.gain.value = 0.2;
+        fifth.connect(fifthGain);
+        fifthGain.connect(this.masterGain!);
+        fifth.start();
+        this.oscillators.push(fifth);
+        this.gains.push(fifthGain);
+
+        // LFO for movement
+        const lfo = ctx.createOscillator();
+        const lfoGain = ctx.createGain();
+        lfo.frequency.value = 0.1;
+        lfoGain.gain.value = 5;
+        lfo.connect(lfoGain);
+        lfoGain.connect(drone.frequency);
+        lfo.start();
+        this.oscillators.push(lfo);
+    }
+
+    private playDarkTrack(ctx: AudioContext): void {
+        // Deep bass drone
+        const bass = ctx.createOscillator();
+        const bassGain = ctx.createGain();
+        bass.type = 'sine';
+        bass.frequency.value = 36.7; // D1
+        bassGain.gain.value = 0.4;
+        bass.connect(bassGain);
+        bassGain.connect(this.masterGain!);
+        bass.start();
+        this.oscillators.push(bass);
+        this.gains.push(bassGain);
+
+        // Dissonant overtone
+        const dissonant = ctx.createOscillator();
+        const disGain = ctx.createGain();
+        dissonant.type = 'triangle';
+        dissonant.frequency.value = 38.9; // Slightly detuned
+        disGain.gain.value = 0.15;
+        dissonant.connect(disGain);
+        disGain.connect(this.masterGain!);
+        dissonant.start();
+        this.oscillators.push(dissonant);
+        this.gains.push(disGain);
+
+        // Slow LFO for unsettling effect
+        const lfo = ctx.createOscillator();
+        const lfoGain = ctx.createGain();
+        lfo.frequency.value = 0.05;
+        lfoGain.gain.value = 3;
+        lfo.connect(lfoGain);
+        lfoGain.connect(bass.frequency);
+        lfo.start();
+        this.oscillators.push(lfo);
+    }
+
+    private playNatureTrack(ctx: AudioContext): void {
+        // White noise for wind/water
+        const bufferSize = 2 * ctx.sampleRate;
+        const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            output[i] = Math.random() * 2 - 1;
+        }
+
+        const noise = ctx.createBufferSource();
+        noise.buffer = noiseBuffer;
+        noise.loop = true;
+
+        const noiseFilter = ctx.createBiquadFilter();
+        noiseFilter.type = 'lowpass';
+        noiseFilter.frequency.value = 400;
+
+        const noiseGain = ctx.createGain();
+        noiseGain.gain.value = 0.2;
+
+        noise.connect(noiseFilter);
+        noiseFilter.connect(noiseGain);
+        noiseGain.connect(this.masterGain!);
+        noise.start();
+
+        // Gentle pad
+        const pad = ctx.createOscillator();
+        const padGain = ctx.createGain();
+        pad.type = 'sine';
+        pad.frequency.value = 220; // A3
+        padGain.gain.value = 0.1;
+        pad.connect(padGain);
+        padGain.connect(this.masterGain!);
+        pad.start();
+        this.oscillators.push(pad);
+        this.gains.push(padGain);
+    }
+
+    private playMysticalTrack(ctx: AudioContext): void {
+        // Ethereal pads
+        const notes = [261.6, 329.6, 392]; // C4, E4, G4
+        notes.forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            gain.gain.value = 0.15;
+            osc.connect(gain);
+            gain.connect(this.masterGain!);
+            osc.start();
+            this.oscillators.push(osc);
+            this.gains.push(gain);
+
+            // Slow detune for shimmer
+            const lfo = ctx.createOscillator();
+            const lfoGain = ctx.createGain();
+            lfo.frequency.value = 0.2 + i * 0.1;
+            lfoGain.gain.value = 2;
+            lfo.connect(lfoGain);
+            lfoGain.connect(osc.frequency);
+            lfo.start();
+            this.oscillators.push(lfo);
+        });
+    }
+
+    stop(): void {
+        this.oscillators.forEach(osc => {
+            try { osc.stop(); } catch (e) {}
+        });
+        this.oscillators = [];
+        this.gains = [];
+        if (this.masterGain) {
+            this.masterGain.disconnect();
+            this.masterGain = null;
+        }
+    }
+
+    toggle(enabled: boolean): void {
+        this.isPlaying = enabled;
+        if (enabled && this.currentTrack !== 'none') {
+            this.play();
+        } else {
+            this.stop();
+        }
+    }
+}
+
+export const ambientMusic = new AmbientMusicManager();
+
+// ===== Event Narrator =====
+
+class EventNarrator {
+    private enabled: boolean = false;
+    private speed: number = 1;
+    private synthesis: SpeechSynthesis | null = null;
+    private voice: SpeechSynthesisVoice | null = null;
+
+    constructor() {
+        if ('speechSynthesis' in window) {
+            this.synthesis = window.speechSynthesis;
+            // Load voices when ready
+            if (this.synthesis.onvoiceschanged !== undefined) {
+                this.synthesis.onvoiceschanged = () => this.loadVoice();
+            }
+            setTimeout(() => this.loadVoice(), 100);
+        }
+    }
+
+    private loadVoice(): void {
+        if (!this.synthesis) return;
+        const voices = this.synthesis.getVoices();
+        // Try to find a Portuguese voice
+        this.voice = voices.find(v => v.lang.startsWith('pt')) ||
+                     voices.find(v => v.lang.startsWith('en')) ||
+                     voices[0] || null;
+    }
+
+    setEnabled(enabled: boolean): void {
+        this.enabled = enabled;
+    }
+
+    setSpeed(speed: number): void {
+        this.speed = speed;
+    }
+
+    speak(text: string): void {
+        if (!this.enabled || !this.synthesis) return;
+
+        // Cancel any ongoing speech
+        this.synthesis.cancel();
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        if (this.voice) {
+            utterance.voice = this.voice;
+        }
+        utterance.rate = this.speed;
+        utterance.pitch = 1;
+        utterance.volume = 0.8;
+
+        this.synthesis.speak(utterance);
+    }
+
+    // Announce game events
+    announceLifeChange(playerName: string, amount: number, newLife: number): void {
+        if (amount > 0) {
+            this.speak(`${playerName} ganha ${amount} de vida. Agora tem ${newLife}.`);
+        } else {
+            this.speak(`${playerName} perde ${Math.abs(amount)} de vida. Agora tem ${newLife}.`);
+        }
+    }
+
+    announceElimination(playerName: string): void {
+        this.speak(`${playerName} foi eliminado!`);
+    }
+
+    announceWinner(playerName: string): void {
+        this.speak(`${playerName} venceu a partida! Parabéns!`);
+    }
+
+    announceTurnChange(playerName: string, turnNumber: number): void {
+        this.speak(`Turno ${turnNumber}. Vez de ${playerName}.`);
+    }
+
+    announceMonarch(playerName: string): void {
+        this.speak(`${playerName} é agora o Monarca!`);
+    }
+
+    announceRandomStarter(playerName: string): void {
+        this.speak(`${playerName} começa a partida!`);
+    }
+
+    announceCommanderDamage(targetName: string, sourceName: string, damage: number): void {
+        this.speak(`${targetName} recebe ${damage} de dano de comandante de ${sourceName}.`);
+    }
+
+    announcePoisonDanger(playerName: string, counters: number): void {
+        if (counters >= 10) {
+            this.speak(`${playerName} foi envenenado até a morte!`);
+        } else if (counters >= 7) {
+            this.speak(`${playerName} está com ${counters} marcadores de veneno. Cuidado!`);
+        }
+    }
+}
+
+export const narrator = new EventNarrator();

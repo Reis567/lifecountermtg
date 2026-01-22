@@ -60,6 +60,15 @@
                         <button class="theme-btn" data-theme="casual">Casual</button>
                         <button class="theme-btn active" data-theme="dark">Dark</button>
                         <button class="theme-btn" data-theme="streamer">Streamer</button>
+                        <button class="theme-btn" data-theme="high-contrast">Alto Contraste</button>
+                    </div>
+                    <div class="theme-selector mana-themes">
+                        <span class="theme-label">Mana:</span>
+                        <button class="theme-btn mana-btn" data-theme="mana-white" title="Branco">⚪</button>
+                        <button class="theme-btn mana-btn" data-theme="mana-blue" title="Azul">🔵</button>
+                        <button class="theme-btn mana-btn" data-theme="mana-black" title="Preto">⚫</button>
+                        <button class="theme-btn mana-btn" data-theme="mana-red" title="Vermelho">🔴</button>
+                        <button class="theme-btn mana-btn" data-theme="mana-green" title="Verde">🟢</button>
                     </div>
                 </div>
 
@@ -79,6 +88,9 @@
 
         <!-- Game Screen -->
         <div id="game-screen" class="screen">
+            <!-- Animated Background -->
+            <canvas id="animated-bg-canvas" class="animated-bg-canvas"></canvas>
+
             <div id="game-header" class="game-header">
                 <button id="menu-btn" class="header-btn" title="Menu">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -141,6 +153,15 @@
                             <circle cx="19" cy="5" r="1" fill="currentColor"></circle>
                             <circle cx="5" cy="19" r="1" fill="currentColor"></circle>
                             <circle cx="19" cy="19" r="1" fill="currentColor"></circle>
+                        </svg>
+                    </button>
+                    <button id="share-result-btn" class="header-btn" title="Compartilhar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="18" cy="5" r="3"></circle>
+                            <circle cx="6" cy="12" r="3"></circle>
+                            <circle cx="18" cy="19" r="3"></circle>
+                            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
                         </svg>
                     </button>
                     <button id="next-turn-btn" class="header-btn" title="Proximo Turno">
@@ -234,7 +255,53 @@
                             <label>Volume</label>
                             <input type="range" id="volume-slider" min="0" max="100" value="50">
                         </div>
+                        <div class="setting-item">
+                            <label>Pack de Sons</label>
+                            <select id="sound-pack">
+                                <option value="default">Padrão</option>
+                                <option value="medieval">Medieval</option>
+                                <option value="scifi">Sci-Fi</option>
+                                <option value="horror">Horror</option>
+                                <option value="arcade">Arcade</option>
+                            </select>
+                        </div>
                         <button id="mute-all-btn" class="small-btn">Silenciar Tudo</button>
+                        <div class="setting-divider"></div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="ambient-music-enabled">
+                                Música Ambiente
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>Trilha</label>
+                            <select id="ambient-music-track">
+                                <option value="none">Nenhuma</option>
+                                <option value="epic">Épica</option>
+                                <option value="dark">Sombria</option>
+                                <option value="nature">Natureza</option>
+                                <option value="mystical">Mística</option>
+                            </select>
+                        </div>
+                        <div class="setting-item">
+                            <label>Volume da Música</label>
+                            <input type="range" id="music-volume-slider" min="0" max="100" value="30">
+                        </div>
+                        <div class="setting-divider"></div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="narrator-enabled">
+                                Narrador de Eventos
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>Velocidade</label>
+                            <select id="narrator-speed">
+                                <option value="0.7">Lenta</option>
+                                <option value="1" selected>Normal</option>
+                                <option value="1.3">Rápida</option>
+                            </select>
+                        </div>
                     </div>
 
                     <div class="settings-group">
@@ -264,6 +331,34 @@
                                 <input type="checkbox" id="easter-eggs-enabled" checked>
                                 Easter Eggs
                             </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="animated-bg-enabled">
+                                Background Animado
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>Estilo do Background</label>
+                            <select id="animated-bg-style">
+                                <option value="none">Nenhum</option>
+                                <option value="stars">Estrelas</option>
+                                <option value="mana">Partículas de Mana</option>
+                                <option value="sparks">Faíscas</option>
+                                <option value="bubbles">Bolhas</option>
+                                <option value="matrix">Matrix</option>
+                            </select>
+                        </div>
+                        <div class="setting-item">
+                            <label>Fonte</label>
+                            <select id="font-style">
+                                <option value="default">Padrão</option>
+                                <option value="beleren">Beleren (MTG)</option>
+                                <option value="pixel">Pixel</option>
+                                <option value="gothic">Gótica</option>
+                                <option value="elegant">Elegante</option>
+                                <option value="rounded">Arredondada</option>
+                            </select>
                         </div>
                     </div>
 
@@ -302,6 +397,14 @@
                             <button class="theme-btn-sm" data-theme="casual">Casual</button>
                             <button class="theme-btn-sm" data-theme="dark">Dark</button>
                             <button class="theme-btn-sm" data-theme="streamer">Streamer</button>
+                            <button class="theme-btn-sm" data-theme="high-contrast">Contraste</button>
+                        </div>
+                        <div class="theme-selector-settings mana-themes-sm">
+                            <button class="theme-btn-sm mana-btn" data-theme="mana-white" title="Branco">⚪</button>
+                            <button class="theme-btn-sm mana-btn" data-theme="mana-blue" title="Azul">🔵</button>
+                            <button class="theme-btn-sm mana-btn" data-theme="mana-black" title="Preto">⚫</button>
+                            <button class="theme-btn-sm mana-btn" data-theme="mana-red" title="Vermelho">🔴</button>
+                            <button class="theme-btn-sm mana-btn" data-theme="mana-green" title="Verde">🟢</button>
                         </div>
                     </div>
 
@@ -348,9 +451,15 @@
                         <h3>Modo de Jogo</h3>
                         <div class="game-mode-selector">
                             <button class="mode-btn active" data-mode="standard">Standard</button>
+                            <button class="mode-btn" data-mode="two-headed">Two-Headed Giant</button>
                             <button class="mode-btn" data-mode="planechase">Planechase</button>
                             <button class="mode-btn" data-mode="archenemy">Archenemy</button>
                         </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3>Ferramentas</h3>
+                        <button id="rules-keywords-btn" class="tool-btn">📖 Regras & Keywords</button>
                     </div>
 
                     <hr>
@@ -420,6 +529,36 @@
                         <div id="custom-color-preview" class="custom-color-preview" style="display:none">
                             <div class="color-preview-swatch" id="color-preview-swatch"></div>
                             <span id="color-preview-hex">#6366f1</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Estilo da Borda</label>
+                        <div class="border-style-picker">
+                            <button class="border-style-option" data-border="default" title="Padrão">
+                                <div class="border-preview default"></div>
+                                <span>Padrão</span>
+                            </button>
+                            <button class="border-style-option" data-border="foil" title="Foil">
+                                <div class="border-preview foil"></div>
+                                <span>Foil</span>
+                            </button>
+                            <button class="border-style-option" data-border="borderless" title="Sem borda">
+                                <div class="border-preview borderless"></div>
+                                <span>Borderless</span>
+                            </button>
+                            <button class="border-style-option" data-border="extended" title="Extended Art">
+                                <div class="border-preview extended"></div>
+                                <span>Extended</span>
+                            </button>
+                            <button class="border-style-option" data-border="etched" title="Etched">
+                                <div class="border-preview etched"></div>
+                                <span>Etched</span>
+                            </button>
+                            <button class="border-style-option" data-border="showcase" title="Showcase">
+                                <div class="border-preview showcase"></div>
+                                <span>Showcase</span>
+                            </button>
                         </div>
                     </div>
 
@@ -636,6 +775,54 @@
                     <span class="dice-history-label">Últimos:</span>
                     <div id="dice-history-list" class="dice-history-list"></div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Rules & Keywords Modal -->
+        <div id="rules-modal" class="modal">
+            <div class="modal-content rules-modal-content">
+                <div class="modal-header">
+                    <h2>📖 Regras & Keywords</h2>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div class="rules-search">
+                    <input type="text" id="rules-search-input" placeholder="Buscar keyword..." autocomplete="off">
+                </div>
+                <div class="rules-categories">
+                    <button class="rules-cat-btn active" data-category="all">Todas</button>
+                    <button class="rules-cat-btn" data-category="combat">Combate</button>
+                    <button class="rules-cat-btn" data-category="mana">Mana</button>
+                    <button class="rules-cat-btn" data-category="abilities">Habilidades</button>
+                    <button class="rules-cat-btn" data-category="counters">Contadores</button>
+                </div>
+                <div id="rules-list" class="rules-list">
+                    <!-- Keywords will be injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Share Result Modal -->
+        <div id="share-modal" class="modal">
+            <div class="modal-content share-modal-content">
+                <div class="modal-header">
+                    <h2>📤 Compartilhar Resultado</h2>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div class="share-preview-container">
+                    <canvas id="share-canvas" width="600" height="400"></canvas>
+                </div>
+                <div class="share-actions">
+                    <button id="share-download-btn" class="action-btn">
+                        <span>💾</span> Salvar Imagem
+                    </button>
+                    <button id="share-native-btn" class="action-btn primary">
+                        <span>📤</span> Compartilhar
+                    </button>
+                    <button id="share-copy-btn" class="action-btn">
+                        <span>📋</span> Copiar
+                    </button>
+                </div>
+                <p class="share-hint">Salve ou compartilhe o resultado da partida!</p>
             </div>
         </div>
 

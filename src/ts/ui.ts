@@ -1,7 +1,7 @@
 // ===== UI Management =====
 
 import { gameState } from './state.js';
-import { audioManager } from './audio.js';
+import { audioManager, ambientMusic, narrator } from './audio.js';
 import {
     GameState,
     Player,
@@ -14,9 +14,261 @@ import {
     EASTER_EGG_MESSAGES,
     SPECIAL_MOMENTS,
     TAUNT_PHRASES,
+    MTG_KEYWORDS,
+    MTGKeyword,
     ThemePreset,
     RandomAnimationType,
+    AnimatedBgStyle,
+    CardBorderStyle,
+    FontStyle,
+    AmbientMusicTrack,
+    SoundPack,
 } from './types.js';
+
+// ===== Animated Background System =====
+
+interface BgParticle {
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    size: number;
+    color: string;
+    alpha: number;
+    char?: string; // For matrix style
+}
+
+class AnimatedBackground {
+    private canvas: HTMLCanvasElement | null = null;
+    private ctx: CanvasRenderingContext2D | null = null;
+    private particles: BgParticle[] = [];
+    private animationId: number | null = null;
+    private style: AnimatedBgStyle = 'none';
+    private enabled: boolean = false;
+
+    init(): void {
+        this.canvas = document.getElementById('animated-bg-canvas') as HTMLCanvasElement;
+        if (!this.canvas) return;
+        this.ctx = this.canvas.getContext('2d');
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+    }
+
+    private resize(): void {
+        if (!this.canvas) return;
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+    }
+
+    setStyle(style: AnimatedBgStyle): void {
+        this.style = style;
+        this.particles = [];
+        if (style !== 'none' && this.enabled) {
+            this.createParticles();
+        }
+    }
+
+    setEnabled(enabled: boolean): void {
+        this.enabled = enabled;
+        if (this.canvas) {
+            this.canvas.classList.toggle('hidden', !enabled || this.style === 'none');
+        }
+        if (enabled && this.style !== 'none') {
+            this.createParticles();
+            this.start();
+        } else {
+            this.stop();
+        }
+    }
+
+    private createParticles(): void {
+        if (!this.canvas) return;
+        this.particles = [];
+        const count = this.getParticleCount();
+
+        for (let i = 0; i < count; i++) {
+            this.particles.push(this.createParticle());
+        }
+    }
+
+    private getParticleCount(): number {
+        const baseCount = Math.floor((window.innerWidth * window.innerHeight) / 15000);
+        switch (this.style) {
+            case 'stars': return Math.min(baseCount * 2, 200);
+            case 'mana': return Math.min(baseCount, 60);
+            case 'sparks': return Math.min(baseCount * 1.5, 100);
+            case 'bubbles': return Math.min(baseCount, 50);
+            case 'matrix': return Math.min(baseCount * 3, 300);
+            default: return 0;
+        }
+    }
+
+    private createParticle(): BgParticle {
+        const w = this.canvas?.width || window.innerWidth;
+        const h = this.canvas?.height || window.innerHeight;
+
+        switch (this.style) {
+            case 'stars':
+                return {
+                    x: Math.random() * w,
+                    y: Math.random() * h,
+                    vx: (Math.random() - 0.5) * 0.3,
+                    vy: (Math.random() - 0.5) * 0.3,
+                    size: Math.random() * 2 + 1,
+                    color: `hsl(${Math.random() * 60 + 200}, 80%, 70%)`,
+                    alpha: Math.random() * 0.5 + 0.5,
+                };
+            case 'mana':
+                const manaColors = ['#f9e076', '#0ea5e9', '#a855f7', '#ef4444', '#22c55e'];
+                return {
+                    x: Math.random() * w,
+                    y: Math.random() * h,
+                    vx: (Math.random() - 0.5) * 0.8,
+                    vy: -Math.random() * 0.5 - 0.2,
+                    size: Math.random() * 6 + 3,
+                    color: manaColors[Math.floor(Math.random() * manaColors.length)],
+                    alpha: Math.random() * 0.6 + 0.3,
+                };
+            case 'sparks':
+                return {
+                    x: Math.random() * w,
+                    y: h + 10,
+                    vx: (Math.random() - 0.5) * 2,
+                    vy: -Math.random() * 3 - 1,
+                    size: Math.random() * 3 + 1,
+                    color: `hsl(${Math.random() * 60 + 15}, 100%, 60%)`,
+                    alpha: 1,
+                };
+            case 'bubbles':
+                return {
+                    x: Math.random() * w,
+                    y: h + Math.random() * 50,
+                    vx: (Math.random() - 0.5) * 0.5,
+                    vy: -Math.random() * 1 - 0.5,
+                    size: Math.random() * 20 + 10,
+                    color: `hsl(${Math.random() * 60 + 180}, 70%, 70%)`,
+                    alpha: Math.random() * 0.3 + 0.1,
+                };
+            case 'matrix':
+                return {
+                    x: Math.random() * w,
+                    y: Math.random() * -h,
+                    vx: 0,
+                    vy: Math.random() * 3 + 1,
+                    size: Math.random() * 8 + 10,
+                    color: '#22c55e',
+                    alpha: Math.random() * 0.7 + 0.3,
+                    char: String.fromCharCode(0x30A0 + Math.random() * 96),
+                };
+            default:
+                return { x: 0, y: 0, vx: 0, vy: 0, size: 0, color: '#fff', alpha: 0 };
+        }
+    }
+
+    private update(): void {
+        if (!this.canvas) return;
+        const w = this.canvas.width;
+        const h = this.canvas.height;
+
+        this.particles.forEach((p, i) => {
+            p.x += p.vx;
+            p.y += p.vy;
+
+            // Style-specific updates
+            switch (this.style) {
+                case 'stars':
+                    p.alpha = 0.3 + Math.sin(Date.now() / 1000 + i) * 0.3;
+                    if (p.x < 0) p.x = w;
+                    if (p.x > w) p.x = 0;
+                    if (p.y < 0) p.y = h;
+                    if (p.y > h) p.y = 0;
+                    break;
+                case 'mana':
+                    p.alpha -= 0.003;
+                    if (p.y < 0 || p.alpha <= 0) {
+                        Object.assign(p, this.createParticle());
+                        p.y = h + 10;
+                    }
+                    break;
+                case 'sparks':
+                    p.vy += 0.02; // gravity
+                    p.alpha -= 0.01;
+                    if (p.alpha <= 0 || p.y > h) {
+                        Object.assign(p, this.createParticle());
+                    }
+                    break;
+                case 'bubbles':
+                    p.vx = Math.sin(Date.now() / 2000 + i) * 0.3;
+                    if (p.y < -p.size) {
+                        Object.assign(p, this.createParticle());
+                    }
+                    break;
+                case 'matrix':
+                    if (p.y > h) {
+                        p.y = -20;
+                        p.x = Math.random() * w;
+                        p.char = String.fromCharCode(0x30A0 + Math.random() * 96);
+                    }
+                    if (Math.random() < 0.05) {
+                        p.char = String.fromCharCode(0x30A0 + Math.random() * 96);
+                    }
+                    break;
+            }
+        });
+    }
+
+    private draw(): void {
+        if (!this.ctx || !this.canvas) return;
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        this.particles.forEach(p => {
+            this.ctx!.globalAlpha = p.alpha;
+
+            if (this.style === 'matrix') {
+                this.ctx!.fillStyle = p.color;
+                this.ctx!.font = `${p.size}px monospace`;
+                this.ctx!.fillText(p.char || '0', p.x, p.y);
+            } else if (this.style === 'bubbles') {
+                this.ctx!.beginPath();
+                this.ctx!.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                this.ctx!.strokeStyle = p.color;
+                this.ctx!.lineWidth = 2;
+                this.ctx!.stroke();
+            } else {
+                this.ctx!.fillStyle = p.color;
+                this.ctx!.beginPath();
+                this.ctx!.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                this.ctx!.fill();
+            }
+        });
+
+        this.ctx.globalAlpha = 1;
+    }
+
+    private animate = (): void => {
+        if (!this.enabled || this.style === 'none') return;
+        this.update();
+        this.draw();
+        this.animationId = requestAnimationFrame(this.animate);
+    };
+
+    start(): void {
+        if (this.animationId) return;
+        this.animate();
+    }
+
+    stop(): void {
+        if (this.animationId) {
+            cancelAnimationFrame(this.animationId);
+            this.animationId = null;
+        }
+        if (this.ctx && this.canvas) {
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        }
+    }
+}
+
+const animatedBg = new AnimatedBackground();
 
 // Current editing context
 let currentEditingPlayerId: string | null = null;
@@ -171,6 +423,27 @@ export function initUI(): void {
     // Apply initial theme
     applyTheme(gameState.getState().settings.theme);
     applyAnimationIntensity(gameState.getState().settings.animationIntensity);
+    applyFontStyle(gameState.getState().settings.fontStyle);
+
+    // Initialize animated background
+    animatedBg.init();
+    const state = gameState.getState();
+    animatedBg.setStyle(state.settings.animatedBgStyle);
+    animatedBg.setEnabled(state.settings.animatedBgEnabled);
+
+    // Initialize ambient music
+    ambientMusic.setVolume(state.settings.ambientMusicVolume);
+    ambientMusic.setTrack(state.settings.ambientMusicTrack);
+    if (state.settings.ambientMusicEnabled) {
+        ambientMusic.toggle(true);
+    }
+
+    // Initialize narrator
+    narrator.setEnabled(state.settings.narratorEnabled);
+    narrator.setSpeed(state.settings.narratorSpeed);
+
+    // Initialize sound pack
+    audioManager.setSoundPack(state.settings.soundPack);
 }
 
 // Get element safely
@@ -340,6 +613,14 @@ function setupGameScreenListeners(): void {
         openModal($('dice-roller-modal'));
     });
 
+    // Share result button
+    $('share-result-btn')?.addEventListener('click', openShareModal);
+
+    // Share modal buttons
+    $('share-download-btn')?.addEventListener('click', downloadImage);
+    $('share-native-btn')?.addEventListener('click', shareImage);
+    $('share-copy-btn')?.addEventListener('click', copyImageToClipboard);
+
     // Dice options
     document.querySelectorAll('.dice-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -399,6 +680,12 @@ function setupSettingsListeners(): void {
         gameState.updateSettings({ volume: parseInt((e.target as HTMLInputElement).value) });
     });
 
+    $('sound-pack')?.addEventListener('change', (e) => {
+        const pack = (e.target as HTMLSelectElement).value as SoundPack;
+        gameState.updateSettings({ soundPack: pack });
+        audioManager.setSoundPack(pack);
+    });
+
     $('mute-all-btn')?.addEventListener('click', () => {
         gameState.updateSettings({ soundEnabled: false });
         ($('sound-enabled') as HTMLInputElement).checked = false;
@@ -427,6 +714,64 @@ function setupSettingsListeners(): void {
 
     $('easter-eggs-enabled')?.addEventListener('change', (e) => {
         gameState.updateSettings({ easterEggsEnabled: (e.target as HTMLInputElement).checked });
+    });
+
+    // Animated background settings
+    $('animated-bg-enabled')?.addEventListener('change', (e) => {
+        const enabled = (e.target as HTMLInputElement).checked;
+        gameState.updateSettings({ animatedBgEnabled: enabled });
+        animatedBg.setEnabled(enabled);
+    });
+
+    $('animated-bg-style')?.addEventListener('change', (e) => {
+        const style = (e.target as HTMLSelectElement).value as AnimatedBgStyle;
+        gameState.updateSettings({ animatedBgStyle: style });
+        animatedBg.setStyle(style);
+        if (style !== 'none' && gameState.getState().settings.animatedBgEnabled) {
+            animatedBg.setEnabled(true);
+        }
+    });
+
+    // Font style
+    $('font-style')?.addEventListener('change', (e) => {
+        const fontStyle = (e.target as HTMLSelectElement).value as FontStyle;
+        gameState.updateSettings({ fontStyle });
+        applyFontStyle(fontStyle);
+    });
+
+    // Ambient music settings
+    $('ambient-music-enabled')?.addEventListener('change', (e) => {
+        const enabled = (e.target as HTMLInputElement).checked;
+        gameState.updateSettings({ ambientMusicEnabled: enabled });
+        ambientMusic.toggle(enabled);
+    });
+
+    $('ambient-music-track')?.addEventListener('change', (e) => {
+        const track = (e.target as HTMLSelectElement).value as AmbientMusicTrack;
+        gameState.updateSettings({ ambientMusicTrack: track });
+        ambientMusic.setTrack(track);
+        if (track !== 'none' && gameState.getState().settings.ambientMusicEnabled) {
+            ambientMusic.toggle(true);
+        }
+    });
+
+    $('music-volume-slider')?.addEventListener('input', (e) => {
+        const volume = parseInt((e.target as HTMLInputElement).value);
+        gameState.updateSettings({ ambientMusicVolume: volume });
+        ambientMusic.setVolume(volume);
+    });
+
+    // Narrator settings
+    $('narrator-enabled')?.addEventListener('change', (e) => {
+        const enabled = (e.target as HTMLInputElement).checked;
+        gameState.updateSettings({ narratorEnabled: enabled });
+        narrator.setEnabled(enabled);
+    });
+
+    $('narrator-speed')?.addEventListener('change', (e) => {
+        const speed = parseFloat((e.target as HTMLSelectElement).value);
+        gameState.updateSettings({ narratorSpeed: speed });
+        narrator.setSpeed(speed);
     });
 
     // GIF settings
@@ -471,11 +816,17 @@ function setupSettingsListeners(): void {
     // Game mode buttons
     document.querySelectorAll('.mode-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            const mode = btn.getAttribute('data-mode') as 'standard' | 'planechase' | 'archenemy';
+            const mode = btn.getAttribute('data-mode') as 'standard' | 'planechase' | 'archenemy' | 'two-headed';
             document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             gameState.setGameMode(mode);
         });
+    });
+
+    // Rules & Keywords button
+    $('rules-keywords-btn')?.addEventListener('click', () => {
+        closeModal($('settings-modal'));
+        openRulesModal();
     });
 
     // Reset and new game buttons
@@ -526,6 +877,14 @@ function setupPlayerSettingsListeners(): void {
             document.querySelectorAll('.tag-option').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
             ($('custom-tag-input') as HTMLInputElement).value = '';
+        });
+    });
+
+    // Border style options
+    document.querySelectorAll('.border-style-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.border-style-option').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
         });
     });
 
@@ -729,6 +1088,11 @@ function applyTheme(theme: ThemePreset): void {
 // Apply animation intensity
 function applyAnimationIntensity(intensity: 'subtle' | 'normal' | 'intense'): void {
     document.body.setAttribute('data-anim-intensity', intensity);
+}
+
+// Apply font style
+function applyFontStyle(fontStyle: FontStyle): void {
+    document.body.setAttribute('data-font', fontStyle);
 }
 
 // Render history panel
@@ -1008,6 +1372,10 @@ function renderPlayers(state: GameState): void {
         const isCriticalLife = player.life <= SPECIAL_MOMENTS.LOW_LIFE && player.life > 0;
         const hasLethalCommanderDamage = Object.values(player.commanderDamage).some(d => d >= COMMANDER_DAMAGE_LETHAL);
 
+        // Team info for Two-Headed Giant
+        const team = state.gameMode === 'two-headed' ? state.teams.find(t => t.playerIds.includes(player.id)) : null;
+        const teamIndex = team ? state.teams.indexOf(team) + 1 : 0;
+
         const classes = [
             'player-card',
             isActive ? 'active-turn' : '',
@@ -1017,6 +1385,8 @@ function renderPlayers(state: GameState): void {
             player.id === state.winner ? 'winner' : '',
             player.isMonarch ? 'is-monarch' : '',
             state.settings.gifPaused ? 'gif-paused' : '',
+            team ? `team-${teamIndex}` : '',
+            player.borderStyle !== 'default' ? `border-${player.borderStyle}` : '',
         ].filter(Boolean).join(' ');
 
         const rotation = layout.tableMode ? player.rotation : 0;
@@ -1048,6 +1418,7 @@ function renderPlayers(state: GameState): void {
                           `<div class="player-avatar" style="background: ${player.color}"></div>`}
                         <span class="player-name">${player.name}</span>
                         ${player.tag ? `<span class="player-tag">${player.tag}</span>` : ''}
+                        ${team ? `<span class="team-badge team-${teamIndex}">🤝 ${team.name}</span>` : ''}
                         ${player.isMonarch ? '<span class="player-emoji">👑</span>' : ''}
                     </div>
                     <div class="player-actions">
@@ -1149,7 +1520,11 @@ function renderPlayers(state: GameState): void {
             badge.addEventListener('click', (e) => {
                 e.stopPropagation();
                 gameState.changeCounter(badgePlayerId, counterType, 1);
-                audioManager.play('click');
+                // Play type-specific sound
+                const soundName = counterType === 'poison' ? 'poison' :
+                                  counterType === 'energy' ? 'energy' :
+                                  counterType === 'experience' ? 'experience' : 'click';
+                audioManager.play(soundName, badgePlayerId);
                 // Create particles based on counter type
                 const particleType = counterType === 'poison' ? 'poison' :
                                      counterType === 'energy' ? 'energy' :
@@ -1261,6 +1636,15 @@ function updateSettingsControls(state: GameState): void {
     ($('show-special-moments') as HTMLInputElement).checked = state.settings.showSpecialMoments;
     ($('show-commander-deaths') as HTMLInputElement).checked = state.settings.showCommanderDeaths;
     ($('easter-eggs-enabled') as HTMLInputElement).checked = state.settings.easterEggsEnabled;
+    ($('animated-bg-enabled') as HTMLInputElement).checked = state.settings.animatedBgEnabled;
+    ($('animated-bg-style') as HTMLSelectElement).value = state.settings.animatedBgStyle;
+    ($('font-style') as HTMLSelectElement).value = state.settings.fontStyle;
+    ($('ambient-music-enabled') as HTMLInputElement).checked = state.settings.ambientMusicEnabled;
+    ($('ambient-music-track') as HTMLSelectElement).value = state.settings.ambientMusicTrack;
+    ($('music-volume-slider') as HTMLInputElement).value = state.settings.ambientMusicVolume.toString();
+    ($('narrator-enabled') as HTMLInputElement).checked = state.settings.narratorEnabled;
+    ($('narrator-speed') as HTMLSelectElement).value = state.settings.narratorSpeed.toString();
+    ($('sound-pack') as HTMLSelectElement).value = state.settings.soundPack;
     ($('gif-paused') as HTMLInputElement).checked = state.settings.gifPaused;
     ($('gif-fps-reduced') as HTMLInputElement).checked = state.settings.gifFpsReduced;
     ($('turn-timer-enabled') as HTMLInputElement).checked = state.settings.turnTimerEnabled;
@@ -1642,7 +2026,7 @@ function renderCommanderDamageModal(state: GameState, playerId: string): void {
 
         item.querySelector('[data-action="increase"]')?.addEventListener('click', () => {
             gameState.addCommanderDamage(playerId, sourceId, 1);
-            audioManager.play('damage', playerId);
+            audioManager.play('commander_damage', playerId);
         });
     });
 }
@@ -1741,6 +2125,7 @@ function renderCountersModal(state: GameState, playerId: string): void {
                     gameState.removeMonarch();
                 } else {
                     gameState.setMonarch(playerId);
+                    audioManager.play('monarch', playerId);
                 }
             });
         } else if (item.classList.contains('custom')) {
@@ -1762,6 +2147,11 @@ function renderCountersModal(state: GameState, playerId: string): void {
                 });
                 item.querySelector('[data-action="increase"]')?.addEventListener('click', () => {
                     gameState.changeCounter(playerId, counterId as CounterType, 1);
+                    // Play type-specific sound
+                    const soundName = counterId === 'poison' ? 'poison' :
+                                      counterId === 'energy' ? 'energy' :
+                                      counterId === 'experience' ? 'experience' : 'click';
+                    audioManager.play(soundName, playerId);
                 });
             }
         }
@@ -1795,6 +2185,12 @@ function openPlayerSettings(playerId: string): void {
         btn.classList.toggle('selected', tag === (player.tag || ''));
     });
     ($('custom-tag-input') as HTMLInputElement).value = '';
+
+    // Select current border style
+    document.querySelectorAll('.border-style-option').forEach(btn => {
+        const border = btn.getAttribute('data-border');
+        btn.classList.toggle('selected', border === (player.borderStyle || 'default'));
+    });
 
     // Setup avatar preview
     const avatarPreview = $('avatar-preview') as HTMLImageElement;
@@ -1902,6 +2298,10 @@ function savePlayerSettings(): void {
         backgroundType = bgTypeBadge?.textContent?.toLowerCase() === 'gif' ? 'gif' : 'image';
     }
 
+    // Get selected border style
+    const selectedBorder = document.querySelector('.border-style-option.selected');
+    const borderStyle = (selectedBorder?.getAttribute('data-border') || 'default') as CardBorderStyle;
+
     gameState.updatePlayerSetup(currentEditingPlayerId, {
         name,
         color,
@@ -1910,6 +2310,7 @@ function savePlayerSettings(): void {
         avatar,
         background,
         backgroundType: backgroundType as 'none' | 'image' | 'gif',
+        borderStyle,
     });
 
     // Reset custom color state
@@ -2280,6 +2681,72 @@ function closeAllModals(): void {
     });
 }
 
+// ===== Rules & Keywords Modal =====
+
+let currentRulesCategory: string = 'all';
+let currentRulesSearch: string = '';
+
+function openRulesModal(): void {
+    openModal($('rules-modal'));
+    renderRulesKeywords();
+    setupRulesListeners();
+}
+
+function setupRulesListeners(): void {
+    // Search input
+    const searchInput = $('rules-search-input') as HTMLInputElement;
+    searchInput?.addEventListener('input', (e) => {
+        currentRulesSearch = (e.target as HTMLInputElement).value.toLowerCase();
+        renderRulesKeywords();
+    });
+
+    // Category buttons
+    document.querySelectorAll('.rules-cat-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.rules-cat-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentRulesCategory = (btn as HTMLElement).dataset.category || 'all';
+            renderRulesKeywords();
+        });
+    });
+}
+
+function renderRulesKeywords(): void {
+    const list = $('rules-list');
+    if (!list) return;
+
+    let keywords = MTG_KEYWORDS;
+
+    // Filter by category
+    if (currentRulesCategory !== 'all') {
+        keywords = keywords.filter(k => k.category === currentRulesCategory);
+    }
+
+    // Filter by search
+    if (currentRulesSearch) {
+        keywords = keywords.filter(k =>
+            k.name.toLowerCase().includes(currentRulesSearch) ||
+            k.description.toLowerCase().includes(currentRulesSearch) ||
+            (k.reminder && k.reminder.toLowerCase().includes(currentRulesSearch))
+        );
+    }
+
+    if (keywords.length === 0) {
+        list.innerHTML = '<div class="rules-empty">Nenhuma keyword encontrada</div>';
+        return;
+    }
+
+    list.innerHTML = keywords.map(keyword => `
+        <div class="rules-item" data-category="${keyword.category}">
+            <div class="rules-item-header">
+                <span class="rules-item-name">${keyword.name}</span>
+                ${keyword.reminder ? `<span class="rules-item-reminder">(${keyword.reminder})</span>` : ''}
+            </div>
+            <p class="rules-item-description">${keyword.description}</p>
+        </div>
+    `).join('');
+}
+
 // ===== Color Picker Functions =====
 
 function openColorPicker(): void {
@@ -2556,6 +3023,184 @@ function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: n
     }
 
     return { h: h * 360, s: s * 100, l: l * 100 };
+}
+
+// ===== Share Result Functions =====
+
+function openShareModal(): void {
+    generateShareImage();
+    openModal($('share-modal'));
+}
+
+function generateShareImage(): void {
+    const canvas = $('share-canvas') as HTMLCanvasElement;
+    const ctx = canvas.getContext('2d')!;
+    const state = gameState.getState();
+
+    // Set canvas size
+    canvas.width = 600;
+    canvas.height = 400;
+
+    // Background gradient
+    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    gradient.addColorStop(0, '#1a1a2e');
+    gradient.addColorStop(1, '#16213e');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Header
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 28px "Segoe UI", Arial, sans-serif';
+    ctx.textAlign = 'center';
+
+    const winner = state.players.find(p => p.id === state.winner);
+    if (winner) {
+        ctx.fillText('🏆 VITÓRIA! 🏆', canvas.width / 2, 50);
+        ctx.font = 'bold 24px "Segoe UI", Arial, sans-serif';
+        ctx.fillStyle = winner.color;
+        ctx.fillText(winner.name, canvas.width / 2, 85);
+    } else {
+        ctx.fillText('⚔️ Resultado da Partida ⚔️', canvas.width / 2, 50);
+    }
+
+    // Game info
+    ctx.font = '14px "Segoe UI", Arial, sans-serif';
+    ctx.fillStyle = '#888';
+    ctx.fillText(`Turno ${state.currentTurn} • ${state.gameMode === 'two-headed' ? 'Two-Headed Giant' : state.gameMode === 'standard' ? 'Standard' : state.gameMode}`, canvas.width / 2, 110);
+
+    // Players grid
+    const playerCount = state.players.length;
+    const cols = playerCount <= 2 ? playerCount : Math.ceil(playerCount / 2);
+    const rows = playerCount <= 2 ? 1 : 2;
+    const cardWidth = 130;
+    const cardHeight = 100;
+    const startX = (canvas.width - (cols * (cardWidth + 20))) / 2 + 10;
+    const startY = 140;
+
+    state.players.forEach((player, i) => {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const x = startX + col * (cardWidth + 20);
+        const y = startY + row * (cardHeight + 15);
+
+        // Card background
+        ctx.fillStyle = player.isEliminated ? '#2d1f1f' : 'rgba(255, 255, 255, 0.1)';
+        ctx.beginPath();
+        ctx.roundRect(x, y, cardWidth, cardHeight, 8);
+        ctx.fill();
+
+        // Player color bar
+        ctx.fillStyle = player.color;
+        ctx.beginPath();
+        ctx.roundRect(x, y, 6, cardHeight, [8, 0, 0, 8]);
+        ctx.fill();
+
+        // Winner highlight
+        if (player.id === state.winner) {
+            ctx.strokeStyle = '#ffd700';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.roundRect(x, y, cardWidth, cardHeight, 8);
+            ctx.stroke();
+        }
+
+        // Player name
+        ctx.fillStyle = player.isEliminated ? '#666' : '#fff';
+        ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(truncateText(player.name, ctx, cardWidth - 20), x + 15, y + 25);
+
+        // Life total
+        ctx.fillStyle = player.isEliminated ? '#ef4444' : player.life <= 5 ? '#ef4444' : player.life <= 10 ? '#f59e0b' : '#22c55e';
+        ctx.font = 'bold 32px "Segoe UI", Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(player.isEliminated ? '💀' : player.life.toString(), x + cardWidth / 2, y + 60);
+
+        // Status indicators
+        ctx.font = '11px "Segoe UI", Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#888';
+
+        const statusParts: string[] = [];
+        if (player.counters.poison > 0) statusParts.push(`☠️${player.counters.poison}`);
+        if (player.isMonarch) statusParts.push('👑');
+        if (player.id === state.winner) statusParts.push('🏆');
+
+        if (statusParts.length > 0) {
+            ctx.fillText(statusParts.join(' '), x + cardWidth / 2, y + 85);
+        }
+    });
+
+    // Footer
+    ctx.fillStyle = '#555';
+    ctx.font = '12px "Segoe UI", Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('MTG Life Counter', canvas.width / 2, canvas.height - 20);
+}
+
+function truncateText(text: string, ctx: CanvasRenderingContext2D, maxWidth: number): string {
+    let truncated = text;
+    while (ctx.measureText(truncated).width > maxWidth && truncated.length > 0) {
+        truncated = truncated.slice(0, -1);
+    }
+    return truncated === text ? text : truncated + '...';
+}
+
+async function shareImage(): Promise<void> {
+    const canvas = $('share-canvas') as HTMLCanvasElement;
+
+    try {
+        const blob = await new Promise<Blob>((resolve, reject) => {
+            canvas.toBlob(b => b ? resolve(b) : reject(new Error('Failed to create blob')), 'image/png');
+        });
+
+        const file = new File([blob], 'mtg-result.png', { type: 'image/png' });
+
+        if (navigator.share && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+                title: 'MTG Life Counter - Resultado',
+                text: 'Confira o resultado da nossa partida!',
+                files: [file]
+            });
+        } else {
+            // Fallback: download the image
+            downloadImage();
+        }
+    } catch (e) {
+        console.warn('Share failed:', e);
+        downloadImage();
+    }
+}
+
+function downloadImage(): void {
+    const canvas = $('share-canvas') as HTMLCanvasElement;
+    const link = document.createElement('a');
+    link.download = `mtg-result-${Date.now()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+}
+
+async function copyImageToClipboard(): Promise<void> {
+    const canvas = $('share-canvas') as HTMLCanvasElement;
+
+    try {
+        const blob = await new Promise<Blob>((resolve, reject) => {
+            canvas.toBlob(b => b ? resolve(b) : reject(new Error('Failed to create blob')), 'image/png');
+        });
+
+        await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+        ]);
+
+        // Show feedback
+        const btn = $('share-copy-btn');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span>✓</span> Copiado!';
+        setTimeout(() => btn.innerHTML = originalText, 2000);
+    } catch (e) {
+        console.warn('Copy failed:', e);
+        alert('Não foi possível copiar. Tente salvar a imagem.');
+    }
 }
 
 // ===== Image Search Functions =====

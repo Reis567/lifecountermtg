@@ -13,10 +13,14 @@ import {
     GameMode,
     ThemePreset,
     RandomAnimationType,
+    Team,
     DEFAULT_PLAYER_COLORS,
     COMMANDER_DAMAGE_LETHAL,
     LAYOUT_PRESETS,
 } from './types.js';
+
+// Two-Headed Giant starting life per team
+export const TWO_HEADED_GIANT_STARTING_LIFE = 30;
 
 // Generate unique ID
 export function generateId(): string {
@@ -55,6 +59,8 @@ export function createPlayer(index: number, startingLife: number, totalPlayers: 
             damage: null,
         },
         rotation,
+        teamId: null,
+        borderStyle: 'default',
     };
 }
 
@@ -121,6 +127,16 @@ export function createDefaultSettings(playerCount: number = 4): GameSettings {
         gifPaused: false,
         gifFpsReduced: false,
         easterEggsEnabled: true,
+        animatedBgEnabled: false,
+        animatedBgStyle: 'none',
+        fontStyle: 'default',
+        ambientMusicEnabled: false,
+        ambientMusicVolume: 30,
+        ambientMusicTrack: 'none',
+        narratorEnabled: false,
+        narratorVoice: 'default',
+        narratorSpeed: 1,
+        soundPack: 'default',
     };
 }
 
@@ -131,6 +147,7 @@ export function createInitialState(): GameState {
         players: Array.from({ length: settings.playerCount }, (_, i) =>
             createPlayer(i, settings.startingLife, settings.playerCount)
         ),
+        teams: [],
         settings,
         currentTurn: 1,
         activePlayerIndex: 0,
@@ -196,6 +213,7 @@ class GameStateManager {
                 if (!parsed.undoStack) parsed.undoStack = [];
                 if (!parsed.gameMode) parsed.gameMode = 'standard';
                 if (parsed.randomStarterInProgress === undefined) parsed.randomStarterInProgress = false;
+                if (!parsed.teams) parsed.teams = [];
                 if (!parsed.settings.layout) {
                     parsed.settings.layout = getDefaultLayout(parsed.settings.playerCount);
                 }
@@ -203,6 +221,16 @@ class GameStateManager {
                 if (!parsed.settings.randomStarterAnimation) parsed.settings.randomStarterAnimation = 'highlight';
                 if (!parsed.settings.animationIntensity) parsed.settings.animationIntensity = 'normal';
                 if (parsed.settings.showCommanderDeaths === undefined) parsed.settings.showCommanderDeaths = true;
+                if (parsed.settings.animatedBgEnabled === undefined) parsed.settings.animatedBgEnabled = false;
+                if (!parsed.settings.animatedBgStyle) parsed.settings.animatedBgStyle = 'none';
+                if (!parsed.settings.fontStyle) parsed.settings.fontStyle = 'default';
+                if (parsed.settings.ambientMusicEnabled === undefined) parsed.settings.ambientMusicEnabled = false;
+                if (parsed.settings.ambientMusicVolume === undefined) parsed.settings.ambientMusicVolume = 30;
+                if (!parsed.settings.ambientMusicTrack) parsed.settings.ambientMusicTrack = 'none';
+                if (parsed.settings.narratorEnabled === undefined) parsed.settings.narratorEnabled = false;
+                if (!parsed.settings.narratorVoice) parsed.settings.narratorVoice = 'default';
+                if (parsed.settings.narratorSpeed === undefined) parsed.settings.narratorSpeed = 1;
+                if (!parsed.settings.soundPack) parsed.settings.soundPack = 'default';
                 // Ensure all players have new properties (migration for older saves)
                 parsed.players = parsed.players.map((p: Player) => ({
                     ...p,
@@ -212,6 +240,8 @@ class GameStateManager {
                     tag: p.tag ?? null,
                     rotation: p.rotation ?? 0,
                     commanderDeaths: p.commanderDeaths ?? 0,
+                    teamId: p.teamId ?? null,
+                    borderStyle: p.borderStyle ?? 'default',
                 }));
                 return parsed;
             }
@@ -414,7 +444,131 @@ class GameStateManager {
 
     setGameMode(mode: GameMode): void {
         this.state.gameMode = mode;
+
+        // If switching to Two-Headed Giant, setup teams
+        if (mode === 'two-headed') {
+            this.setupTwoHeadedGiant();
+        } else {
+            // Clear teams when leaving Two-Headed Giant
+            this.clearTeams();
+        }
+
         this.notify();
+    }
+
+    // ===== Two-Headed Giant Mode =====
+
+    setupTwoHeadedGiant(): void {
+        // Two-Headed Giant requires 4 players in 2 teams
+        if (this.state.settings.playerCount !== 4) {
+            this.setPlayerCount(4);
+        }
+
+        // Create 2 teams
+        const team1Id = generateId();
+        const team2Id = generateId();
+
+        const team1: Team = {
+            id: team1Id,
+            name: 'Time 1',
+            color: '#6366f1',
+            playerIds: [this.state.players[0].id, this.state.players[1].id],
+            life: TWO_HEADED_GIANT_STARTING_LIFE,
+            isEliminated: false,
+        };
+
+        const team2: Team = {
+            id: team2Id,
+            name: 'Time 2',
+            color: '#ec4899',
+            playerIds: [this.state.players[2].id, this.state.players[3].id],
+            life: TWO_HEADED_GIANT_STARTING_LIFE,
+            isEliminated: false,
+        };
+
+        this.state.teams = [team1, team2];
+
+        // Assign players to teams and set their life to team life
+        this.state.players[0].teamId = team1Id;
+        this.state.players[1].teamId = team1Id;
+        this.state.players[0].life = TWO_HEADED_GIANT_STARTING_LIFE;
+        this.state.players[1].life = TWO_HEADED_GIANT_STARTING_LIFE;
+        this.state.players[0].tag = 'Time 1';
+        this.state.players[1].tag = 'Time 1';
+
+        this.state.players[2].teamId = team2Id;
+        this.state.players[3].teamId = team2Id;
+        this.state.players[2].life = TWO_HEADED_GIANT_STARTING_LIFE;
+        this.state.players[3].life = TWO_HEADED_GIANT_STARTING_LIFE;
+        this.state.players[2].tag = 'Time 2';
+        this.state.players[3].tag = 'Time 2';
+
+        // Set starting life to team life for settings
+        this.state.settings.startingLife = TWO_HEADED_GIANT_STARTING_LIFE;
+
+        // Use 2x2 layout
+        this.state.settings.layout = { rows: [2, 2], tableMode: true, preset: '4-square' };
+        this.updatePlayerRotations();
+    }
+
+    clearTeams(): void {
+        this.state.teams = [];
+        this.state.players.forEach(p => {
+            p.teamId = null;
+        });
+    }
+
+    getTeamForPlayer(playerId: string): Team | null {
+        const player = this.state.players.find(p => p.id === playerId);
+        if (!player || !player.teamId) return null;
+        return this.state.teams.find(t => t.id === player.teamId) || null;
+    }
+
+    getTeammateId(playerId: string): string | null {
+        const team = this.getTeamForPlayer(playerId);
+        if (!team) return null;
+        return team.playerIds.find(id => id !== playerId) || null;
+    }
+
+    // Sync team life when a player's life changes in Two-Headed Giant
+    private syncTeamLife(playerId: string): void {
+        if (this.state.gameMode !== 'two-headed') return;
+
+        const team = this.getTeamForPlayer(playerId);
+        if (!team) return;
+
+        const player = this.state.players.find(p => p.id === playerId);
+        if (!player) return;
+
+        // Update team life to match player's life
+        team.life = player.life;
+
+        // Sync teammate's life
+        const teammateId = this.getTeammateId(playerId);
+        if (teammateId) {
+            const teammate = this.state.players.find(p => p.id === teammateId);
+            if (teammate) {
+                teammate.life = player.life;
+            }
+        }
+
+        // Check team elimination
+        if (team.life <= 0) {
+            team.isEliminated = true;
+            team.playerIds.forEach(pid => {
+                const p = this.state.players.find(pl => pl.id === pid);
+                if (p) p.isEliminated = true;
+            });
+
+            // Check for winner
+            const aliveTeams = this.state.teams.filter(t => !t.isEliminated);
+            if (aliveTeams.length === 1) {
+                // All players in the winning team win
+                const winningTeam = aliveTeams[0];
+                this.state.winner = winningTeam.playerIds[0]; // First player as winner reference
+                this.addEvent('player_win', winningTeam.playerIds[0], { message: `${winningTeam.name} venceu!` });
+            }
+        }
     }
 
     // ===== Random Starter =====
@@ -529,6 +683,9 @@ class GameStateManager {
                 newValue: player.life,
             });
 
+            // Sync team life in Two-Headed Giant mode
+            this.syncTeamLife(playerId);
+
             this.checkEliminationConditions(playerId);
             this.notify();
         }
@@ -548,6 +705,9 @@ class GameStateManager {
                 previousValue: previousLife,
                 newValue: value,
             });
+
+            // Sync team life in Two-Headed Giant mode
+            this.syncTeamLife(playerId);
 
             this.checkEliminationConditions(playerId);
             this.notify();
