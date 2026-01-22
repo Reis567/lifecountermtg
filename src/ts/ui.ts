@@ -158,9 +158,7 @@ function triggerShakeRoll(): void {
 
 // Initialize UI
 export function initUI(): void {
-    console.log('initUI called - v2');
     setupEventListeners();
-    console.log('Event listeners setup complete');
     gameState.subscribe(render);
     render(gameState.getState());
 
@@ -338,12 +336,8 @@ function setupGameScreenListeners(): void {
     });
 
     // Dice roller button
-    const diceRollerBtn = $('dice-roller-btn');
-    const diceRollerModal = $('dice-roller-modal');
-    console.log('Dice roller setup:', { btn: diceRollerBtn, modal: diceRollerModal });
-    diceRollerBtn?.addEventListener('click', () => {
-        console.log('Dice roller clicked');
-        openModal(diceRollerModal);
+    $('dice-roller-btn')?.addEventListener('click', () => {
+        openModal($('dice-roller-modal'));
     });
 
     // Dice options
@@ -2082,11 +2076,11 @@ function rollDice(diceType: string): void {
 
 function getDiceEmoji(sides: number): string {
     switch (sides) {
-        case 4: return '🔺';
+        case 4: return '🔻';
         case 6: return '🎲';
-        case 8: return '💎';
-        case 10: return '🔟';
-        case 12: return '⬢';
+        case 8: return '🔷';
+        case 10: return '🔶';
+        case 12: return '⭐';
         case 20: return '🎯';
         default: return '🎲';
     }
@@ -2106,7 +2100,7 @@ function addDiceHistory(diceType: string, result: string | number, isCrit: boole
 
     // Render history
     historyList.innerHTML = diceHistory.map((item, index) => {
-        const label = item.dice === 'coin' ? '🪙' : `D${item.dice}`;
+        const label = item.dice === 'coin' ? '💰' : `D${item.dice}`;
         let className = 'dice-history-item';
         if (index === 0) {
             if (isCrit) className += ' crit';

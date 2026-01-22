@@ -121,9 +121,7 @@ function triggerShakeRoll() {
 }
 // Initialize UI
 export function initUI() {
-    console.log('initUI called - v2');
     setupEventListeners();
-    console.log('Event listeners setup complete');
     gameState.subscribe(render);
     render(gameState.getState());
     // Start undo check interval
@@ -277,12 +275,8 @@ function setupGameScreenListeners() {
         $('history-panel').classList.remove('active');
     });
     // Dice roller button
-    const diceRollerBtn = $('dice-roller-btn');
-    const diceRollerModal = $('dice-roller-modal');
-    console.log('Dice roller setup:', { btn: diceRollerBtn, modal: diceRollerModal });
-    diceRollerBtn?.addEventListener('click', () => {
-        console.log('Dice roller clicked');
-        openModal(diceRollerModal);
+    $('dice-roller-btn')?.addEventListener('click', () => {
+        openModal($('dice-roller-modal'));
     });
     // Dice options
     document.querySelectorAll('.dice-btn').forEach(btn => {
@@ -1815,11 +1809,11 @@ function rollDice(diceType) {
 }
 function getDiceEmoji(sides) {
     switch (sides) {
-        case 4: return '🔺';
+        case 4: return '🔻';
         case 6: return '🎲';
-        case 8: return '💎';
-        case 10: return '🔟';
-        case 12: return '⬢';
+        case 8: return '🔷';
+        case 10: return '🔶';
+        case 12: return '⭐';
         case 20: return '🎯';
         default: return '🎲';
     }
@@ -1836,7 +1830,7 @@ function addDiceHistory(diceType, result, isCrit, isFail) {
     }
     // Render history
     historyList.innerHTML = diceHistory.map((item, index) => {
-        const label = item.dice === 'coin' ? '🪙' : `D${item.dice}`;
+        const label = item.dice === 'coin' ? '💰' : `D${item.dice}`;
         let className = 'dice-history-item';
         if (index === 0) {
             if (isCrit)
