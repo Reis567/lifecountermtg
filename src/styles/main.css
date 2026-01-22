@@ -568,6 +568,10 @@ select {
 }
 
 /* Rotation for table mode */
+.player-card[data-rotation="0"] {
+    transform: rotate(0deg);
+}
+
 .player-card[data-rotation="180"] {
     transform: rotate(180deg);
 }

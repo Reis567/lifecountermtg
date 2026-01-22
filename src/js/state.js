@@ -124,6 +124,8 @@ class GameStateManager {
         this.undoTimeWindow = 10000; // 10 seconds to undo
         this.state = this.loadState() || createInitialState();
         this.listeners = new Set();
+        // Ensure rotations are consistent with current layout
+        this.updatePlayerRotations();
         // Clean old undo actions periodically
         setInterval(() => this.cleanOldUndoActions(), 5000);
     }
@@ -393,6 +395,8 @@ class GameStateManager {
                 }
             });
         });
+        // Recalculate rotations to ensure they match current layout
+        this.updatePlayerRotations();
         this.state.gameStarted = true;
         this.state.currentTurn = 1;
         this.state.turnStartTime = Date.now();
