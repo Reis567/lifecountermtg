@@ -52,6 +52,10 @@ const playerMediaPaused: Map<string, { avatar: boolean; background: boolean }> =
 // Collapsed counters state
 const collapsedCounters: Set<string> = new Set();
 
+// Debounce for life changes (mobile touch sensitivity fix)
+let lastLifeChangeTime = 0;
+const LIFE_CHANGE_DEBOUNCE_MS = 150;
+
 // Initialize UI
 export function initUI(): void {
     setupEventListeners();
@@ -163,6 +167,13 @@ function setupGameScreenListeners(): void {
     // Undo buttons
     $('undo-btn')?.addEventListener('click', performUndo);
     $('floating-undo-btn')?.addEventListener('click', performUndo);
+
+    // Fullscreen button
+    $('fullscreen-btn')?.addEventListener('click', toggleFullscreen);
+
+    // Listen for fullscreen changes
+    document.addEventListener('fullscreenchange', updateFullscreenIcon);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenIcon);
 
     // Random starter overlay buttons
     $('random-starter-again-btn')?.addEventListener('click', () => {
@@ -970,6 +981,14 @@ function updateSettingsControls(state: GameState): void {
 // Life change with hold support
 function startLifeChange(playerId: string, baseAmount: number, event: Event): void {
     event.preventDefault();
+
+    // Debounce to prevent multiple rapid touches on mobile
+    const now = Date.now();
+    if (now - lastLifeChangeTime < LIFE_CHANGE_DEBOUNCE_MS) {
+        return;
+    }
+    lastLifeChangeTime = now;
+
     const state = gameState.getState();
     const player = state.players.find(p => p.id === playerId);
     if (!player || player.isEliminated) return;
@@ -994,6 +1013,47 @@ function stopLifeChange(): void {
     if (holdInterval) {
         clearInterval(holdInterval);
         holdInterval = null;
+    }
+}
+
+// Fullscreen functionality
+function toggleFullscreen(): void {
+    const doc = document as Document & {
+        webkitFullscreenElement?: Element;
+        webkitExitFullscreen?: () => Promise<void>;
+    };
+    const docEl = document.documentElement as HTMLElement & {
+        webkitRequestFullscreen?: () => Promise<void>;
+    };
+
+    const isFullscreen = !!(document.fullscreenElement || doc.webkitFullscreenElement);
+
+    if (isFullscreen) {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (doc.webkitExitFullscreen) {
+            doc.webkitExitFullscreen();
+        }
+    } else {
+        if (docEl.requestFullscreen) {
+            docEl.requestFullscreen();
+        } else if (docEl.webkitRequestFullscreen) {
+            docEl.webkitRequestFullscreen();
+        }
+    }
+}
+
+function updateFullscreenIcon(): void {
+    const doc = document as Document & {
+        webkitFullscreenElement?: Element;
+    };
+    const isFullscreen = !!(document.fullscreenElement || doc.webkitFullscreenElement);
+    const enterIcon = $('fullscreen-icon');
+    const exitIcon = $('exit-fullscreen-icon');
+
+    if (enterIcon && exitIcon) {
+        enterIcon.style.display = isFullscreen ? 'none' : 'block';
+        exitIcon.style.display = isFullscreen ? 'block' : 'none';
     }
 }
 

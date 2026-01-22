@@ -29,6 +29,9 @@ let pendingImageType = 'image';
 const playerMediaPaused = new Map();
 // Collapsed counters state
 const collapsedCounters = new Set();
+// Debounce for life changes (mobile touch sensitivity fix)
+let lastLifeChangeTime = 0;
+const LIFE_CHANGE_DEBOUNCE_MS = 150;
 // Initialize UI
 export function initUI() {
     setupEventListeners();
@@ -122,6 +125,11 @@ function setupGameScreenListeners() {
     // Undo buttons
     $('undo-btn')?.addEventListener('click', performUndo);
     $('floating-undo-btn')?.addEventListener('click', performUndo);
+    // Fullscreen button
+    $('fullscreen-btn')?.addEventListener('click', toggleFullscreen);
+    // Listen for fullscreen changes
+    document.addEventListener('fullscreenchange', updateFullscreenIcon);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenIcon);
     // Random starter overlay buttons
     $('random-starter-again-btn')?.addEventListener('click', () => {
         $('random-starter-result').style.display = 'none';
@@ -825,6 +833,12 @@ function updateSettingsControls(state) {
 // Life change with hold support
 function startLifeChange(playerId, baseAmount, event) {
     event.preventDefault();
+    // Debounce to prevent multiple rapid touches on mobile
+    const now = Date.now();
+    if (now - lastLifeChangeTime < LIFE_CHANGE_DEBOUNCE_MS) {
+        return;
+    }
+    lastLifeChangeTime = now;
     const state = gameState.getState();
     const player = state.players.find(p => p.id === playerId);
     if (!player || player.isEliminated)
@@ -847,6 +861,38 @@ function stopLifeChange() {
     if (holdInterval) {
         clearInterval(holdInterval);
         holdInterval = null;
+    }
+}
+// Fullscreen functionality
+function toggleFullscreen() {
+    const doc = document;
+    const docEl = document.documentElement;
+    const isFullscreen = !!(document.fullscreenElement || doc.webkitFullscreenElement);
+    if (isFullscreen) {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        }
+        else if (doc.webkitExitFullscreen) {
+            doc.webkitExitFullscreen();
+        }
+    }
+    else {
+        if (docEl.requestFullscreen) {
+            docEl.requestFullscreen();
+        }
+        else if (docEl.webkitRequestFullscreen) {
+            docEl.webkitRequestFullscreen();
+        }
+    }
+}
+function updateFullscreenIcon() {
+    const doc = document;
+    const isFullscreen = !!(document.fullscreenElement || doc.webkitFullscreenElement);
+    const enterIcon = $('fullscreen-icon');
+    const exitIcon = $('exit-fullscreen-icon');
+    if (enterIcon && exitIcon) {
+        enterIcon.style.display = isFullscreen ? 'none' : 'block';
+        exitIcon.style.display = isFullscreen ? 'block' : 'none';
     }
 }
 function changeLifeWithFeedback(playerId, amount) {
