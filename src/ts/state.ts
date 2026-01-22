@@ -60,7 +60,6 @@ export function createPlayer(index: number, startingLife: number, totalPlayers: 
         },
         rotation,
         teamId: null,
-        borderStyle: 'default',
     };
 }
 
@@ -241,7 +240,6 @@ class GameStateManager {
                     rotation: p.rotation ?? 0,
                     commanderDeaths: p.commanderDeaths ?? 0,
                     teamId: p.teamId ?? null,
-                    borderStyle: p.borderStyle ?? 'default',
                 }));
                 return parsed;
             }

@@ -18,7 +18,6 @@ export interface Player {
     customSounds: PlayerSounds;
     rotation: number; // Rotation in degrees for table mode
     teamId: string | null; // Team ID for Two-Headed Giant mode
-    borderStyle: CardBorderStyle; // Card border style
 }
 
 export interface PlayerCounters {
@@ -91,7 +90,6 @@ export type AmbientMusicTrack = 'none' | 'epic' | 'dark' | 'nature' | 'mystical'
 export type SoundPack = 'default' | 'medieval' | 'scifi' | 'horror' | 'arcade';
 
 export type AnimatedBgStyle = 'none' | 'stars' | 'mana' | 'sparks' | 'bubbles' | 'matrix';
-export type CardBorderStyle = 'default' | 'foil' | 'borderless' | 'extended' | 'etched' | 'showcase';
 export type FontStyle = 'default' | 'beleren' | 'pixel' | 'gothic' | 'elegant' | 'rounded';
 
 export type ThemePreset = 'casual' | 'dark' | 'streamer' | 'custom' | 'mana-white' | 'mana-blue' | 'mana-black' | 'mana-red' | 'mana-green' | 'high-contrast';

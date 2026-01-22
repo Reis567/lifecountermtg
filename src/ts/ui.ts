@@ -19,7 +19,6 @@ import {
     ThemePreset,
     RandomAnimationType,
     AnimatedBgStyle,
-    CardBorderStyle,
     FontStyle,
     AmbientMusicTrack,
     SoundPack,
@@ -880,14 +879,6 @@ function setupPlayerSettingsListeners(): void {
         });
     });
 
-    // Border style options
-    document.querySelectorAll('.border-style-option').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.border-style-option').forEach(b => b.classList.remove('selected'));
-            btn.classList.add('selected');
-        });
-    });
-
     // Avatar upload
     $('avatar-upload-btn')?.addEventListener('click', () => {
         ($('avatar-input') as HTMLInputElement).click();
@@ -1386,7 +1377,6 @@ function renderPlayers(state: GameState): void {
             player.isMonarch ? 'is-monarch' : '',
             state.settings.gifPaused ? 'gif-paused' : '',
             team ? `team-${teamIndex}` : '',
-            player.borderStyle !== 'default' ? `border-${player.borderStyle}` : '',
         ].filter(Boolean).join(' ');
 
         const rotation = layout.tableMode ? player.rotation : 0;
@@ -2186,12 +2176,6 @@ function openPlayerSettings(playerId: string): void {
     });
     ($('custom-tag-input') as HTMLInputElement).value = '';
 
-    // Select current border style
-    document.querySelectorAll('.border-style-option').forEach(btn => {
-        const border = btn.getAttribute('data-border');
-        btn.classList.toggle('selected', border === (player.borderStyle || 'default'));
-    });
-
     // Setup avatar preview
     const avatarPreview = $('avatar-preview') as HTMLImageElement;
     const avatarContainer = $('avatar-preview-container');
@@ -2298,10 +2282,6 @@ function savePlayerSettings(): void {
         backgroundType = bgTypeBadge?.textContent?.toLowerCase() === 'gif' ? 'gif' : 'image';
     }
 
-    // Get selected border style
-    const selectedBorder = document.querySelector('.border-style-option.selected');
-    const borderStyle = (selectedBorder?.getAttribute('data-border') || 'default') as CardBorderStyle;
-
     gameState.updatePlayerSetup(currentEditingPlayerId, {
         name,
         color,
@@ -2310,7 +2290,6 @@ function savePlayerSettings(): void {
         avatar,
         background,
         backgroundType: backgroundType as 'none' | 'image' | 'gif',
-        borderStyle,
     });
 
     // Reset custom color state
