@@ -482,15 +482,18 @@ class GameStateManager {
                 commanderDamage: { ...targetPlayer.commanderDamage },
                 life: targetPlayer.life,
             }, `Dano de comandante: ${amount > 0 ? '+' : ''}${amount}`);
-            targetPlayer.commanderDamage[sourcePlayerId] = Math.max(0, previousDamage + amount);
-            if (amount > 0) {
-                targetPlayer.life -= amount;
-            }
+            const newDamage = Math.max(0, previousDamage + amount);
+            targetPlayer.commanderDamage[sourcePlayerId] = newDamage;
+            // Adjust life based on actual damage change
+            // actualChange is positive when adding damage (life decreases)
+            // actualChange is negative when removing damage (life increases)
+            const actualChange = newDamage - previousDamage;
+            targetPlayer.life -= actualChange;
             this.addEvent('commander_damage', targetPlayerId, {
-                amount,
+                amount: actualChange,
                 fromPlayerId: sourcePlayerId,
                 previousValue: previousDamage,
-                newValue: targetPlayer.commanderDamage[sourcePlayerId],
+                newValue: newDamage,
             });
             this.checkEliminationConditions(targetPlayerId);
             this.notify();

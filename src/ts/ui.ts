@@ -5,6 +5,7 @@ import { audioManager } from './audio.js';
 import {
     GameState,
     Player,
+    GameEvent,
     DEFAULT_PLAYER_COLORS,
     PRESET_COUNTERS,
     COMMANDER_DAMAGE_LETHAL,
@@ -55,6 +56,20 @@ const collapsedCounters: Set<string> = new Set();
 // Debounce for life changes (mobile touch sensitivity fix)
 let lastLifeChangeTime = 0;
 const LIFE_CHANGE_DEBOUNCE_MS = 150;
+
+// Generic button debounce to prevent double-clicks
+const buttonDebounceMap = new Map<string, number>();
+const BUTTON_DEBOUNCE_MS = 300;
+
+function isButtonDebounced(buttonId: string): boolean {
+    const now = Date.now();
+    const lastClick = buttonDebounceMap.get(buttonId) || 0;
+    if (now - lastClick < BUTTON_DEBOUNCE_MS) {
+        return true;
+    }
+    buttonDebounceMap.set(buttonId, now);
+    return false;
+}
 
 // Initialize UI
 export function initUI(): void {
@@ -169,6 +184,7 @@ function setupSetupScreenListeners(): void {
 
     // Start game button
     $('start-game-btn')?.addEventListener('click', () => {
+        if (isButtonDebounced('start-game-btn')) return;
         gameState.startGame();
     });
 }
@@ -181,11 +197,13 @@ function setupGameScreenListeners(): void {
 
     // Random starter button
     $('random-starter-btn')?.addEventListener('click', () => {
+        if (isButtonDebounced('random-starter-btn')) return;
         startRandomStarterAnimation();
     });
 
     // Next turn button
     $('next-turn-btn')?.addEventListener('click', () => {
+        if (isButtonDebounced('next-turn-btn')) return;
         audioManager.play('turn');
         gameState.nextTurn();
     });
@@ -203,6 +221,7 @@ function setupGameScreenListeners(): void {
 
     // Random starter overlay buttons
     $('random-starter-again-btn')?.addEventListener('click', () => {
+        if (isButtonDebounced('random-starter-again-btn')) return;
         $('random-starter-result').style.display = 'none';
         $('random-starter-again-btn').style.display = 'none';
         $('random-starter-close-btn').style.display = 'none';
@@ -219,6 +238,11 @@ function setupGameScreenListeners(): void {
     });
 
     // History panel
+    $('history-btn')?.addEventListener('click', () => {
+        renderHistory();
+        $('history-panel').classList.add('active');
+    });
+
     $('close-history-btn')?.addEventListener('click', () => {
         $('history-panel').classList.remove('active');
     });
@@ -595,6 +619,95 @@ function applyAnimationIntensity(intensity: 'subtle' | 'normal' | 'intense'): vo
     document.body.setAttribute('data-anim-intensity', intensity);
 }
 
+// Render history panel
+function renderHistory(): void {
+    const state = gameState.getState();
+    const historyList = $('history-list');
+
+    if (state.history.length === 0) {
+        historyList.innerHTML = '<div class="history-empty">Nenhum evento ainda</div>';
+        return;
+    }
+
+    const getPlayerName = (playerId: string): string => {
+        const player = state.players.find(p => p.id === playerId);
+        return player?.name || 'Jogador';
+    };
+
+    const getPlayerColor = (playerId: string): string => {
+        const player = state.players.find(p => p.id === playerId);
+        return player?.color || '#6366f1';
+    };
+
+    const formatTime = (timestamp: number): string => {
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    };
+
+    const getEventIcon = (type: string): string => {
+        switch (type) {
+            case 'life_change': return '❤️';
+            case 'commander_damage': return '⚔️';
+            case 'counter_change': return '📊';
+            case 'player_eliminated': return '💀';
+            case 'player_win': return '🏆';
+            case 'turn_change': return '▶️';
+            case 'monarch_change': return '👑';
+            case 'undo': return '↩️';
+            case 'random_starter': return '🎲';
+            default: return '📝';
+        }
+    };
+
+    const getEventDescription = (event: GameEvent): string => {
+        const playerName = getPlayerName(event.playerId);
+        const details = event.details;
+
+        switch (event.type) {
+            case 'life_change':
+                const amount = details.amount as number;
+                return `${playerName}: ${amount > 0 ? '+' : ''}${amount} vida (${details.previousValue} → ${details.newValue})`;
+            case 'commander_damage':
+                const dmgAmount = details.amount as number;
+                const sourceName = getPlayerName(details.fromPlayerId as string);
+                return `${playerName} recebeu ${dmgAmount > 0 ? '+' : ''}${dmgAmount} dano de comandante de ${sourceName}`;
+            case 'counter_change':
+                const counterType = details.counterType as string;
+                const counterAmount = details.amount as number;
+                const counterNames: Record<string, string> = {
+                    poison: 'Veneno',
+                    experience: 'Experiencia',
+                    energy: 'Energia',
+                    storm: 'Storm',
+                    commanderDeaths: 'Mortes do Comandante'
+                };
+                return `${playerName}: ${counterAmount > 0 ? '+' : ''}${counterAmount} ${counterNames[counterType] || counterType}`;
+            case 'player_eliminated':
+                return `${playerName} foi eliminado (${details.message})`;
+            case 'player_win':
+                return `${playerName} venceu a partida!`;
+            case 'turn_change':
+                return `Turno ${details.newValue} - vez de ${playerName}`;
+            case 'monarch_change':
+                return `${playerName} se tornou o Monarca`;
+            case 'undo':
+                return `Acao desfeita: ${details.message}`;
+            case 'random_starter':
+                return `${playerName} foi sorteado para comecar`;
+            default:
+                return `${playerName}: ${event.type}`;
+        }
+    };
+
+    historyList.innerHTML = state.history.map(event => `
+        <div class="history-item" style="--player-color: ${getPlayerColor(event.playerId)}">
+            <span class="history-icon">${getEventIcon(event.type)}</span>
+            <span class="history-text">${getEventDescription(event)}</span>
+            <span class="history-time">${formatTime(event.timestamp)}</span>
+        </div>
+    `).join('');
+}
+
 // Render the entire UI based on state
 function render(state: GameState): void {
     if (state.gameStarted) {
@@ -906,6 +1019,41 @@ function renderPlayers(state: GameState): void {
             });
         }
 
+        // Counter badges click (increment) - poison, experience, energy, storm
+        card.querySelectorAll('[data-action="counter"]').forEach(badge => {
+            const counterType = (badge as HTMLElement).dataset.counterType as 'poison' | 'experience' | 'energy' | 'storm';
+            const badgePlayerId = (badge as HTMLElement).dataset.playerId!;
+
+            badge.addEventListener('click', (e) => {
+                e.stopPropagation();
+                gameState.changeCounter(badgePlayerId, counterType, 1);
+                audioManager.play('click');
+            });
+
+            // Right click or long press to decrement
+            badge.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                gameState.changeCounter(badgePlayerId, counterType, -1);
+                audioManager.play('click');
+            });
+
+            // Long press for mobile
+            let counterLongPressTimer: number | null = null;
+            badge.addEventListener('touchstart', () => {
+                counterLongPressTimer = window.setTimeout(() => {
+                    gameState.changeCounter(badgePlayerId, counterType, -1);
+                    audioManager.play('click');
+                }, 500);
+            }, { passive: true });
+            badge.addEventListener('touchend', () => {
+                if (counterLongPressTimer) {
+                    clearTimeout(counterLongPressTimer);
+                    counterLongPressTimer = null;
+                }
+            });
+        });
+
         // Counter footer collapse toggle (double tap)
         const footer = card.querySelector('.player-footer') as HTMLElement;
         if (footer) {
@@ -937,24 +1085,24 @@ function renderPlayerCountersBadges(player: Player): string {
     if (state.settings.showCommanderDeaths && player.commanderDeaths >= 0) {
         const tax = player.commanderDeaths * 2;
         const taxDisplay = tax > 0 ? `<span class="tax-value">+${tax}</span>` : '';
-        badges.push(`<span class="counter-badge commander-deaths" data-action="commander-deaths" data-player-id="${player.id}" title="Mortes: ${player.commanderDeaths} | Tax: +${tax}">🪦 ${player.commanderDeaths}${taxDisplay}</span>`);
+        badges.push(`<span class="counter-badge commander-deaths" data-action="commander-deaths" data-player-id="${player.id}" title="Mortes: ${player.commanderDeaths} | Tax: +${tax}">💀 ${player.commanderDeaths}${taxDisplay}</span>`);
     }
 
     if (player.counters.poison > 0) {
         const isLethal = player.counters.poison >= 10;
-        badges.push(`<span class="counter-badge poison ${isLethal ? 'lethal' : ''}">☠️ ${player.counters.poison}</span>`);
+        badges.push(`<span class="counter-badge poison clickable ${isLethal ? 'lethal' : ''}" data-action="counter" data-counter-type="poison" data-player-id="${player.id}" title="Clique: +1 | Segurar: -1">☠️ ${player.counters.poison}</span>`);
     }
 
     if (player.counters.experience > 0) {
-        badges.push(`<span class="counter-badge experience">⭐ ${player.counters.experience}</span>`);
+        badges.push(`<span class="counter-badge experience clickable" data-action="counter" data-counter-type="experience" data-player-id="${player.id}" title="Clique: +1 | Segurar: -1">⭐ ${player.counters.experience}</span>`);
     }
 
     if (player.counters.energy > 0) {
-        badges.push(`<span class="counter-badge energy">⚡ ${player.counters.energy}</span>`);
+        badges.push(`<span class="counter-badge energy clickable" data-action="counter" data-counter-type="energy" data-player-id="${player.id}" title="Clique: +1 | Segurar: -1">⚡ ${player.counters.energy}</span>`);
     }
 
     if (player.counters.storm > 0) {
-        badges.push(`<span class="counter-badge storm">🌪️ ${player.counters.storm}</span>`);
+        badges.push(`<span class="counter-badge storm clickable" data-action="counter" data-counter-type="storm" data-player-id="${player.id}" title="Clique: +1 | Segurar: -1">🌪️ ${player.counters.storm}</span>`);
     }
 
     if (player.isMonarch) {
@@ -1145,11 +1293,29 @@ function updateUndoButton(): void {
 }
 
 // Random Starter Animation
+let isRandomStarterRunning = false;
+
 function startRandomStarterAnimation(): void {
+    // Prevent double-click - if animation is already running, ignore
+    if (isRandomStarterRunning) return;
+    isRandomStarterRunning = true;
+
+    // Clear any existing animation interval
+    if (randomStarterAnimationInterval) {
+        clearInterval(randomStarterAnimationInterval);
+        randomStarterAnimationInterval = null;
+    }
+
     const state = gameState.getState();
     const overlay = $('random-starter-overlay');
     const display = $('random-starter-display');
     const message = $('random-starter-message');
+
+    // Disable buttons during animation
+    const againBtn = $('random-starter-again-btn') as HTMLButtonElement;
+    const closeBtn = $('random-starter-close-btn') as HTMLButtonElement;
+    if (againBtn) againBtn.disabled = true;
+    if (closeBtn) closeBtn.disabled = true;
 
     // Show easter egg message occasionally
     if (state.settings.easterEggsEnabled && Math.random() < 0.2) {
@@ -1224,6 +1390,13 @@ function startRandomStarterAnimation(): void {
         $('random-starter-again-btn').style.display = 'inline-block';
         $('random-starter-close-btn').style.display = 'inline-block';
 
+        // Re-enable buttons and reset flag
+        const againBtn = $('random-starter-again-btn') as HTMLButtonElement;
+        const closeBtn = $('random-starter-close-btn') as HTMLButtonElement;
+        if (againBtn) againBtn.disabled = false;
+        if (closeBtn) closeBtn.disabled = false;
+        isRandomStarterRunning = false;
+
         audioManager.play('win');
     }, duration);
 }
@@ -1294,7 +1467,7 @@ function renderCountersModal(state: GameState, playerId: string): void {
     const commanderTax = player.commanderDeaths * 2;
     const commanderDeathsHtml = `
         <div class="counter-item commander-deaths-item" data-counter-id="commanderDeaths">
-            <div class="counter-icon">🪦</div>
+            <div class="counter-icon">💀</div>
             <div class="counter-info">
                 <div class="counter-name">Mortes do Comandante</div>
                 <div class="counter-tax-info">Commander Tax: <strong>+${commanderTax}</strong> incolor</div>
