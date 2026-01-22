@@ -2,9 +2,39 @@
 import { gameState } from './state.js';
 class AudioManager {
     constructor() {
+        this.audioContext = null;
+        this.lastPlayTime = new Map();
+        this.MIN_PLAY_INTERVAL = 50; // Minimum ms between same sound
         this.sounds = new Map();
         this.customSounds = new Map();
         this.loadCustomSounds();
+    }
+    // Get or create audio context (reuse single instance)
+    getAudioContext() {
+        if (!this.audioContext) {
+            try {
+                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            catch (e) {
+                console.warn('Failed to create AudioContext:', e);
+                return null;
+            }
+        }
+        // Resume if suspended (browser autoplay policy)
+        if (this.audioContext.state === 'suspended') {
+            this.audioContext.resume();
+        }
+        return this.audioContext;
+    }
+    // Check if sound can play (throttle rapid plays)
+    canPlaySound(soundName) {
+        const now = Date.now();
+        const lastPlay = this.lastPlayTime.get(soundName) || 0;
+        if (now - lastPlay < this.MIN_PLAY_INTERVAL) {
+            return false;
+        }
+        this.lastPlayTime.set(soundName, now);
+        return true;
     }
     // Load custom sounds from localStorage
     loadCustomSounds() {
@@ -39,6 +69,9 @@ class AudioManager {
         const state = gameState.getState();
         if (!state.settings.soundEnabled)
             return;
+        // Throttle rapid plays of the same sound
+        if (!this.canPlaySound(soundName))
+            return;
         const volume = state.settings.volume / 100;
         // Try custom sound first
         const customKey = playerId ? `${playerId}-${soundName}` : soundName;
@@ -63,9 +96,11 @@ class AudioManager {
     }
     // Play default built-in sound
     playDefaultSound(soundName, volume) {
-        // Create simple oscillator-based sounds
+        // Get shared audio context
+        const audioContext = this.getAudioContext();
+        if (!audioContext)
+            return;
         try {
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const oscillator = audioContext.createOscillator();
             const gainNode = audioContext.createGain();
             oscillator.connect(gainNode);

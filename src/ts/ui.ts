@@ -1500,6 +1500,12 @@ function startRandomStarterAnimation(): void {
     const overlay = $('random-starter-overlay');
     const display = $('random-starter-display');
     const message = $('random-starter-message');
+    const resultDiv = $('random-starter-result');
+
+    // Hide result from previous run
+    resultDiv.style.display = 'none';
+    $('random-starter-again-btn').style.display = 'none';
+    $('random-starter-close-btn').style.display = 'none';
 
     // Disable buttons during animation
     const againBtn = $('random-starter-again-btn') as HTMLButtonElement;

@@ -3189,10 +3189,16 @@ select {
 
 /* Landscape mode adjustments */
 @media (orientation: landscape) and (max-height: 500px) {
-    /* Move header to right side as vertical sidebar */
-    #game-screen {
+    /* Move header to right side as vertical sidebar - only when game is active */
+    #game-screen.active {
         display: flex;
         flex-direction: row;
+    }
+
+    /* Hide sidebar when game screen is not active (setup screen visible) */
+    #game-screen:not(.active) .game-header {
+        display: none !important;
+        visibility: hidden !important;
     }
 
     .game-header {
