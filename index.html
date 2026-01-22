@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="description" content="Life Counter para Magic: The Gathering - Commander (EDH)">
+    <title>MTG Life Counter - Commander</title>
+    <link rel="stylesheet" href="src/styles/main.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <!-- Setup Screen -->
+        <div id="setup-screen" class="screen active">
+            <div class="setup-container">
+                <h1 class="setup-title">Life Counter</h1>
+                <p class="setup-subtitle">Commander / EDH</p>
+
+                <div class="setup-section">
+                    <label class="setup-label">Numero de Jogadores</label>
+                    <div class="player-count-selector">
+                        <button class="count-btn" data-count="2">2</button>
+                        <button class="count-btn" data-count="3">3</button>
+                        <button class="count-btn active" data-count="4">4</button>
+                        <button class="count-btn" data-count="5">5</button>
+                        <button class="count-btn" data-count="6">6</button>
+                        <button class="count-btn" data-count="7">7</button>
+                        <button class="count-btn" data-count="8">8</button>
+                    </div>
+                </div>
+
+                <div class="setup-section">
+                    <label class="setup-label">Vida Inicial</label>
+                    <div class="starting-life-selector">
+                        <button class="life-btn" data-life="20">20</button>
+                        <button class="life-btn active" data-life="40">40</button>
+                        <button class="life-btn" data-life="30">30</button>
+                        <input type="number" class="custom-life-input" placeholder="Custom" min="1" max="999">
+                    </div>
+                </div>
+
+                <div class="setup-section">
+                    <label class="setup-label">Layout da Mesa</label>
+                    <div id="layout-presets" class="layout-presets">
+                        <!-- Layout presets will be injected here -->
+                    </div>
+                    <div class="table-mode-toggle">
+                        <label>
+                            <input type="checkbox" id="table-mode-checkbox" checked>
+                            Modo Mesa (rotacionar cards)
+                        </label>
+                    </div>
+                </div>
+
+                <div class="setup-section">
+                    <label class="setup-label">Tema</label>
+                    <div class="theme-selector">
+                        <button class="theme-btn" data-theme="casual">Casual</button>
+                        <button class="theme-btn active" data-theme="dark">Dark</button>
+                        <button class="theme-btn" data-theme="streamer">Streamer</button>
+                    </div>
+                </div>
+
+                <div class="setup-section">
+                    <label class="setup-label">Configurar Jogadores</label>
+                    <div id="player-setup-list" class="player-setup-list">
+                        <!-- Player setup cards will be injected here -->
+                    </div>
+                </div>
+
+                <button id="start-game-btn" class="start-btn">Iniciar Partida</button>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen">
+            <div id="game-header" class="game-header">
+                <button id="menu-btn" class="header-btn" title="Menu">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+                <div class="header-center">
+                    <div class="turn-indicator">
+                        <span id="turn-count">Turno 1</span>
+                        <span id="active-player-name"></span>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button id="undo-btn" class="header-btn undo-btn" title="Desfazer" style="display: none;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 10h10a5 5 0 0 1 5 5v2"></path>
+                            <path d="M3 10l4-4"></path>
+                            <path d="M3 10l4 4"></path>
+                        </svg>
+                    </button>
+                    <button id="random-starter-btn" class="header-btn" title="Quem comeca?">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="2" width="8" height="8" rx="1"></rect>
+                            <rect x="14" y="2" width="8" height="8" rx="1"></rect>
+                            <rect x="2" y="14" width="8" height="8" rx="1"></rect>
+                            <rect x="14" y="14" width="8" height="8" rx="1"></rect>
+                            <circle cx="5" cy="5" r="1" fill="currentColor"></circle>
+                            <circle cx="19" cy="5" r="1" fill="currentColor"></circle>
+                            <circle cx="5" cy="19" r="1" fill="currentColor"></circle>
+                            <circle cx="19" cy="19" r="1" fill="currentColor"></circle>
+                        </svg>
+                    </button>
+                    <button id="next-turn-btn" class="header-btn" title="Proximo Turno">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div id="players-grid" class="players-grid">
+                <!-- Player cards will be injected here -->
+            </div>
+
+            <!-- Floating Undo Button -->
+            <button id="floating-undo-btn" class="floating-undo-btn" style="display: none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 10h10a5 5 0 0 1 5 5v2"></path>
+                    <path d="M3 10l4-4"></path>
+                    <path d="M3 10l4 4"></path>
+                </svg>
+                <span>Desfazer</span>
+            </button>
+        </div>
+
+        <!-- Random Starter Overlay -->
+        <div id="random-starter-overlay" class="random-starter-overlay">
+            <div class="random-starter-content">
+                <h2 id="random-starter-message">Quem comeca?</h2>
+                <div id="random-starter-display" class="random-starter-display">
+                    <!-- Animation will happen here -->
+                </div>
+                <div id="random-starter-result" class="random-starter-result" style="display: none;">
+                    <span class="result-label">Comeca:</span>
+                    <span id="random-starter-winner" class="result-name"></span>
+                </div>
+                <div class="random-starter-actions">
+                    <button id="random-starter-again-btn" class="secondary-btn" style="display: none;">Sortear Novamente</button>
+                    <button id="random-starter-close-btn" class="primary-btn" style="display: none;">Continuar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Commander Damage Modal -->
+        <div id="commander-modal" class="modal">
+            <div class="modal-content commander-modal-content">
+                <div class="modal-header">
+                    <h2>Dano de Comandante</h2>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div id="commander-damage-grid" class="commander-damage-grid">
+                    <!-- Commander damage trackers will be injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Counters Modal -->
+        <div id="counters-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Contadores</h2>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div id="counters-list" class="counters-list">
+                    <!-- Counters will be injected here -->
+                </div>
+                <div class="add-counter-section">
+                    <input type="text" id="custom-counter-name" placeholder="Nome do contador" maxlength="20">
+                    <button id="add-custom-counter-btn" class="add-counter-btn">+ Adicionar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Commander Damage Modal -->
+        <div id="commander-damage-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Dano de Comandante</h2>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div id="commander-damage-grid" class="commander-damage-grid">
+                    <!-- Commander damage items will be injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="modal">
+            <div class="modal-content settings-modal-content">
+                <div class="modal-header">
+                    <h2>Configuracoes</h2>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div class="settings-list">
+                    <div class="settings-group">
+                        <h3>Audio</h3>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="sound-enabled" checked>
+                                Sons Ativados
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>Volume</label>
+                            <input type="range" id="volume-slider" min="0" max="100" value="50">
+                        </div>
+                        <button id="mute-all-btn" class="small-btn">Silenciar Tudo</button>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3>Visual</h3>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="animations-enabled" checked>
+                                Animacoes
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>Intensidade</label>
+                            <select id="animation-intensity">
+                                <option value="subtle">Sutil</option>
+                                <option value="normal" selected>Normal</option>
+                                <option value="intense">Intensa</option>
+                            </select>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="show-special-moments" checked>
+                                Momentos Especiais
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="easter-eggs-enabled" checked>
+                                Easter Eggs
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3>Comandante</h3>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="show-commander-deaths" checked>
+                                Mostrar contador de mortes
+                            </label>
+                        </div>
+                        <div class="setting-item-info">
+                            <small>Exibe quantas vezes o comandante morreu e o Commander Tax atual (+2 por morte)</small>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3>GIFs</h3>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="gif-paused">
+                                Pausar GIFs
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="gif-fps-reduced">
+                                Reduzir FPS (performance)
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3>Tema</h3>
+                        <div class="theme-selector-settings">
+                            <button class="theme-btn-sm" data-theme="casual">Casual</button>
+                            <button class="theme-btn-sm" data-theme="dark">Dark</button>
+                            <button class="theme-btn-sm" data-theme="streamer">Streamer</button>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3>Layout</h3>
+                        <div id="layout-presets-settings" class="layout-presets-small">
+                            <!-- Layout presets will be injected here -->
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="table-mode-settings" checked>
+                                Modo Mesa
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3>Timer por Turno</h3>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="turn-timer-enabled">
+                                Ativar Timer
+                            </label>
+                        </div>
+                        <div class="setting-item timer-duration">
+                            <label>Duracao (segundos)</label>
+                            <input type="number" id="timer-duration" value="120" min="30" max="600">
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3>Sorteio Inicial</h3>
+                        <div class="setting-item">
+                            <label>Animacao</label>
+                            <select id="random-starter-animation">
+                                <option value="highlight">Destaque em Sequencia</option>
+                                <option value="roulette">Roleta</option>
+                                <option value="flash">Flash Rapido</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3>Modo de Jogo</h3>
+                        <div class="game-mode-selector">
+                            <button class="mode-btn active" data-mode="standard">Standard</button>
+                            <button class="mode-btn" data-mode="planechase">Planechase</button>
+                            <button class="mode-btn" data-mode="archenemy">Archenemy</button>
+                        </div>
+                    </div>
+
+                    <hr>
+                    <button id="reset-game-btn" class="danger-btn">Resetar Partida</button>
+                    <button id="new-game-btn" class="secondary-btn">Nova Partida</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Player Settings Modal -->
+        <div id="player-settings-modal" class="modal">
+            <div class="modal-content player-settings-modal-content">
+                <div class="modal-header">
+                    <h2>Configurar Jogador</h2>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div class="player-settings-form">
+                    <div class="form-group">
+                        <label>Nome</label>
+                        <input type="text" id="player-name-input" maxlength="20">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Emoji / Icone</label>
+                        <div class="emoji-picker">
+                            <button class="emoji-option" data-emoji="">Nenhum</button>
+                            <button class="emoji-option" data-emoji="⚔️">⚔️</button>
+                            <button class="emoji-option" data-emoji="🛡️">🛡️</button>
+                            <button class="emoji-option" data-emoji="🔥">🔥</button>
+                            <button class="emoji-option" data-emoji="❄️">❄️</button>
+                            <button class="emoji-option" data-emoji="⚡">⚡</button>
+                            <button class="emoji-option" data-emoji="🌿">🌿</button>
+                            <button class="emoji-option" data-emoji="💀">💀</button>
+                            <button class="emoji-option" data-emoji="👑">👑</button>
+                            <button class="emoji-option" data-emoji="🐉">🐉</button>
+                            <button class="emoji-option" data-emoji="🧙">🧙</button>
+                            <button class="emoji-option" data-emoji="😈">😈</button>
+                            <button class="emoji-option" data-emoji="👹">👹</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Tag (opcional)</label>
+                        <div class="tag-picker">
+                            <button class="tag-option" data-tag="">Nenhuma</button>
+                            <button class="tag-option" data-tag="Archenemy">Archenemy</button>
+                            <button class="tag-option" data-tag="Aliado">Aliado</button>
+                            <button class="tag-option" data-tag="Newbie">Newbie</button>
+                            <button class="tag-option" data-tag="Pro">Pro</button>
+                        </div>
+                        <input type="text" id="custom-tag-input" placeholder="Tag customizada" maxlength="15">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Cor</label>
+                        <div class="color-picker">
+                            <button class="color-option" data-color="#6366f1" style="background:#6366f1"></button>
+                            <button class="color-option" data-color="#ec4899" style="background:#ec4899"></button>
+                            <button class="color-option" data-color="#14b8a6" style="background:#14b8a6"></button>
+                            <button class="color-option" data-color="#f59e0b" style="background:#f59e0b"></button>
+                            <button class="color-option" data-color="#ef4444" style="background:#ef4444"></button>
+                            <button class="color-option" data-color="#8b5cf6" style="background:#8b5cf6"></button>
+                            <button class="color-option" data-color="#22c55e" style="background:#22c55e"></button>
+                            <button class="color-option" data-color="#3b82f6" style="background:#3b82f6"></button>
+                            <button class="color-option color-picker-custom" id="open-color-picker-btn" title="Cor personalizada">+</button>
+                        </div>
+                        <div id="custom-color-preview" class="custom-color-preview" style="display:none">
+                            <div class="color-preview-swatch" id="color-preview-swatch"></div>
+                            <span id="color-preview-hex">#6366f1</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group media-group">
+                        <label>Avatar <span class="media-type-badge" id="avatar-type-badge"></span></label>
+                        <div class="media-preview-container">
+                            <div class="media-preview avatar-preview-container" id="avatar-preview-container">
+                                <img id="avatar-preview" class="media-preview-img" style="display:none">
+                                <div class="media-placeholder" id="avatar-placeholder">
+                                    <span>📷</span>
+                                    <small>Sem avatar</small>
+                                </div>
+                                <div class="media-controls" id="avatar-controls" style="display:none">
+                                    <button class="media-control-btn" id="avatar-pause-btn" title="Pausar/Retomar GIF">⏸️</button>
+                                </div>
+                            </div>
+                            <div class="media-actions">
+                                <input type="file" id="avatar-input" accept="image/*,.gif" hidden>
+                                <button id="avatar-upload-btn" class="media-btn">
+                                    <span class="media-btn-icon">📤</span>
+                                    Upload
+                                </button>
+                                <button id="avatar-search-btn" class="media-btn search">
+                                    <span class="media-btn-icon">🔍</span>
+                                    Buscar
+                                </button>
+                                <button id="avatar-clear-btn" class="media-btn danger" style="display:none">
+                                    <span class="media-btn-icon">🗑️</span>
+                                    Remover
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group media-group">
+                        <label>Fundo do Card <span class="media-type-badge" id="background-type-badge"></span></label>
+                        <div class="media-preview-container">
+                            <div class="media-preview background-preview-container" id="background-preview-container">
+                                <img id="background-preview" class="media-preview-img" style="display:none">
+                                <div class="media-placeholder" id="background-placeholder">
+                                    <span>🖼️</span>
+                                    <small>Sem fundo</small>
+                                </div>
+                                <div class="media-controls" id="background-controls" style="display:none">
+                                    <button class="media-control-btn" id="background-pause-btn" title="Pausar/Retomar GIF">⏸️</button>
+                                </div>
+                            </div>
+                            <div class="media-actions">
+                                <input type="file" id="background-input" accept="image/*,.gif" hidden>
+                                <button id="background-upload-btn" class="media-btn">
+                                    <span class="media-btn-icon">📤</span>
+                                    Upload
+                                </button>
+                                <button id="background-search-btn" class="media-btn search">
+                                    <span class="media-btn-icon">🔍</span>
+                                    Buscar
+                                </button>
+                                <button id="background-clear-btn" class="media-btn danger" style="display:none">
+                                    <span class="media-btn-icon">🗑️</span>
+                                    Remover
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Sons Personalizados</label>
+                        <div class="sound-uploads">
+                            <div class="sound-upload-item">
+                                <span>Morte:</span>
+                                <input type="file" id="death-sound-input" accept="audio/*" hidden>
+                                <button class="upload-btn-sm" data-sound="death">Upload</button>
+                                <button class="clear-btn-sm" data-sound="death" style="display:none">X</button>
+                            </div>
+                            <div class="sound-upload-item">
+                                <span>Vitoria:</span>
+                                <input type="file" id="win-sound-input" accept="audio/*" hidden>
+                                <button class="upload-btn-sm" data-sound="win">Upload</button>
+                                <button class="clear-btn-sm" data-sound="win" style="display:none">X</button>
+                            </div>
+                            <div class="sound-upload-item">
+                                <span>Dano:</span>
+                                <input type="file" id="damage-sound-input" accept="audio/*" hidden>
+                                <button class="upload-btn-sm" data-sound="damage">Upload</button>
+                                <button class="clear-btn-sm" data-sound="damage" style="display:none">X</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="save-player-settings-btn" class="primary-btn">Salvar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Color Picker Modal -->
+        <div id="color-picker-modal" class="modal">
+            <div class="modal-content color-picker-modal-content">
+                <div class="modal-header">
+                    <h2>Escolher Cor</h2>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div class="color-picker-body">
+                    <div class="color-picker-main">
+                        <canvas id="color-picker-canvas" width="280" height="200"></canvas>
+                        <div id="color-picker-cursor" class="color-picker-cursor"></div>
+                    </div>
+                    <div class="color-picker-hue">
+                        <canvas id="hue-picker-canvas" width="280" height="20"></canvas>
+                        <div id="hue-picker-cursor" class="hue-picker-cursor"></div>
+                    </div>
+                    <div class="color-picker-preview-section">
+                        <div id="color-picker-result" class="color-picker-result"></div>
+                        <div class="color-picker-inputs">
+                            <div class="color-input-group">
+                                <label>HEX</label>
+                                <input type="text" id="color-hex-input" maxlength="7" placeholder="#6366f1">
+                            </div>
+                            <div class="color-input-group">
+                                <label>R</label>
+                                <input type="number" id="color-r-input" min="0" max="255">
+                            </div>
+                            <div class="color-input-group">
+                                <label>G</label>
+                                <input type="number" id="color-g-input" min="0" max="255">
+                            </div>
+                            <div class="color-input-group">
+                                <label>B</label>
+                                <input type="number" id="color-b-input" min="0" max="255">
+                            </div>
+                        </div>
+                    </div>
+                    <button id="apply-color-btn" class="primary-btn">Aplicar Cor</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Image/GIF Search Modal -->
+        <div id="image-search-modal" class="modal">
+            <div class="modal-content image-search-modal-content">
+                <div class="modal-header">
+                    <h2 id="image-search-title">Buscar Imagem</h2>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div class="image-search-body">
+                    <div class="image-search-input-group">
+                        <input type="text" id="image-search-input" placeholder="Ex: dragon, wizard, forest...">
+                        <button id="image-search-btn" class="search-action-btn">Buscar</button>
+                    </div>
+                    <div class="image-search-tabs">
+                        <button class="image-tab active" data-type="gif">🎞️ GIFs Animados</button>
+                        <button class="image-tab" data-type="image">📷 Imagens</button>
+                    </div>
+                    <div class="image-search-suggestions">
+                        <span class="suggestion-label">Sugestoes:</span>
+                        <button class="suggestion-chip" data-query="dragon">dragon</button>
+                        <button class="suggestion-chip" data-query="magic">magic</button>
+                        <button class="suggestion-chip" data-query="wizard">wizard</button>
+                        <button class="suggestion-chip" data-query="fire">fire</button>
+                        <button class="suggestion-chip" data-query="forest">forest</button>
+                        <button class="suggestion-chip" data-query="skull">skull</button>
+                    </div>
+                    <div id="image-search-results" class="image-search-results">
+                        <div class="image-search-placeholder">
+                            <span class="placeholder-icon">🔍</span>
+                            <p>Digite um termo ou clique em uma sugestao</p>
+                        </div>
+                    </div>
+                    <div id="image-search-loading" class="image-search-loading" style="display:none">
+                        <div class="loading-spinner"></div>
+                        <span>Buscando...</span>
+                    </div>
+
+                    <!-- Preview Section -->
+                    <div id="image-preview-section" class="image-preview-section" style="display:none">
+                        <div class="preview-divider">
+                            <span>Preview</span>
+                        </div>
+                        <div class="image-preview-card">
+                            <img id="selected-image-preview" class="selected-image-preview" alt="Preview">
+                            <div class="preview-info">
+                                <span id="preview-type-badge" class="preview-type-badge">GIF</span>
+                            </div>
+                        </div>
+                        <div class="preview-actions">
+                            <button id="cancel-image-btn" class="secondary-btn-sm">Cancelar</button>
+                            <button id="apply-image-btn" class="primary-btn-sm">Aplicar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Winner Overlay -->
+        <div id="winner-overlay" class="winner-overlay">
+            <div class="winner-content">
+                <div class="winner-trophy">🏆</div>
+                <h1 class="winner-title">Vitoria!</h1>
+                <p id="winner-name" class="winner-name"></p>
+                <div class="winner-confetti"></div>
+                <button id="close-winner-btn" class="primary-btn">Continuar</button>
+            </div>
+        </div>
+
+        <!-- Special Moment Overlay -->
+        <div id="special-moment-overlay" class="special-moment-overlay">
+            <div id="special-moment-content" class="special-moment-content">
+                <!-- Dynamic content -->
+            </div>
+        </div>
+
+        <!-- Event History Panel -->
+        <div id="history-panel" class="history-panel">
+            <div class="history-header">
+                <h3>Historico</h3>
+                <button id="close-history-btn" class="close-btn">&times;</button>
+            </div>
+            <div id="history-list" class="history-list">
+                <!-- Events will be injected here -->
+            </div>
+        </div>
+
+        <!-- Timer Display -->
+        <div id="timer-display" class="timer-display"></div>
+    </div>
+
+    <script type="module" src="src/js/main.js"></script>
+</body>
+</html>

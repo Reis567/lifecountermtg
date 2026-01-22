@@ -1,0 +1,20 @@
+{
+    "name": "mtg-life-counter",
+    "version": "1.0.0",
+    "description": "Life Counter para Magic: The Gathering - Commander (EDH)",
+    "type": "module",
+    "scripts": {
+        "build": "tsc",
+        "watch": "tsc --watch",
+        "serve": "npx serve .",
+        "dev": "concurrently \"npm run watch\" \"npm run serve\""
+    },
+    "devDependencies": {
+        "typescript": "^5.3.0",
+        "serve": "^14.2.0",
+        "concurrently": "^8.2.0"
+    },
+    "keywords": ["mtg", "magic", "commander", "edh", "life-counter"],
+    "author": "",
+    "license": "MIT"
+}
