@@ -141,6 +141,32 @@ function setupSetupScreenListeners(): void {
         gameState.toggleTableMode((e.target as HTMLInputElement).checked);
     });
 
+    // Toggle player setup section (for mobile)
+    $('toggle-player-setup')?.addEventListener('click', () => {
+        const section = document.querySelector('.setup-section-players');
+        if (section) {
+            section.classList.toggle('collapsed');
+            // Mark as user-expanded to prevent auto-collapse
+            if (!section.classList.contains('collapsed')) {
+                section.classList.add('user-expanded');
+            } else {
+                section.classList.remove('user-expanded');
+            }
+        }
+    });
+
+    // Auto-collapse player setup on mobile landscape
+    const checkMobileLandscape = () => {
+        const isLandscape = window.matchMedia('(orientation: landscape) and (max-height: 500px)').matches;
+        const section = document.querySelector('.setup-section-players');
+        if (isLandscape && section && !section.classList.contains('user-expanded')) {
+            section.classList.add('collapsed');
+        }
+    };
+    checkMobileLandscape();
+    window.addEventListener('resize', checkMobileLandscape);
+    window.addEventListener('orientationchange', checkMobileLandscape);
+
     // Start game button
     $('start-game-btn')?.addEventListener('click', () => {
         gameState.startGame();
