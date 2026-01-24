@@ -756,7 +756,7 @@ select {
 
 .players-grid[data-players="3"] .life-value,
 .players-grid[data-players="4"] .life-value {
-    font-size: clamp(4rem, 16vw, 8rem);
+    font-size: clamp(5rem, 19vw, 9rem);
 }
 
 .players-grid[data-players="5"] .life-value,
@@ -3765,7 +3765,7 @@ select {
 
     /* Even larger for fewer players in landscape */
     .players-grid[data-players="2"] .life-value {
-        font-size: clamp(4rem, 20vw, 9rem);
+        font-size: clamp(3.5rem, 16vw, 7rem);
     }
 
     .players-grid[data-players="3"] .life-value,
