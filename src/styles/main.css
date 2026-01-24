@@ -662,6 +662,12 @@ select {
     gap: 0.5rem;
 }
 
+/* Sidebars - hidden by default, shown in landscape */
+.sidebar-left,
+.sidebar-right {
+    display: none;
+}
+
 .turn-indicator {
     display: flex;
     flex-direction: column;
@@ -742,6 +748,21 @@ select {
 .players-grid.layout-rows-2 { grid-template-rows: 1fr 1fr; }
 .players-grid.layout-rows-3 { grid-template-rows: 1fr 1fr 1fr; }
 .players-grid.layout-rows-4 { grid-template-rows: 1fr 1fr 1fr 1fr; }
+
+/* Larger life values for fewer players */
+.players-grid[data-players="2"] .life-value {
+    font-size: clamp(5rem, 22vw, 12rem);
+}
+
+.players-grid[data-players="3"] .life-value,
+.players-grid[data-players="4"] .life-value {
+    font-size: clamp(4rem, 16vw, 8rem);
+}
+
+.players-grid[data-players="5"] .life-value,
+.players-grid[data-players="6"] .life-value {
+    font-size: clamp(3rem, 12vw, 6rem);
+}
 
 /* ===== Player Card ===== */
 .player-card {
@@ -3636,55 +3657,75 @@ select {
 
 /* Landscape mode adjustments */
 @media (orientation: landscape) and (max-height: 500px) {
-    /* Move header to right side as vertical sidebar - only when game is active */
+    /* Game screen layout in landscape */
     #game-screen.active {
-        display: flex;
-        flex-direction: row;
+        position: relative;
     }
 
-    /* Hide sidebar when game screen is not active (setup screen visible) */
-    #game-screen:not(.active) .game-header {
+    /* Hide main header in landscape - use sidebars instead */
+    #game-screen.active .game-header {
+        display: none !important;
+    }
+
+    /* Hide sidebars when game screen is not active (setup screen visible) */
+    #game-screen:not(.active) .sidebar-left,
+    #game-screen:not(.active) .sidebar-right {
         display: none !important;
         visibility: hidden !important;
     }
 
-    .game-header {
+    /* Left Sidebar */
+    #game-screen.active .sidebar-left {
+        display: flex !important;
+        flex-direction: column;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 48px;
+        height: 100%;
+        padding: 0.5rem 0.25rem;
+        border-right: 1px solid var(--border-color);
+        z-index: 50;
+        background: var(--bg-primary);
+        gap: 0.375rem;
+        align-items: center;
+    }
+
+    /* Right Sidebar */
+    #game-screen.active .sidebar-right {
+        display: flex !important;
+        flex-direction: column;
         position: fixed;
         top: 0;
         right: 0;
+        left: auto;
         width: 48px;
         height: 100%;
-        flex-direction: column;
         padding: 0.5rem 0.25rem;
         border-left: 1px solid var(--border-color);
-        border-bottom: none;
         z-index: 50;
         background: var(--bg-primary);
-    }
-
-    .header-center {
-        display: none; /* Hide turn indicator in landscape sidebar */
-    }
-
-    .header-actions {
-        flex-direction: column;
         gap: 0.375rem;
+        align-items: center;
     }
 
-    .header-btn {
+    .sidebar-left .header-btn,
+    .sidebar-right .header-btn {
         width: 36px;
         height: 36px;
     }
 
-    .header-btn svg {
+    .sidebar-left .header-btn svg,
+    .sidebar-right .header-btn svg {
         width: 18px;
         height: 18px;
     }
 
-    /* Adjust players grid to account for sidebar */
+    /* Adjust players grid to account for both sidebars */
     .players-grid {
-        width: calc(100% - 48px);
-        margin-right: 48px;
+        width: calc(100% - 96px) !important;
+        margin-left: 48px !important;
+        margin-right: 48px !important;
     }
 
     .player-header {
@@ -3717,9 +3758,19 @@ select {
         min-height: 1.5rem;
     }
 
-    /* Larger life value with more vertical space */
+    /* Larger life value with more vertical space in landscape */
     .life-value {
-        font-size: clamp(2.5rem, 10vw, 4rem);
+        font-size: clamp(2.5rem, 12vw, 5rem);
+    }
+
+    /* Even larger for fewer players in landscape */
+    .players-grid[data-players="2"] .life-value {
+        font-size: clamp(4rem, 20vw, 9rem);
+    }
+
+    .players-grid[data-players="3"] .life-value,
+    .players-grid[data-players="4"] .life-value {
+        font-size: clamp(3rem, 14vw, 6rem);
     }
 
     .life-control {

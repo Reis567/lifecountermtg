@@ -288,6 +288,9 @@ let undoCheckInterval: number | null = null;
 // Random starter animation state
 let randomStarterAnimationInterval: number | null = null;
 
+// Winner animation state - track to avoid re-showing animation
+let lastShownWinnerId: string | null = null;
+
 // Color picker state
 let currentHue = 0;
 let currentSaturation = 100;
@@ -638,6 +641,38 @@ function setupGameScreenListeners(): void {
             hideLifeShortcutsPopup();
         }
     });
+
+    // === Left Sidebar Buttons (landscape mode) ===
+    $('menu-btn-left')?.addEventListener('click', () => {
+        openModal($('settings-modal'));
+    });
+
+    $('undo-btn-left')?.addEventListener('click', performUndo);
+
+    $('history-btn-left')?.addEventListener('click', () => {
+        renderHistory();
+        $('history-panel').classList.add('active');
+    });
+
+    $('dice-roller-btn-left')?.addEventListener('click', () => {
+        openModal($('dice-roller-modal'));
+    });
+
+    $('random-starter-btn-left')?.addEventListener('click', () => {
+        if (isButtonDebounced('random-starter-btn-left')) return;
+        startRandomStarterAnimation();
+    });
+
+    // === Right Sidebar Buttons (landscape mode) ===
+    $('fullscreen-btn-right')?.addEventListener('click', toggleFullscreen);
+
+    $('next-turn-btn-right')?.addEventListener('click', () => {
+        if (isButtonDebounced('next-turn-btn-right')) return;
+        audioManager.play('turn');
+        gameState.nextTurn();
+    });
+
+    $('share-result-btn-right')?.addEventListener('click', openShareModal);
 }
 
 function setupModalListeners(): void {
@@ -841,6 +876,7 @@ function setupSettingsListeners(): void {
             }
 
             gameState.resetGame(resetDeaths);
+            hideShareButtons();
             closeAllModals();
         }
     });
@@ -848,9 +884,19 @@ function setupSettingsListeners(): void {
     $('new-game-btn')?.addEventListener('click', () => {
         if (confirm('Tem certeza que deseja iniciar uma nova partida?')) {
             gameState.newGame();
+            hideShareButtons();
             closeAllModals();
         }
     });
+}
+
+// Hide share buttons (shown only when there's a winner)
+function hideShareButtons(): void {
+    const shareBtn = $('share-result-btn');
+    const shareBtnRight = $('share-result-btn-right');
+    if (shareBtn) shareBtn.style.display = 'none';
+    if (shareBtnRight) shareBtnRight.style.display = 'none';
+    lastShownWinnerId = null;
 }
 
 function setupPlayerSettingsListeners(): void {
@@ -1298,12 +1344,26 @@ function renderGame(state: GameState): void {
     // Handle turn timer
     updateTurnTimer(state);
 
-    // Check for winner
+    // Check for winner - show share buttons and winner animation
     if (state.winner) {
-        const winner = state.players.find(p => p.id === state.winner);
-        if (winner) {
-            showWinner(winner);
+        // Show share buttons when there's a winner
+        const shareBtn = $('share-result-btn');
+        const shareBtnRight = $('share-result-btn-right');
+        if (shareBtn) shareBtn.style.display = 'flex';
+        if (shareBtnRight) shareBtnRight.style.display = 'flex';
+
+        // Show winner animation only once per winner
+        if (state.winner !== lastShownWinnerId) {
+            const winner = state.players.find(p => p.id === state.winner);
+            if (winner) {
+                showWinner(winner);
+                lastShownWinnerId = state.winner;
+            }
         }
+    } else {
+        // Hide share buttons when there's no winner
+        hideShareButtons();
+        lastShownWinnerId = null;
     }
 
     // Update modals if open
@@ -1317,11 +1377,12 @@ function renderGame(state: GameState): void {
 
 // Update grid layout based on layout config
 function updateGridLayout(grid: HTMLElement, state: GameState): void {
-    const { layout } = state.settings;
+    const { layout, playerCount } = state.settings;
     const rows = layout.rows;
 
-    // Set grid template rows
+    // Set grid template rows and player count
     grid.className = `players-grid layout-rows-${rows.length}`;
+    grid.setAttribute('data-players', playerCount.toString());
 
     // Calculate grid template columns for each row
     let gridTemplateAreas = '';
@@ -1642,6 +1703,9 @@ function updateSettingsControls(state: GameState): void {
     ($('random-starter-animation') as HTMLSelectElement).value = state.settings.randomStarterAnimation;
     ($('table-mode-settings') as HTMLInputElement).checked = state.settings.layout.tableMode;
 
+    // Update layout presets in settings modal
+    renderLayoutPresets();
+
     // Update theme buttons
     document.querySelectorAll('.theme-btn-sm').forEach(btn => {
         btn.classList.toggle('active', btn.getAttribute('data-theme') === state.settings.theme);
@@ -1765,12 +1829,21 @@ function updateFullscreenIcon(): void {
         webkitFullscreenElement?: Element;
     };
     const isFullscreen = !!(document.fullscreenElement || doc.webkitFullscreenElement);
+
+    // Update main header fullscreen icon
     const enterIcon = $('fullscreen-icon');
     const exitIcon = $('exit-fullscreen-icon');
-
     if (enterIcon && exitIcon) {
         enterIcon.style.display = isFullscreen ? 'none' : 'block';
         exitIcon.style.display = isFullscreen ? 'block' : 'none';
+    }
+
+    // Update right sidebar fullscreen icon
+    const enterIconRight = $('fullscreen-icon-right');
+    const exitIconRight = $('exit-fullscreen-icon-right');
+    if (enterIconRight && exitIconRight) {
+        enterIconRight.style.display = isFullscreen ? 'none' : 'block';
+        exitIconRight.style.display = isFullscreen ? 'block' : 'none';
     }
 }
 
@@ -1845,6 +1918,7 @@ function updateUndoButton(): void {
     const canUndo = gameState.canUndo();
     const undoBtn = $('undo-btn');
     const floatingUndoBtn = $('floating-undo-btn');
+    const undoBtnLeft = $('undo-btn-left');
 
     if (undoBtn) {
         undoBtn.style.display = canUndo ? 'flex' : 'none';
@@ -1853,6 +1927,12 @@ function updateUndoButton(): void {
 
     if (floatingUndoBtn) {
         floatingUndoBtn.style.display = canUndo ? 'flex' : 'none';
+    }
+
+    // Update left sidebar undo button
+    if (undoBtnLeft) {
+        undoBtnLeft.style.display = canUndo ? 'flex' : 'none';
+        undoBtnLeft.classList.toggle('has-undo', canUndo);
     }
 }
 
@@ -2557,6 +2637,12 @@ function showWinner(player: Player): void {
     $('winner-name').textContent = player.name;
     $('winner-overlay').classList.add('active');
     audioManager.play('win', player.id);
+
+    // Show share buttons when there's a winner
+    const shareBtn = $('share-result-btn');
+    const shareBtnRight = $('share-result-btn-right');
+    if (shareBtn) shareBtn.style.display = 'flex';
+    if (shareBtnRight) shareBtnRight.style.display = 'flex';
 
     // Create epic confetti
     createConfetti();

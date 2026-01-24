@@ -243,6 +243,8 @@ let turnTimerInterval = null;
 let undoCheckInterval = null;
 // Random starter animation state
 let randomStarterAnimationInterval = null;
+// Winner animation state - track to avoid re-showing animation
+let lastShownWinnerId = null;
 // Color picker state
 let currentHue = 0;
 let currentSaturation = 100;
@@ -545,6 +547,32 @@ function setupGameScreenListeners() {
             hideLifeShortcutsPopup();
         }
     });
+    // === Left Sidebar Buttons (landscape mode) ===
+    $('menu-btn-left')?.addEventListener('click', () => {
+        openModal($('settings-modal'));
+    });
+    $('undo-btn-left')?.addEventListener('click', performUndo);
+    $('history-btn-left')?.addEventListener('click', () => {
+        renderHistory();
+        $('history-panel').classList.add('active');
+    });
+    $('dice-roller-btn-left')?.addEventListener('click', () => {
+        openModal($('dice-roller-modal'));
+    });
+    $('random-starter-btn-left')?.addEventListener('click', () => {
+        if (isButtonDebounced('random-starter-btn-left'))
+            return;
+        startRandomStarterAnimation();
+    });
+    // === Right Sidebar Buttons (landscape mode) ===
+    $('fullscreen-btn-right')?.addEventListener('click', toggleFullscreen);
+    $('next-turn-btn-right')?.addEventListener('click', () => {
+        if (isButtonDebounced('next-turn-btn-right'))
+            return;
+        audioManager.play('turn');
+        gameState.nextTurn();
+    });
+    $('share-result-btn-right')?.addEventListener('click', openShareModal);
 }
 function setupModalListeners() {
     // Close modals on backdrop click
@@ -716,15 +744,27 @@ function setupSettingsListeners() {
                 resetDeaths = confirm('Deseja também zerar as mortes do comandante (Commander Tax)?');
             }
             gameState.resetGame(resetDeaths);
+            hideShareButtons();
             closeAllModals();
         }
     });
     $('new-game-btn')?.addEventListener('click', () => {
         if (confirm('Tem certeza que deseja iniciar uma nova partida?')) {
             gameState.newGame();
+            hideShareButtons();
             closeAllModals();
         }
     });
+}
+// Hide share buttons (shown only when there's a winner)
+function hideShareButtons() {
+    const shareBtn = $('share-result-btn');
+    const shareBtnRight = $('share-result-btn-right');
+    if (shareBtn)
+        shareBtn.style.display = 'none';
+    if (shareBtnRight)
+        shareBtnRight.style.display = 'none';
+    lastShownWinnerId = null;
 }
 function setupPlayerSettingsListeners() {
     // Color options
@@ -747,13 +787,6 @@ function setupPlayerSettingsListeners() {
             document.querySelectorAll('.tag-option').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
             $('custom-tag-input').value = '';
-        });
-    });
-    // Border style options
-    document.querySelectorAll('.border-style-option').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.border-style-option').forEach(b => b.classList.remove('selected'));
-            btn.classList.add('selected');
         });
     });
     // Avatar upload
@@ -1126,12 +1159,28 @@ function renderGame(state) {
     updateSettingsControls(state);
     // Handle turn timer
     updateTurnTimer(state);
-    // Check for winner
+    // Check for winner - show share buttons and winner animation
     if (state.winner) {
-        const winner = state.players.find(p => p.id === state.winner);
-        if (winner) {
-            showWinner(winner);
+        // Show share buttons when there's a winner
+        const shareBtn = $('share-result-btn');
+        const shareBtnRight = $('share-result-btn-right');
+        if (shareBtn)
+            shareBtn.style.display = 'flex';
+        if (shareBtnRight)
+            shareBtnRight.style.display = 'flex';
+        // Show winner animation only once per winner
+        if (state.winner !== lastShownWinnerId) {
+            const winner = state.players.find(p => p.id === state.winner);
+            if (winner) {
+                showWinner(winner);
+                lastShownWinnerId = state.winner;
+            }
         }
+    }
+    else {
+        // Hide share buttons when there's no winner
+        hideShareButtons();
+        lastShownWinnerId = null;
     }
     // Update modals if open
     if (currentCommanderDamagePlayerId) {
@@ -1143,10 +1192,11 @@ function renderGame(state) {
 }
 // Update grid layout based on layout config
 function updateGridLayout(grid, state) {
-    const { layout } = state.settings;
+    const { layout, playerCount } = state.settings;
     const rows = layout.rows;
-    // Set grid template rows
+    // Set grid template rows and player count
     grid.className = `players-grid layout-rows-${rows.length}`;
+    grid.setAttribute('data-players', playerCount.toString());
     // Calculate grid template columns for each row
     let gridTemplateAreas = '';
     let playerIndex = 0;
@@ -1195,7 +1245,6 @@ function renderPlayers(state) {
             player.isMonarch ? 'is-monarch' : '',
             state.settings.gifPaused ? 'gif-paused' : '',
             team ? `team-${teamIndex}` : '',
-            player.borderStyle !== 'default' ? `border-${player.borderStyle}` : '',
         ].filter(Boolean).join(' ');
         const rotation = layout.tableMode ? player.rotation : 0;
         const countersHtml = renderPlayerCountersBadges(player);
@@ -1433,6 +1482,8 @@ function updateSettingsControls(state) {
     $('timer-duration').value = state.settings.turnTimerDuration.toString();
     $('random-starter-animation').value = state.settings.randomStarterAnimation;
     $('table-mode-settings').checked = state.settings.layout.tableMode;
+    // Update layout presets in settings modal
+    renderLayoutPresets();
     // Update theme buttons
     document.querySelectorAll('.theme-btn-sm').forEach(btn => {
         btn.classList.toggle('active', btn.getAttribute('data-theme') === state.settings.theme);
@@ -1536,11 +1587,19 @@ function toggleFullscreen() {
 function updateFullscreenIcon() {
     const doc = document;
     const isFullscreen = !!(document.fullscreenElement || doc.webkitFullscreenElement);
+    // Update main header fullscreen icon
     const enterIcon = $('fullscreen-icon');
     const exitIcon = $('exit-fullscreen-icon');
     if (enterIcon && exitIcon) {
         enterIcon.style.display = isFullscreen ? 'none' : 'block';
         exitIcon.style.display = isFullscreen ? 'block' : 'none';
+    }
+    // Update right sidebar fullscreen icon
+    const enterIconRight = $('fullscreen-icon-right');
+    const exitIconRight = $('exit-fullscreen-icon-right');
+    if (enterIconRight && exitIconRight) {
+        enterIconRight.style.display = isFullscreen ? 'none' : 'block';
+        exitIconRight.style.display = isFullscreen ? 'block' : 'none';
     }
 }
 function changeLifeWithFeedback(playerId, amount) {
@@ -1606,12 +1665,18 @@ function updateUndoButton() {
     const canUndo = gameState.canUndo();
     const undoBtn = $('undo-btn');
     const floatingUndoBtn = $('floating-undo-btn');
+    const undoBtnLeft = $('undo-btn-left');
     if (undoBtn) {
         undoBtn.style.display = canUndo ? 'flex' : 'none';
         undoBtn.classList.toggle('has-undo', canUndo);
     }
     if (floatingUndoBtn) {
         floatingUndoBtn.style.display = canUndo ? 'flex' : 'none';
+    }
+    // Update left sidebar undo button
+    if (undoBtnLeft) {
+        undoBtnLeft.style.display = canUndo ? 'flex' : 'none';
+        undoBtnLeft.classList.toggle('has-undo', canUndo);
     }
 }
 // Random Starter Animation
@@ -1903,11 +1968,6 @@ function openPlayerSettings(playerId) {
         btn.classList.toggle('selected', tag === (player.tag || ''));
     });
     $('custom-tag-input').value = '';
-    // Select current border style
-    document.querySelectorAll('.border-style-option').forEach(btn => {
-        const border = btn.getAttribute('data-border');
-        btn.classList.toggle('selected', border === (player.borderStyle || 'default'));
-    });
     // Setup avatar preview
     const avatarPreview = $('avatar-preview');
     const avatarContainer = $('avatar-preview-container');
@@ -2007,9 +2067,6 @@ function savePlayerSettings() {
         const bgTypeBadge = $('background-type-badge');
         backgroundType = bgTypeBadge?.textContent?.toLowerCase() === 'gif' ? 'gif' : 'image';
     }
-    // Get selected border style
-    const selectedBorder = document.querySelector('.border-style-option.selected');
-    const borderStyle = (selectedBorder?.getAttribute('data-border') || 'default');
     gameState.updatePlayerSetup(currentEditingPlayerId, {
         name,
         color,
@@ -2018,7 +2075,6 @@ function savePlayerSettings() {
         avatar,
         background,
         backgroundType: backgroundType,
-        borderStyle,
     });
     // Reset custom color state
     selectedCustomColor = null;
@@ -2254,6 +2310,13 @@ function showWinner(player) {
     $('winner-name').textContent = player.name;
     $('winner-overlay').classList.add('active');
     audioManager.play('win', player.id);
+    // Show share buttons when there's a winner
+    const shareBtn = $('share-result-btn');
+    const shareBtnRight = $('share-result-btn-right');
+    if (shareBtn)
+        shareBtn.style.display = 'flex';
+    if (shareBtnRight)
+        shareBtnRight.style.display = 'flex';
     // Create epic confetti
     createConfetti();
     // Create firework bursts

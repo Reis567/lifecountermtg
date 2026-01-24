@@ -38,7 +38,6 @@ export function createPlayer(index, startingLife, totalPlayers) {
         },
         rotation,
         teamId: null,
-        borderStyle: 'default',
     };
 }
 // Calculate rotation for table mode based on player position
@@ -223,7 +222,6 @@ class GameStateManager {
                     rotation: p.rotation ?? 0,
                     commanderDeaths: p.commanderDeaths ?? 0,
                     teamId: p.teamId ?? null,
-                    borderStyle: p.borderStyle ?? 'default',
                 }));
                 return parsed;
             }
