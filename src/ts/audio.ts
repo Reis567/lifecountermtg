@@ -12,10 +12,25 @@ class AudioManager {
     private readonly MIN_PLAY_INTERVAL = 50; // Minimum ms between same sound
     private soundPack: SoundPackType = 'default';
 
+    // Sound files mapping (sound name -> file path)
+    private readonly soundFiles: Record<string, string> = {
+        damage: 'dano.mp3',
+    };
+
     constructor() {
         this.sounds = new Map();
         this.customSounds = new Map();
         this.loadCustomSounds();
+        this.preloadSoundFiles();
+    }
+
+    // Preload sound files for better performance
+    private preloadSoundFiles(): void {
+        for (const [name, path] of Object.entries(this.soundFiles)) {
+            const audio = new Audio(path);
+            audio.preload = 'auto';
+            this.sounds.set(name, audio);
+        }
     }
 
     setSoundPack(pack: SoundPackType): void {
@@ -145,9 +160,31 @@ class AudioManager {
         return packConfigs[this.soundPack]?.[soundName] || packConfigs.default[soundName] || { freq: 440, type: 'sine', duration: 0.1 };
     }
 
+    // Play a sound file
+    private playSoundFile(soundName: string, volume: number): boolean {
+        const audio = this.sounds.get(soundName);
+        if (!audio) return false;
+
+        try {
+            // Clone the audio to allow overlapping plays
+            const audioClone = audio.cloneNode() as HTMLAudioElement;
+            audioClone.volume = volume;
+            audioClone.play().catch(e => console.warn('Audio play failed:', e));
+            return true;
+        } catch (e) {
+            console.warn('Failed to play sound file:', e);
+            return false;
+        }
+    }
+
     // Play default built-in sound
     private playDefaultSound(soundName: string, volume: number): void {
-        // Get shared audio context
+        // Try to play sound file first
+        if (this.playSoundFile(soundName, volume)) {
+            return;
+        }
+
+        // Fall back to synthesized sound
         const audioContext = this.getAudioContext();
         if (!audioContext) return;
 

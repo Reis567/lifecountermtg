@@ -6,9 +6,22 @@ class AudioManager {
         this.lastPlayTime = new Map();
         this.MIN_PLAY_INTERVAL = 50; // Minimum ms between same sound
         this.soundPack = 'default';
+        // Sound files mapping (sound name -> file path)
+        this.soundFiles = {
+            damage: 'dano.mp3',
+        };
         this.sounds = new Map();
         this.customSounds = new Map();
         this.loadCustomSounds();
+        this.preloadSoundFiles();
+    }
+    // Preload sound files for better performance
+    preloadSoundFiles() {
+        for (const [name, path] of Object.entries(this.soundFiles)) {
+            const audio = new Audio(path);
+            audio.preload = 'auto';
+            this.sounds.set(name, audio);
+        }
     }
     setSoundPack(pack) {
         this.soundPack = pack;
@@ -129,9 +142,30 @@ class AudioManager {
         };
         return packConfigs[this.soundPack]?.[soundName] || packConfigs.default[soundName] || { freq: 440, type: 'sine', duration: 0.1 };
     }
+    // Play a sound file
+    playSoundFile(soundName, volume) {
+        const audio = this.sounds.get(soundName);
+        if (!audio)
+            return false;
+        try {
+            // Clone the audio to allow overlapping plays
+            const audioClone = audio.cloneNode();
+            audioClone.volume = volume;
+            audioClone.play().catch(e => console.warn('Audio play failed:', e));
+            return true;
+        }
+        catch (e) {
+            console.warn('Failed to play sound file:', e);
+            return false;
+        }
+    }
     // Play default built-in sound
     playDefaultSound(soundName, volume) {
-        // Get shared audio context
+        // Try to play sound file first
+        if (this.playSoundFile(soundName, volume)) {
+            return;
+        }
+        // Fall back to synthesized sound
         const audioContext = this.getAudioContext();
         if (!audioContext)
             return;
