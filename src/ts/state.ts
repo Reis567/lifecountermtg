@@ -875,15 +875,95 @@ class GameStateManager {
 
     // ===== Turn Actions =====
 
-    nextTurn(): void {
-        let nextIndex = (this.state.activePlayerIndex + 1) % this.state.players.length;
+    // Calculate clockwise turn order based on layout
+    private getClockwiseTurnOrder(): number[] {
+        const { layout, playerCount } = this.state.settings;
+        const rows = layout.rows;
+
+        // For single row layouts, just return linear order
+        if (rows.length === 1) {
+            return Array.from({ length: playerCount }, (_, i) => i);
+        }
+
+        // For multi-row layouts, calculate clockwise order
+        // Top row goes left to right, bottom row goes right to left
+        const order: number[] = [];
+        let playerIndex = 0;
+
+        // Build a 2D map of player positions
+        const grid: number[][] = [];
+        for (const playersInRow of rows) {
+            const row: number[] = [];
+            for (let i = 0; i < playersInRow; i++) {
+                row.push(playerIndex++);
+            }
+            grid.push(row);
+        }
+
+        // For 2 rows: top left→right, then bottom right→left (clockwise)
+        if (grid.length === 2) {
+            // Top row: left to right
+            order.push(...grid[0]);
+            // Bottom row: right to left
+            order.push(...grid[1].slice().reverse());
+        }
+        // For 3+ rows: top row left→right, middle rows alternate, bottom row right→left
+        else {
+            // Top row: left to right
+            order.push(...grid[0]);
+            // Middle rows and bottom: traverse clockwise (right side down, bottom right→left, left side up)
+            // Simplified: for now just do top L→R, bottom R→L
+            for (let r = 1; r < grid.length; r++) {
+                if (r === grid.length - 1) {
+                    // Bottom row: right to left
+                    order.push(...grid[r].slice().reverse());
+                } else {
+                    // Middle rows: just add last element (right side)
+                    order.push(grid[r][grid[r].length - 1]);
+                }
+            }
+            // Add remaining middle row elements going up on the left side
+            for (let r = grid.length - 2; r >= 1; r--) {
+                for (let c = grid[r].length - 2; c >= 0; c--) {
+                    order.push(grid[r][c]);
+                }
+            }
+        }
+
+        return order;
+    }
+
+    private getNextPlayerInClockwiseOrder(currentIndex: number): number {
+        const order = this.getClockwiseTurnOrder();
+        const currentPos = order.indexOf(currentIndex);
+
+        if (currentPos === -1) {
+            // Fallback to linear order
+            return (currentIndex + 1) % this.state.players.length;
+        }
+
+        // Find next non-eliminated player in clockwise order
+        let nextPos = (currentPos + 1) % order.length;
         let iterations = 0;
-        while (this.state.players[nextIndex].isEliminated && iterations < this.state.players.length) {
-            nextIndex = (nextIndex + 1) % this.state.players.length;
+
+        while (this.state.players[order[nextPos]].isEliminated && iterations < order.length) {
+            nextPos = (nextPos + 1) % order.length;
             iterations++;
         }
 
-        if (nextIndex <= this.state.activePlayerIndex) {
+        return order[nextPos];
+    }
+
+    nextTurn(): void {
+        const currentIndex = this.state.activePlayerIndex;
+        const nextIndex = this.getNextPlayerInClockwiseOrder(currentIndex);
+
+        // Check if we completed a full round (back to first player or earlier in order)
+        const order = this.getClockwiseTurnOrder();
+        const currentPos = order.indexOf(currentIndex);
+        const nextPos = order.indexOf(nextIndex);
+
+        if (nextPos <= currentPos) {
             this.state.currentTurn++;
         }
 
