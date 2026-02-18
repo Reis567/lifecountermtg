@@ -2717,6 +2717,10 @@ function rollDice(diceType: string): void {
     const resultEl = $('dice-result');
     const valueEl = $('dice-result-value');
     const detailsEl = $('dice-result-details');
+    const dice3dScene = $('dice-3d-scene');
+    const dice3dCube = $('dice-3d-cube');
+    const coin3dScene = $('coin-3d-scene');
+    const coin3d = $('coin-3d');
     if (!resultEl || !valueEl) return;
 
     // Get quantity and modifier
@@ -2726,10 +2730,37 @@ function rollDice(diceType: string): void {
     const modifier = parseInt(modInput?.value || '0');
 
     isRolling = true;
-    resultEl.classList.add('rolling');
     valueEl.textContent = '';
     valueEl.className = 'dice-result-value';
     if (detailsEl) detailsEl.textContent = '';
+
+    // Determine if we use 3D elements
+    const useD6Cube = diceType === '6' && quantity === 1 && modifier === 0;
+    const useCoin = diceType === 'coin';
+
+    // Reset visibility and classes
+    if (dice3dScene) dice3dScene.style.display = 'none';
+    if (coin3dScene) coin3dScene.style.display = 'none';
+    resultEl.style.display = 'none';
+
+    if (dice3dCube) {
+        dice3dCube.classList.remove('rolling', 'show-1', 'show-2', 'show-3', 'show-4', 'show-5', 'show-6');
+    }
+    if (coin3d) {
+        coin3d.classList.remove('flipping', 'show-heads', 'show-tails');
+    }
+
+    // Show appropriate element and start animation
+    if (useD6Cube && dice3dScene && dice3dCube) {
+        dice3dScene.style.display = 'block';
+        dice3dCube.classList.add('rolling');
+    } else if (useCoin && coin3dScene && coin3d) {
+        coin3dScene.style.display = 'block';
+        coin3d.classList.add('flipping');
+    } else {
+        resultEl.style.display = 'block';
+        resultEl.classList.add('rolling');
+    }
 
     // Play dice sound
     audioManager.play('click');
@@ -2754,6 +2785,12 @@ function rollDice(diceType: string): void {
         if (diceType === 'coin') {
             finalResult = Math.random() < 0.5 ? 'Cara' : 'Coroa';
             emoji = finalResult === 'Cara' ? '😀' : '🦅';
+
+            // Show 3D coin result
+            if (coin3d) {
+                coin3d.classList.remove('flipping');
+                coin3d.classList.add(finalResult === 'Cara' ? 'show-heads' : 'show-tails');
+            }
         } else if (diceType === 'planar') {
             // Planar die - 6 faces
             const faceIndex = Math.floor(Math.random() * 6);
@@ -2767,6 +2804,8 @@ function rollDice(diceType: string): void {
             } else if (face.type === 'planeswalk') {
                 audioManager.play('turn');
             }
+
+            resultEl.textContent = emoji;
         } else {
             const max = parseInt(diceType);
             emoji = getDiceEmoji(max);
@@ -2810,9 +2849,16 @@ function rollDice(diceType: string): void {
                     if (sum === 1) isFail = true;
                 }
             }
+
+            // Show 3D dice result for D6
+            if (useD6Cube && dice3dCube) {
+                dice3dCube.classList.remove('rolling');
+                dice3dCube.classList.add(`show-${sum}`);
+            } else {
+                resultEl.textContent = emoji;
+            }
         }
 
-        resultEl.textContent = emoji;
         valueEl.textContent = String(finalResult);
         if (detailsEl) detailsEl.textContent = details;
 

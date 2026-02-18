@@ -2779,25 +2779,141 @@ select {
 }
 
 .dice-result-area {
-    padding: 2rem 1rem;
+    padding: 1.5rem 1rem;
     margin-bottom: 1rem;
+    min-height: 140px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 
-.dice-result {
-    font-size: 5rem;
-    line-height: 1;
+/* 3D Dice Scene */
+.dice-3d-scene {
+    width: 80px;
+    height: 80px;
+    perspective: 300px;
     margin-bottom: 0.5rem;
+}
+
+.dice-3d-cube {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    transform: rotateX(-20deg) rotateY(20deg);
     transition: transform 0.3s ease;
 }
 
-.dice-result.rolling {
-    animation: diceRoll 0.5s ease-in-out infinite;
+.dice-3d-cube.rolling {
+    animation: diceRoll3D 0.6s ease-in-out infinite;
 }
 
-@keyframes diceRoll {
+.dice-face {
+    position: absolute;
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(145deg, #ffffff, #e6e6e6);
+    border: 2px solid #ccc;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.1);
+}
+
+.dice-face.face-1 { transform: rotateY(0deg) translateZ(40px); }
+.dice-face.face-2 { transform: rotateY(180deg) translateZ(40px); }
+.dice-face.face-3 { transform: rotateY(90deg) translateZ(40px); }
+.dice-face.face-4 { transform: rotateY(-90deg) translateZ(40px); }
+.dice-face.face-5 { transform: rotateX(90deg) translateZ(40px); }
+.dice-face.face-6 { transform: rotateX(-90deg) translateZ(40px); }
+
+@keyframes diceRoll3D {
+    0% { transform: rotateX(0deg) rotateY(0deg); }
+    25% { transform: rotateX(180deg) rotateY(90deg); }
+    50% { transform: rotateX(360deg) rotateY(180deg); }
+    75% { transform: rotateX(540deg) rotateY(270deg); }
+    100% { transform: rotateX(720deg) rotateY(360deg); }
+}
+
+/* Final dice positions */
+.dice-3d-cube.show-1 { transform: rotateX(0deg) rotateY(0deg); }
+.dice-3d-cube.show-2 { transform: rotateX(0deg) rotateY(180deg); }
+.dice-3d-cube.show-3 { transform: rotateX(0deg) rotateY(-90deg); }
+.dice-3d-cube.show-4 { transform: rotateX(0deg) rotateY(90deg); }
+.dice-3d-cube.show-5 { transform: rotateX(-90deg) rotateY(0deg); }
+.dice-3d-cube.show-6 { transform: rotateX(90deg) rotateY(0deg); }
+
+/* 3D Coin Scene */
+.coin-3d-scene {
+    width: 80px;
+    height: 80px;
+    perspective: 300px;
+    margin-bottom: 0.5rem;
+}
+
+.coin-3d {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.3s ease;
+}
+
+.coin-3d.flipping {
+    animation: coinFlip 0.8s ease-in-out;
+}
+
+.coin-face {
+    position: absolute;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    backface-visibility: hidden;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+.coin-heads {
+    background: linear-gradient(145deg, #fcd34d, #f59e0b);
+    border: 3px solid #d97706;
+    transform: rotateX(0deg);
+}
+
+.coin-tails {
+    background: linear-gradient(145deg, #fbbf24, #d97706);
+    border: 3px solid #b45309;
+    transform: rotateX(180deg);
+}
+
+@keyframes coinFlip {
+    0% { transform: rotateX(0deg); }
+    100% { transform: rotateX(1800deg); }
+}
+
+.coin-3d.show-heads { transform: rotateX(0deg); }
+.coin-3d.show-tails { transform: rotateX(180deg); }
+
+/* Fallback dice result (for special dice) */
+.dice-result {
+    font-size: 4rem;
+    line-height: 1;
+    margin-bottom: 0.5rem;
+}
+
+.dice-result.rolling {
+    animation: diceShake 0.5s ease-in-out infinite;
+}
+
+@keyframes diceShake {
     0%, 100% { transform: rotate(0deg) scale(1); }
     25% { transform: rotate(-15deg) scale(1.1); }
-    50% { transform: rotate(15deg) scale(1.2); }
+    50% { transform: rotate(15deg) scale(1.15); }
     75% { transform: rotate(-10deg) scale(1.1); }
 }
 
