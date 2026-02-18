@@ -1885,7 +1885,9 @@ function startViadoSelection() {
     const animation = $('viado-animation');
     const title = overlay?.querySelector('.viado-overlay-title');
     const resultDiv = $('viado-overlay-result');
-    // Get eligible players (excluding protected names)
+    // Get ALL players for the animation (so protected players appear in the roulette)
+    const allPlayers = state.players;
+    // Get eligible players (excluding protected names) - only these can win
     const protectedNames = ['reis', 'kings', 'matheus'];
     const eligiblePlayers = state.players.filter(player => {
         const nameLower = player.name.toLowerCase();
@@ -1904,16 +1906,16 @@ function startViadoSelection() {
     if (title)
         title.textContent = '🎲 Sorteando...';
     overlay?.classList.add('active');
-    // Create player icons
+    // Create player icons - show ALL players in the animation
     if (animation) {
-        animation.innerHTML = eligiblePlayers.map(player => `
+        animation.innerHTML = allPlayers.map(player => `
             <div class="player-option" data-player-id="${player.id}" style="background: ${player.color}">
                 <span style="font-size: 1.5rem;">${player.emoji || '👤'}</span>
                 <div class="name">${player.name}</div>
             </div>
         `).join('');
     }
-    // Start animation - cycle through players
+    // Start animation - cycle through ALL players (so protected ones get highlighted too)
     let currentIndex = 0;
     const duration = 3000;
     const intervalTime = 120;
@@ -1924,7 +1926,7 @@ function startViadoSelection() {
             return;
         playerElements.forEach(el => el.classList.remove('highlight'));
         playerElements[currentIndex]?.classList.add('highlight');
-        currentIndex = (currentIndex + 1) % eligiblePlayers.length;
+        currentIndex = (currentIndex + 1) % allPlayers.length;
         audioManager.play('click');
     }, intervalTime);
     // End animation and show result
@@ -1933,7 +1935,7 @@ function startViadoSelection() {
             clearInterval(viadoAnimationInterval);
             viadoAnimationInterval = null;
         }
-        // Select the viado
+        // Select the viado (only from eligible players - protected ones never win)
         const winner = gameState.sortearViado();
         if (!winner) {
             isViadoSelectionRunning = false;
