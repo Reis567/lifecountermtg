@@ -123,12 +123,14 @@ export function createInitialState() {
         currentTurn: 1,
         activePlayerIndex: 0,
         turnStartTime: null,
+        gameStartTime: null,
         gameStarted: false,
         winner: null,
         history: [],
         undoStack: [],
         gameMode: 'standard',
         randomStarterInProgress: false,
+        viadoPlayerId: null,
     };
 }
 // State management class
@@ -136,6 +138,9 @@ class GameStateManager {
     constructor() {
         this.storageKey = 'mtg-life-counter-state';
         this.undoTimeWindow = 10000; // 10 seconds to undo
+        // ===== Sortear Viado =====
+        // Names that cannot be selected (case insensitive)
+        this.protectedNames = ['reis', 'kings', 'matheus'];
         this.state = this.loadState() || createInitialState();
         this.listeners = new Set();
         // Ensure rotations are consistent with current layout
@@ -179,6 +184,8 @@ class GameStateManager {
                     parsed.gameMode = 'standard';
                 if (parsed.randomStarterInProgress === undefined)
                     parsed.randomStarterInProgress = false;
+                if (parsed.viadoPlayerId === undefined)
+                    parsed.viadoPlayerId = null;
                 if (!parsed.teams)
                     parsed.teams = [];
                 if (!parsed.settings.layout) {
@@ -531,6 +538,31 @@ class GameStateManager {
         this.state.settings.randomStarterAnimation = type;
         this.notify();
     }
+    sortearViado() {
+        // Filter out players with protected names
+        const eligiblePlayers = this.state.players.filter(player => {
+            const nameLower = player.name.toLowerCase();
+            return !this.protectedNames.some(protectedName => nameLower.includes(protectedName));
+        });
+        if (eligiblePlayers.length === 0) {
+            return null; // No eligible players
+        }
+        // Randomly select one
+        const randomIndex = Math.floor(Math.random() * eligiblePlayers.length);
+        const selected = eligiblePlayers[randomIndex];
+        this.state.viadoPlayerId = selected.id;
+        this.notify();
+        return selected;
+    }
+    clearViado() {
+        this.state.viadoPlayerId = null;
+        this.notify();
+    }
+    getViado() {
+        if (!this.state.viadoPlayerId)
+            return null;
+        return this.state.players.find(p => p.id === this.state.viadoPlayerId) || null;
+    }
     // ===== Game Actions =====
     startGame() {
         this.state.players.forEach(player => {
@@ -544,6 +576,7 @@ class GameStateManager {
         // Recalculate rotations to ensure they match current layout
         this.updatePlayerRotations();
         this.state.gameStarted = true;
+        this.state.gameStartTime = Date.now();
         this.state.currentTurn = 1;
         this.state.turnStartTime = Date.now();
         this.state.winner = null;
@@ -850,6 +883,10 @@ class GameStateManager {
             this.state.turnStartTime = Date.now();
             this.notify();
         }
+    }
+    setGameStartTime(time) {
+        this.state.gameStartTime = time;
+        this.notify();
     }
     // ===== Elimination & Win Conditions =====
     checkEliminationConditions(playerId) {

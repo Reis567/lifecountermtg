@@ -112,7 +112,7 @@
                         <circle cx="12" cy="12" r="10"></circle>
                         <polyline points="12 6 12 12 16 14"></polyline>
                     </svg>
-                </button>
+                </button> 
                 <button id="dice-roller-btn-left" class="header-btn" title="Rolar Dados">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="3" y="3" width="18" height="18" rx="2"></rect>
@@ -283,6 +283,25 @@
             </div>
         </div>
 
+        <!-- Viado Overlay -->
+        <div id="viado-overlay" class="viado-overlay">
+            <div class="viado-overlay-content">
+                <h2 class="viado-overlay-title">🎲 Sorteando...</h2>
+                <div id="viado-animation" class="viado-animation">
+                    <!-- Animation will happen here -->
+                </div>
+                <div id="viado-overlay-result" class="viado-overlay-result" style="display: none;">
+                    <span class="viado-result-emoji">🏳️‍🌈</span>
+                    <span class="viado-result-label">O Viado é:</span>
+                    <span id="viado-winner-name" class="viado-winner-name"></span>
+                </div>
+                <div class="viado-overlay-actions">
+                    <button id="viado-again-btn" class="secondary-btn" style="display: none;">Sortear Novamente</button>
+                    <button id="viado-close-btn" class="primary-btn" style="display: none;">Fechar</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Counters Modal -->
         <div id="counters-modal" class="modal">
             <div class="modal-content">
@@ -321,6 +340,15 @@
                     <button class="modal-close">&times;</button>
                 </div>
                 <div class="settings-list">
+                    <!-- Game Timer -->
+                    <div class="game-timer-display" id="game-timer-display">
+                        <div class="game-timer-icon">⏱️</div>
+                        <div class="game-timer-info">
+                            <span class="game-timer-label">Tempo de Partida</span>
+                            <span class="game-timer-value" id="game-timer-value">00:00:00</span>
+                        </div>
+                    </div>
+
                     <div class="settings-group">
                         <h3>Audio</h3>
                         <div class="setting-item">
@@ -538,6 +566,11 @@
                     <div class="settings-group">
                         <h3>Ferramentas</h3>
                         <button id="rules-keywords-btn" class="tool-btn">📖 Regras & Keywords</button>
+                        <button id="sortear-viado-btn" class="tool-btn">🎲 Sortear o Viado</button>
+                        <div id="viado-result" class="viado-result" style="display: none;">
+                            <span class="viado-label">🏳️‍🌈 O Viado:</span>
+                            <span id="viado-name" class="viado-name"></span>
+                        </div>
                     </div>
 
                     <hr>

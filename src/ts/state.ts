@@ -151,12 +151,14 @@ export function createInitialState(): GameState {
         currentTurn: 1,
         activePlayerIndex: 0,
         turnStartTime: null,
+        gameStartTime: null,
         gameStarted: false,
         winner: null,
         history: [],
         undoStack: [],
         gameMode: 'standard',
         randomStarterInProgress: false,
+        viadoPlayerId: null,
     };
 }
 
@@ -212,6 +214,7 @@ class GameStateManager {
                 if (!parsed.undoStack) parsed.undoStack = [];
                 if (!parsed.gameMode) parsed.gameMode = 'standard';
                 if (parsed.randomStarterInProgress === undefined) parsed.randomStarterInProgress = false;
+                if (parsed.viadoPlayerId === undefined) parsed.viadoPlayerId = null;
                 if (!parsed.teams) parsed.teams = [];
                 if (!parsed.settings.layout) {
                     parsed.settings.layout = getDefaultLayout(parsed.settings.playerCount);
@@ -598,6 +601,42 @@ class GameStateManager {
         this.notify();
     }
 
+    // ===== Sortear Viado =====
+
+    // Names that cannot be selected (case insensitive)
+    private readonly protectedNames = ['reis', 'kings', 'matheus'];
+
+    sortearViado(): Player | null {
+        // Filter out players with protected names
+        const eligiblePlayers = this.state.players.filter(player => {
+            const nameLower = player.name.toLowerCase();
+            return !this.protectedNames.some(protectedName => nameLower.includes(protectedName));
+        });
+
+        if (eligiblePlayers.length === 0) {
+            return null; // No eligible players
+        }
+
+        // Randomly select one
+        const randomIndex = Math.floor(Math.random() * eligiblePlayers.length);
+        const selected = eligiblePlayers[randomIndex];
+
+        this.state.viadoPlayerId = selected.id;
+        this.notify();
+
+        return selected;
+    }
+
+    clearViado(): void {
+        this.state.viadoPlayerId = null;
+        this.notify();
+    }
+
+    getViado(): Player | null {
+        if (!this.state.viadoPlayerId) return null;
+        return this.state.players.find(p => p.id === this.state.viadoPlayerId) || null;
+    }
+
     // ===== Game Actions =====
 
     startGame(): void {
@@ -612,6 +651,7 @@ class GameStateManager {
         // Recalculate rotations to ensure they match current layout
         this.updatePlayerRotations();
         this.state.gameStarted = true;
+        this.state.gameStartTime = Date.now();
         this.state.currentTurn = 1;
         this.state.turnStartTime = Date.now();
         this.state.winner = null;
@@ -983,6 +1023,11 @@ class GameStateManager {
             this.state.turnStartTime = Date.now();
             this.notify();
         }
+    }
+
+    setGameStartTime(time: number): void {
+        this.state.gameStartTime = time;
+        this.notify();
     }
 
     // ===== Elimination & Win Conditions =====

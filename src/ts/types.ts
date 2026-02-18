@@ -103,12 +103,14 @@ export interface GameState {
     currentTurn: number;
     activePlayerIndex: number;
     turnStartTime: number | null;
+    gameStartTime: number | null;
     gameStarted: boolean;
     winner: string | null;
     history: GameEvent[];
     undoStack: UndoAction[];
     gameMode: GameMode;
     randomStarterInProgress: boolean;
+    viadoPlayerId: string | null; // ID do jogador sorteado como "viado"
 }
 
 export interface UndoAction {

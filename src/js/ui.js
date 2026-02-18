@@ -245,6 +245,59 @@ let undoCheckInterval = null;
 let randomStarterAnimationInterval = null;
 // Winner animation state - track to avoid re-showing animation
 let lastShownWinnerId = null;
+// Damage shadow state - tracks accumulated damage/heal per player
+const damageShadowAccumulator = new Map();
+const damageShadowTimers = new Map();
+const DAMAGE_SHADOW_TIMEOUT_MS = 3000;
+// Update damage shadow display
+function updateDamageShadow(playerId, amount, shadowElement) {
+    if (!shadowElement)
+        return;
+    // Clear existing timer for this player
+    const existingTimer = damageShadowTimers.get(playerId);
+    if (existingTimer) {
+        clearTimeout(existingTimer);
+    }
+    // Get current accumulated value and add new amount
+    const currentAccum = damageShadowAccumulator.get(playerId) || 0;
+    const newAccum = currentAccum + amount;
+    // If accumulated value is 0, hide the shadow
+    if (newAccum === 0) {
+        damageShadowAccumulator.delete(playerId);
+        shadowElement.textContent = '';
+        shadowElement.className = 'damage-shadow';
+        return;
+    }
+    // Update accumulator
+    damageShadowAccumulator.set(playerId, newAccum);
+    // Update shadow display
+    const isNegative = newAccum < 0;
+    shadowElement.textContent = (newAccum > 0 ? '+' : '') + newAccum;
+    shadowElement.className = `damage-shadow active ${isNegative ? 'damage' : 'heal'}`;
+    // Force inline styles for visibility
+    shadowElement.style.color = isNegative ? '#ff4444' : '#44ff44';
+    shadowElement.style.display = 'inline';
+    // Set timer to clear the shadow after timeout
+    const timer = window.setTimeout(() => {
+        damageShadowAccumulator.delete(playerId);
+        damageShadowTimers.delete(playerId);
+        shadowElement.textContent = '';
+        shadowElement.className = 'damage-shadow';
+        shadowElement.style.color = '';
+        shadowElement.style.display = '';
+    }, DAMAGE_SHADOW_TIMEOUT_MS);
+    damageShadowTimers.set(playerId, timer);
+}
+// Clear all damage shadows (called on game reset)
+function clearAllDamageShadows() {
+    damageShadowTimers.forEach(timer => clearTimeout(timer));
+    damageShadowTimers.clear();
+    damageShadowAccumulator.clear();
+    document.querySelectorAll('.damage-shadow').forEach(el => {
+        el.textContent = '';
+        el.className = 'damage-shadow';
+    });
+}
 // Color picker state
 let currentHue = 0;
 let currentSaturation = 100;
@@ -733,6 +786,18 @@ function setupSettingsListeners() {
         closeModal($('settings-modal'));
         openRulesModal();
     });
+    // Sortear Viado button
+    $('sortear-viado-btn')?.addEventListener('click', () => {
+        closeModal($('settings-modal'));
+        startViadoSelection();
+    });
+    // Viado overlay buttons
+    $('viado-again-btn')?.addEventListener('click', () => {
+        startViadoSelection();
+    });
+    $('viado-close-btn')?.addEventListener('click', () => {
+        closeViadoOverlay();
+    });
     // Reset and new game buttons
     $('reset-game-btn')?.addEventListener('click', () => {
         if (confirm('Tem certeza que deseja resetar a partida?')) {
@@ -745,6 +810,7 @@ function setupSettingsListeners() {
             }
             gameState.resetGame(resetDeaths);
             hideShareButtons();
+            clearAllDamageShadows();
             closeAllModals();
         }
     });
@@ -752,6 +818,7 @@ function setupSettingsListeners() {
         if (confirm('Tem certeza que deseja iniciar uma nova partida?')) {
             gameState.newGame();
             hideShareButtons();
+            clearAllDamageShadows();
             closeAllModals();
         }
     });
@@ -1273,6 +1340,7 @@ function renderPlayers(state) {
                         ${player.tag ? `<span class="player-tag">${player.tag}</span>` : ''}
                         ${team ? `<span class="team-badge team-${teamIndex}">🤝 ${team.name}</span>` : ''}
                         ${player.isMonarch ? '<span class="player-emoji">👑</span>' : ''}
+                        ${state.viadoPlayerId === player.id ? '<span class="viado-badge">🏳️‍🌈 Viado</span>' : ''}
                     </div>
                     <div class="player-actions">
                         <button class="player-action-btn" data-action="commander" title="Dano de Comandante">⚔️</button>
@@ -1283,7 +1351,10 @@ function renderPlayers(state) {
                 <div class="player-life-container">
                     <button class="life-control minus" data-action="life" data-amount="-1">−</button>
                     <div class="life-display">
-                        <span class="life-value">${player.life}</span>
+                        <div class="life-value-row">
+                            <span class="life-value">${player.life}</span>
+                            <span class="damage-shadow"></span>
+                        </div>
                         <span class="life-label">Vida</span>
                     </div>
                     <button class="life-control plus" data-action="life" data-amount="1">+</button>
@@ -1492,6 +1563,19 @@ function updateSettingsControls(state) {
     document.querySelectorAll('.mode-btn').forEach(btn => {
         btn.classList.toggle('active', btn.getAttribute('data-mode') === state.gameMode);
     });
+    // Update viado result display
+    const viadoResult = $('viado-result');
+    const viadoName = $('viado-name');
+    const viado = gameState.getViado();
+    if (viadoResult && viadoName) {
+        if (viado) {
+            viadoName.textContent = viado.name;
+            viadoResult.style.display = 'flex';
+        }
+        else {
+            viadoResult.style.display = 'none';
+        }
+    }
 }
 // Life change with hold support - shows shortcuts popup on hold
 function startLifeChange(playerId, baseAmount, event) {
@@ -1606,13 +1690,18 @@ function changeLifeWithFeedback(playerId, amount) {
     const card = $('players-grid').querySelector(`[data-player-id="${playerId}"]`);
     if (!card)
         return;
-    const lifeValue = card.querySelector('.life-value');
-    const indicator = card.querySelector('.life-change-indicator');
     const state = gameState.getState();
     const playerBefore = state.players.find(p => p.id === playerId);
     const lifeBefore = playerBefore?.life || 0;
     gameState.changeLife(playerId, amount);
     audioManager.play(amount < 0 ? 'damage' : 'heal', playerId);
+    // Update damage shadow - get element AFTER render (gameState.changeLife triggers re-render)
+    const newCard = $('players-grid').querySelector(`[data-player-id="${playerId}"]`);
+    const damageShadow = newCard?.querySelector('.damage-shadow');
+    updateDamageShadow(playerId, amount, damageShadow);
+    // Get fresh references after re-render
+    const lifeValue = newCard?.querySelector('.life-value');
+    const indicator = newCard?.querySelector('.life-change-indicator');
     const newState = gameState.getState();
     if (newState.settings.animationsEnabled) {
         lifeValue.classList.remove('damage', 'heal', 'changed');
@@ -1779,6 +1868,100 @@ function startRandomStarterAnimation() {
         isRandomStarterRunning = false;
         audioManager.play('win');
     }, duration);
+}
+// ===== Viado Selection =====
+let isViadoSelectionRunning = false;
+let viadoAnimationInterval = null;
+function startViadoSelection() {
+    if (isViadoSelectionRunning)
+        return;
+    isViadoSelectionRunning = true;
+    if (viadoAnimationInterval) {
+        clearInterval(viadoAnimationInterval);
+        viadoAnimationInterval = null;
+    }
+    const state = gameState.getState();
+    const overlay = $('viado-overlay');
+    const animation = $('viado-animation');
+    const title = overlay?.querySelector('.viado-overlay-title');
+    const resultDiv = $('viado-overlay-result');
+    // Get eligible players (excluding protected names)
+    const protectedNames = ['reis', 'kings', 'matheus'];
+    const eligiblePlayers = state.players.filter(player => {
+        const nameLower = player.name.toLowerCase();
+        return !protectedNames.some(p => nameLower.includes(p));
+    });
+    if (eligiblePlayers.length === 0) {
+        alert('Nenhum jogador elegível para o sorteio!');
+        isViadoSelectionRunning = false;
+        return;
+    }
+    // Hide result from previous run
+    if (resultDiv)
+        resultDiv.style.display = 'none';
+    $('viado-again-btn').style.display = 'none';
+    $('viado-close-btn').style.display = 'none';
+    if (title)
+        title.textContent = '🎲 Sorteando...';
+    overlay?.classList.add('active');
+    // Create player icons
+    if (animation) {
+        animation.innerHTML = eligiblePlayers.map(player => `
+            <div class="player-option" data-player-id="${player.id}" style="background: ${player.color}">
+                <span style="font-size: 1.5rem;">${player.emoji || '👤'}</span>
+                <div class="name">${player.name}</div>
+            </div>
+        `).join('');
+    }
+    // Start animation - cycle through players
+    let currentIndex = 0;
+    const duration = 3000;
+    const intervalTime = 120;
+    audioManager.play('click');
+    viadoAnimationInterval = window.setInterval(() => {
+        const playerElements = animation?.querySelectorAll('.player-option');
+        if (!playerElements)
+            return;
+        playerElements.forEach(el => el.classList.remove('highlight'));
+        playerElements[currentIndex]?.classList.add('highlight');
+        currentIndex = (currentIndex + 1) % eligiblePlayers.length;
+        audioManager.play('click');
+    }, intervalTime);
+    // End animation and show result
+    setTimeout(() => {
+        if (viadoAnimationInterval) {
+            clearInterval(viadoAnimationInterval);
+            viadoAnimationInterval = null;
+        }
+        // Select the viado
+        const winner = gameState.sortearViado();
+        if (!winner) {
+            isViadoSelectionRunning = false;
+            return;
+        }
+        // Show winner
+        const playerElements = animation?.querySelectorAll('.player-option');
+        playerElements?.forEach(el => el.classList.remove('highlight'));
+        const winnerElement = animation?.querySelector(`[data-player-id="${winner.id}"]`);
+        winnerElement?.classList.add('selected');
+        if (title)
+            title.textContent = '🏳️‍🌈 Sorteado!';
+        if (resultDiv)
+            resultDiv.style.display = 'flex';
+        $('viado-winner-name').textContent = winner.name;
+        $('viado-again-btn').style.display = 'inline-block';
+        $('viado-close-btn').style.display = 'inline-block';
+        isViadoSelectionRunning = false;
+        audioManager.play('win');
+    }, duration);
+}
+function closeViadoOverlay() {
+    const overlay = $('viado-overlay');
+    overlay?.classList.remove('active');
+    if (viadoAnimationInterval) {
+        clearInterval(viadoAnimationInterval);
+        viadoAnimationInterval = null;
+    }
 }
 // Commander Damage Modal
 function openCommanderDamageModal(playerId) {
@@ -2386,8 +2569,13 @@ function createFireworks() {
     }
 }
 // Modal helpers
+let gameTimerInterval = null;
 function openModal(modal) {
     modal.classList.add('active');
+    // Start game timer update when settings modal opens
+    if (modal === $('settings-modal')) {
+        startGameTimerUpdate();
+    }
 }
 function closeModal(modal) {
     modal.classList.remove('active');
@@ -2400,6 +2588,50 @@ function closeModal(modal) {
     else if (modal === $('player-settings-modal')) {
         currentEditingPlayerId = null;
     }
+    else if (modal === $('settings-modal')) {
+        stopGameTimerUpdate();
+    }
+}
+// Game Timer functions
+function startGameTimerUpdate() {
+    const state = gameState.getState();
+    const timerDisplay = $('game-timer-display');
+    if (!timerDisplay)
+        return;
+    // Only show if game has started
+    if (state.gameStarted) {
+        timerDisplay.style.display = 'flex';
+        // If gameStartTime is not set (old save), set it now
+        if (!state.gameStartTime) {
+            gameState.setGameStartTime(Date.now());
+        }
+        updateGameTimerDisplay();
+        // Update every second
+        gameTimerInterval = window.setInterval(updateGameTimerDisplay, 1000);
+    }
+    else {
+        timerDisplay.style.display = 'none';
+    }
+}
+function stopGameTimerUpdate() {
+    if (gameTimerInterval) {
+        clearInterval(gameTimerInterval);
+        gameTimerInterval = null;
+    }
+}
+function updateGameTimerDisplay() {
+    const state = gameState.getState();
+    const timerValue = $('game-timer-value');
+    if (!timerValue || !state.gameStartTime)
+        return;
+    const elapsed = Date.now() - state.gameStartTime;
+    const hours = Math.floor(elapsed / 3600000);
+    const minutes = Math.floor((elapsed % 3600000) / 60000);
+    const seconds = Math.floor((elapsed % 60000) / 1000);
+    timerValue.textContent =
+        String(hours).padStart(2, '0') + ':' +
+            String(minutes).padStart(2, '0') + ':' +
+            String(seconds).padStart(2, '0');
 }
 function closeAllModals() {
     document.querySelectorAll('.modal').forEach(modal => {
