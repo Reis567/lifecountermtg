@@ -2356,9 +2356,6 @@ function showSpecialMoment(message, type = 'danger') {
 }
 // Dice roller functionality
 let isRolling = false;
-let shakeEnabled = false;
-let diceStats = { total: 0, sum: 0, max: 0, min: Infinity, rolls: [] };
-let dicePresets = [];
 // Planar die faces
 const planarDieFaces = [
     { result: '⬜ Blank', emoji: '⬜', type: 'blank' },
@@ -2368,89 +2365,6 @@ const planarDieFaces = [
     { result: '⚙️ Chaos!', emoji: '⚙️', type: 'chaos' },
     { result: '🚪 Planeswalk', emoji: '🚪', type: 'planeswalk' },
 ];
-// Load presets from localStorage
-function loadDicePresets() {
-    try {
-        const saved = localStorage.getItem('mtg-dice-presets');
-        if (saved) {
-            dicePresets = JSON.parse(saved);
-            renderDicePresets();
-        }
-    }
-    catch (e) {
-        console.warn('Failed to load dice presets:', e);
-    }
-}
-// Save presets to localStorage
-function saveDicePresets() {
-    try {
-        localStorage.setItem('mtg-dice-presets', JSON.stringify(dicePresets));
-    }
-    catch (e) {
-        console.warn('Failed to save dice presets:', e);
-    }
-}
-// Render dice presets
-function renderDicePresets() {
-    const list = $('dice-presets-list');
-    if (!list)
-        return;
-    if (dicePresets.length === 0) {
-        list.innerHTML = '<span class="no-presets">Nenhum preset salvo</span>';
-        return;
-    }
-    list.innerHTML = dicePresets.map((preset, index) => {
-        const modStr = preset.modifier !== 0 ? (preset.modifier > 0 ? `+${preset.modifier}` : preset.modifier) : '';
-        const label = `${preset.quantity}d${preset.dice}${modStr}`;
-        return `
-            <button class="preset-btn" data-index="${index}" title="${preset.name}">
-                <span class="preset-name">${preset.name}</span>
-                <span class="preset-dice">${label}</span>
-            </button>
-            <button class="preset-delete-btn" data-index="${index}" title="Remover">×</button>
-        `;
-    }).join('');
-    // Add event listeners
-    list.querySelectorAll('.preset-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const index = parseInt(btn.dataset.index || '0');
-            const preset = dicePresets[index];
-            if (preset) {
-                const qtyInput = $('dice-quantity');
-                const modInput = $('dice-modifier');
-                if (qtyInput)
-                    qtyInput.value = String(preset.quantity);
-                if (modInput)
-                    modInput.value = String(preset.modifier);
-                rollDice(preset.dice);
-            }
-        });
-    });
-    list.querySelectorAll('.preset-delete-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const index = parseInt(btn.dataset.index || '0');
-            dicePresets.splice(index, 1);
-            saveDicePresets();
-            renderDicePresets();
-        });
-    });
-}
-// Add preset
-function addDicePreset() {
-    const qtyInput = $('dice-quantity');
-    const modInput = $('dice-modifier');
-    const quantity = parseInt(qtyInput?.value || '1');
-    const modifier = parseInt(modInput?.value || '0');
-    const name = prompt('Nome do preset:', `${quantity}d20${modifier !== 0 ? (modifier > 0 ? '+' + modifier : modifier) : ''}`);
-    if (!name)
-        return;
-    // Get last rolled dice type or default to 20
-    const lastDice = diceHistory.length > 0 ? diceHistory[0].dice : '20';
-    dicePresets.push({ name, dice: lastDice, quantity, modifier });
-    saveDicePresets();
-    renderDicePresets();
-}
 function rollDice(diceType) {
     if (isRolling)
         return;
@@ -2535,17 +2449,6 @@ function rollDice(diceType) {
                     details = `(${rollsStr}) = ${total}`;
                 }
             }
-            // Update stats for numeric rolls
-            individualRolls.forEach(roll => {
-                diceStats.total++;
-                diceStats.sum += roll;
-                diceStats.rolls.push(roll);
-                if (roll > diceStats.max)
-                    diceStats.max = roll;
-                if (roll < diceStats.min)
-                    diceStats.min = roll;
-            });
-            updateDiceStats();
             // Single die crit/fail check
             if (quantity === 1 && modifier === 0) {
                 if (max === 20) {
@@ -2594,115 +2497,6 @@ function rollCustomDice() {
     }
     else {
         alert('Digite um número entre 2 e 1000');
-    }
-}
-// Update dice statistics display
-function updateDiceStats() {
-    const totalEl = $('stat-total');
-    const avgEl = $('stat-avg');
-    const maxEl = $('stat-max');
-    const minEl = $('stat-min');
-    if (totalEl)
-        totalEl.textContent = String(diceStats.total);
-    if (avgEl)
-        avgEl.textContent = diceStats.total > 0 ? (diceStats.sum / diceStats.total).toFixed(1) : '-';
-    if (maxEl)
-        maxEl.textContent = diceStats.max > 0 ? String(diceStats.max) : '-';
-    if (minEl)
-        minEl.textContent = diceStats.min < Infinity ? String(diceStats.min) : '-';
-}
-// "Who starts?" - Roll D20 for all players
-function rollWhoStarts() {
-    const state = gameState.getState();
-    const players = state.players;
-    if (players.length < 2) {
-        alert('Precisa de pelo menos 2 jogadores!');
-        return;
-    }
-    const resultsEl = $('who-starts-results');
-    if (!resultsEl)
-        return;
-    // Roll for each player
-    const results = players.map(player => ({
-        player,
-        roll: Math.floor(Math.random() * 20) + 1
-    }));
-    // Sort by roll (highest first)
-    results.sort((a, b) => b.roll - a.roll);
-    // Check for ties at the top
-    const highestRoll = results[0].roll;
-    const winners = results.filter(r => r.roll === highestRoll);
-    // Render results
-    resultsEl.innerHTML = results.map((r, index) => {
-        const isWinner = index === 0 && winners.length === 1;
-        const isTied = winners.length > 1 && r.roll === highestRoll;
-        let className = 'who-starts-player';
-        if (isWinner)
-            className += ' winner';
-        if (isTied)
-            className += ' tied';
-        return `
-            <div class="${className}" style="--player-color: ${r.player.color}">
-                <span class="player-name">${r.player.name}</span>
-                <span class="player-roll ${r.roll === 20 ? 'crit' : ''} ${r.roll === 1 ? 'fail' : ''}">
-                    🎲 ${r.roll}
-                </span>
-                ${isWinner ? '<span class="winner-badge">👑 Começa!</span>' : ''}
-                ${isTied ? '<span class="tied-badge">⚔️ Empate!</span>' : ''}
-            </div>
-        `;
-    }).join('');
-    // Play sound
-    audioManager.play('turn');
-    // Open modal
-    openModal($('who-starts-modal'));
-}
-// Shake to roll functionality
-function initShakeToRoll() {
-    if (!window.DeviceMotionEvent)
-        return;
-    let lastShake = 0;
-    const shakeThreshold = 15;
-    window.addEventListener('devicemotion', (e) => {
-        if (!shakeEnabled || isRolling)
-            return;
-        const acc = e.accelerationIncludingGravity;
-        if (!acc)
-            return;
-        const magnitude = Math.sqrt((acc.x || 0) ** 2 +
-            (acc.y || 0) ** 2 +
-            (acc.z || 0) ** 2);
-        const now = Date.now();
-        if (magnitude > shakeThreshold && now - lastShake > 1000) {
-            lastShake = now;
-            // Roll D20 by default on shake
-            rollDice('20');
-        }
-    });
-}
-// Toggle shake to roll
-function toggleShakeToRoll() {
-    shakeEnabled = !shakeEnabled;
-    const btn = $('shake-toggle-btn');
-    if (btn) {
-        btn.textContent = `📳 Shake: ${shakeEnabled ? 'ON' : 'OFF'}`;
-        btn.classList.toggle('active', shakeEnabled);
-    }
-    // Request permission for iOS
-    if (shakeEnabled && typeof DeviceMotionEvent.requestPermission === 'function') {
-        DeviceMotionEvent.requestPermission()
-            .then((response) => {
-            if (response !== 'granted') {
-                shakeEnabled = false;
-                if (btn)
-                    btn.textContent = '📳 Shake: OFF';
-            }
-        })
-            .catch(() => {
-            shakeEnabled = false;
-            if (btn)
-                btn.textContent = '📳 Shake: OFF';
-        });
     }
 }
 function getDiceEmoji(sides) {
@@ -2768,19 +2562,8 @@ function addDiceHistory(diceType, result, isCrit, isFail) {
 }
 // Initialize dice roller extras
 function initDiceRoller() {
-    // Load presets
-    loadDicePresets();
     // Custom dice roll button
     $('roll-custom-btn')?.addEventListener('click', rollCustomDice);
-    // Who starts button
-    $('who-starts-btn')?.addEventListener('click', rollWhoStarts);
-    $('reroll-who-starts-btn')?.addEventListener('click', rollWhoStarts);
-    // Shake toggle
-    $('shake-toggle-btn')?.addEventListener('click', toggleShakeToRoll);
-    // Add preset button
-    $('add-preset-btn')?.addEventListener('click', addDicePreset);
-    // Initialize shake detection
-    initShakeToRoll();
     // Enter key on custom dice input
     $('dice-custom')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {

@@ -2913,348 +2913,114 @@ select {
 
 /* Dice Result Details */
 .dice-result-details {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     color: var(--text-muted);
-    margin-top: 0.5rem;
-    min-height: 1.2rem;
+    margin-top: 0.25rem;
+    min-height: 1rem;
 }
 
-/* Dice Sections */
-.dice-section {
-    margin-bottom: 1rem;
-    padding: 0 0.5rem;
-}
-
-/* Special Dice Buttons */
-.dice-options-special {
+/* Compact Dice Grid */
+.dice-grid-compact {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.75rem;
-    margin-top: 0.75rem;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    padding: 0 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.dice-grid-compact .dice-btn {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.95rem;
 }
 
 .dice-btn.planar-btn {
     background: linear-gradient(135deg, #8b5cf6, #6366f1);
     border-color: #8b5cf6;
-    color: white;
 }
 
 .dice-btn.planar-btn:hover {
     background: linear-gradient(135deg, #a78bfa, #818cf8);
-    border-color: #a78bfa;
 }
 
-/* Dice Modifiers Section */
-.dice-modifiers {
-    background: var(--bg-secondary);
-    border-radius: var(--border-radius);
-    padding: 0.75rem !important;
-}
-
-.dice-modifier-row {
+/* Compact Modifiers Row */
+.dice-mods-row {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 1rem;
+    gap: 0.75rem;
+    padding: 0.5rem;
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    margin: 0 0.5rem 0.75rem;
     flex-wrap: wrap;
 }
 
-.dice-modifier-group {
+.dice-mods-row label {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-}
-
-.dice-modifier-group label {
-    font-size: 0.8rem;
+    gap: 0.25rem;
+    font-size: 0.75rem;
     color: var(--text-muted);
-    font-weight: 600;
 }
 
-.dice-input {
-    width: 60px;
-    padding: 0.5rem;
+.dice-mods-row input {
+    width: 45px;
+    padding: 0.35rem;
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius-sm);
     background: var(--bg-tertiary);
     color: var(--text-primary);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     text-align: center;
 }
 
-.dice-input:focus {
+.dice-mods-row input:focus {
     outline: none;
     border-color: var(--accent-primary);
 }
 
-.modifier-input-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-}
-
-.modifier-sign {
-    font-weight: 700;
-    color: var(--text-muted);
-}
-
-.dice-btn-sm {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.8rem;
-}
-
-/* Special Actions */
-.dice-special-actions {
-    display: flex;
-    gap: 0.75rem;
-    justify-content: center;
-}
-
-.dice-action-btn {
-    padding: 0.75rem 1rem;
-    background: var(--bg-tertiary);
-    border: 2px solid var(--border-color);
-    border-radius: var(--border-radius);
-    color: var(--text-primary);
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all var(--transition-fast);
-}
-
-.dice-action-btn:hover {
-    background: var(--accent-primary);
-    border-color: var(--accent-primary);
-}
-
-.dice-action-btn.active {
-    background: var(--success);
-    border-color: var(--success);
-    color: white;
-}
-
-/* Presets Section */
-.dice-presets {
-    background: var(--bg-secondary);
-    border-radius: var(--border-radius);
-    padding: 0.75rem !important;
-}
-
-.presets-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
-}
-
-.presets-label {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    font-weight: 600;
-}
-
-.preset-add-btn {
-    padding: 0.25rem 0.5rem;
+.dice-btn-mini {
+    padding: 0.35rem 0.5rem;
     background: var(--accent-primary);
     border: none;
     border-radius: var(--border-radius-sm);
     color: white;
-    font-size: 0.75rem;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.presets-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-}
-
-.preset-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 0.5rem 0.75rem;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-sm);
-    cursor: pointer;
-    transition: all var(--transition-fast);
-}
-
-.preset-btn:hover {
-    background: var(--accent-primary);
-    border-color: var(--accent-primary);
-}
-
-.preset-name {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-}
-
-.preset-dice {
     font-size: 0.85rem;
-    font-weight: 700;
-}
-
-.preset-delete-btn {
-    padding: 0.25rem 0.5rem;
-    background: rgba(239, 68, 68, 0.2);
-    border: none;
-    border-radius: var(--border-radius-sm);
-    color: var(--danger);
-    font-size: 0.9rem;
     cursor: pointer;
 }
 
-.preset-delete-btn:hover {
-    background: var(--danger);
-    color: white;
+.dice-btn-mini:hover {
+    opacity: 0.9;
 }
 
-.no-presets {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    font-style: italic;
-}
-
-/* History & Stats Section */
-.dice-history-section {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-.dice-stats {
+/* Compact History Row */
+.dice-history-row {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.5rem 0.75rem;
+    gap: 0.5rem;
+    padding: 0.5rem;
     background: var(--bg-secondary);
     border-radius: var(--border-radius-sm);
+    margin: 0 0.5rem;
     font-size: 0.8rem;
 }
 
-.dice-stats-label {
+.dice-history-row > span {
     color: var(--text-muted);
     white-space: nowrap;
-}
-
-.dice-stats-values {
-    display: flex;
-    gap: 1rem;
-    flex-wrap: wrap;
-}
-
-.dice-stats-values span {
-    color: var(--text-secondary);
-}
-
-.dice-stats-values b {
-    color: var(--accent-primary);
-}
-
-/* Who Starts Modal */
-.who-starts-modal .modal-content {
-    max-width: 400px;
-}
-
-.who-starts-content {
-    text-align: center;
-}
-
-.who-starts-results {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    margin-bottom: 1.5rem;
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-.who-starts-player {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.75rem 1rem;
-    background: var(--bg-secondary);
-    border-radius: var(--border-radius);
-    border-left: 4px solid var(--player-color, var(--border-color));
-    transition: all var(--transition-fast);
-}
-
-.who-starts-player.winner {
-    background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.1));
-    border-left-color: var(--success);
-    animation: winnerPulse 1s ease infinite;
-}
-
-.who-starts-player.tied {
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(245, 158, 11, 0.1));
-    border-left-color: var(--warning);
-}
-
-@keyframes winnerPulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
-    50% { box-shadow: 0 0 20px 5px rgba(34, 197, 94, 0.2); }
-}
-
-.who-starts-player .player-name {
-    font-weight: 600;
-    font-size: 1rem;
-}
-
-.who-starts-player .player-roll {
-    font-size: 1.2rem;
-    font-weight: 800;
-    color: var(--text-primary);
-}
-
-.who-starts-player .player-roll.crit {
-    color: var(--success);
-    text-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
-}
-
-.who-starts-player .player-roll.fail {
-    color: var(--danger);
-}
-
-.winner-badge {
-    font-size: 0.9rem;
-    padding: 0.25rem 0.5rem;
-    background: var(--success);
-    border-radius: var(--border-radius-sm);
-    color: white;
-    font-weight: 600;
-    animation: bounceIn 0.5s ease;
-}
-
-.tied-badge {
-    font-size: 0.8rem;
-    padding: 0.25rem 0.5rem;
-    background: var(--warning);
-    border-radius: var(--border-radius-sm);
-    color: #000;
-    font-weight: 600;
-}
-
-@keyframes bounceIn {
-    0% { transform: scale(0); }
-    50% { transform: scale(1.2); }
-    100% { transform: scale(1); }
 }
 
 /* 3D Dice Roll Animation */
 @keyframes diceRoll3D {
     0% { transform: rotateX(0deg) rotateY(0deg) scale(1); }
-    25% { transform: rotateX(90deg) rotateY(45deg) scale(1.2); }
-    50% { transform: rotateX(180deg) rotateY(90deg) scale(1.3); }
-    75% { transform: rotateX(270deg) rotateY(135deg) scale(1.2); }
+    25% { transform: rotateX(90deg) rotateY(45deg) scale(1.15); }
+    50% { transform: rotateX(180deg) rotateY(90deg) scale(1.2); }
+    75% { transform: rotateX(270deg) rotateY(135deg) scale(1.15); }
     100% { transform: rotateX(360deg) rotateY(180deg) scale(1); }
 }
 
 .dice-result.rolling {
-    animation: diceRoll3D 0.6s ease-in-out infinite;
+    animation: diceRoll3D 0.5s ease-in-out infinite;
     transform-style: preserve-3d;
 }
 

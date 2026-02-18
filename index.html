@@ -837,97 +837,42 @@
         <div id="dice-roller-modal" class="modal dice-roller-modal">
             <div class="modal-content dice-roller-content">
                 <div class="modal-header">
-                    <h2>🎲 Rolar Dados</h2>
+                    <h2>🎲 Dados</h2>
                     <button class="modal-close">&times;</button>
                 </div>
+
                 <div class="dice-result-area">
                     <div id="dice-result" class="dice-result">🎲</div>
                     <div id="dice-result-value" class="dice-result-value"></div>
                     <div id="dice-result-details" class="dice-result-details"></div>
                 </div>
 
-                <!-- Dice Options -->
-                <div class="dice-section">
-                    <div class="dice-options">
-                        <button class="dice-btn" data-dice="4">D4</button>
-                        <button class="dice-btn" data-dice="6">D6</button>
-                        <button class="dice-btn" data-dice="8">D8</button>
-                        <button class="dice-btn" data-dice="10">D10</button>
-                        <button class="dice-btn" data-dice="12">D12</button>
-                        <button class="dice-btn" data-dice="20">D20</button>
-                        <button class="dice-btn" data-dice="100">D100</button>
-                    </div>
-                    <div class="dice-options-special">
-                        <button class="dice-btn coin-btn" data-dice="coin">💰 Moeda</button>
-                        <button class="dice-btn planar-btn" data-dice="planar">🌀 Planar</button>
-                    </div>
+                <!-- Dice Grid - Compact -->
+                <div class="dice-grid-compact">
+                    <button class="dice-btn" data-dice="4">D4</button>
+                    <button class="dice-btn" data-dice="6">D6</button>
+                    <button class="dice-btn" data-dice="8">D8</button>
+                    <button class="dice-btn" data-dice="10">D10</button>
+                    <button class="dice-btn" data-dice="12">D12</button>
+                    <button class="dice-btn" data-dice="20">D20</button>
+                    <button class="dice-btn" data-dice="100">D100</button>
+                    <button class="dice-btn planar-btn" data-dice="planar" title="Dado Planar">🌀</button>
+                    <button class="dice-btn coin-btn" data-dice="coin" title="Moeda">💰</button>
                 </div>
 
-                <!-- Multiple Dice & Modifier -->
-                <div class="dice-section dice-modifiers">
-                    <div class="dice-modifier-row">
-                        <div class="dice-modifier-group">
-                            <label>Qtd:</label>
-                            <input type="number" id="dice-quantity" min="1" max="20" value="1" class="dice-input">
-                        </div>
-                        <div class="dice-modifier-group">
-                            <label>Mod:</label>
-                            <div class="modifier-input-wrapper">
-                                <span class="modifier-sign">+</span>
-                                <input type="number" id="dice-modifier" min="-99" max="99" value="0" class="dice-input">
-                            </div>
-                        </div>
-                        <div class="dice-modifier-group">
-                            <label>Custom:</label>
-                            <input type="number" id="dice-custom" min="2" max="1000" placeholder="D?" class="dice-input">
-                            <button class="dice-btn dice-btn-sm" id="roll-custom-btn">Rolar</button>
-                        </div>
-                    </div>
+                <!-- Modifiers - Single Row -->
+                <div class="dice-mods-row">
+                    <label>Qtd:<input type="number" id="dice-quantity" min="1" max="20" value="1"></label>
+                    <label>Mod:<input type="number" id="dice-modifier" min="-99" max="99" value="0"></label>
+                    <label>D?<input type="number" id="dice-custom" min="2" max="1000" placeholder="?"></label>
+                    <button class="dice-btn-mini" id="roll-custom-btn">🎲</button>
                 </div>
 
-                <!-- Special Actions -->
-                <div class="dice-section dice-special-actions">
-                    <button class="dice-action-btn" id="who-starts-btn">🎯 Quem Começa?</button>
-                    <button class="dice-action-btn" id="shake-toggle-btn">📳 Shake: OFF</button>
+                <!-- History - Compact -->
+                <div class="dice-history-row">
+                    <span>Últimos:</span>
+                    <div id="dice-history-list" class="dice-history-list"></div>
                 </div>
-
-                <!-- Presets -->
-                <div class="dice-section dice-presets">
-                    <div class="presets-header">
-                        <span class="presets-label">⭐ Presets:</span>
-                        <button class="preset-add-btn" id="add-preset-btn">+ Salvar</button>
-                    </div>
-                    <div id="dice-presets-list" class="presets-list"></div>
-                </div>
-
-                <!-- History & Stats -->
-                <div class="dice-section dice-history-section">
-                    <div class="dice-history">
-                        <span class="dice-history-label">📜 Histórico:</span>
-                        <div id="dice-history-list" class="dice-history-list"></div>
-                    </div>
-                    <div class="dice-stats">
-                        <span class="dice-stats-label">📊 Stats:</span>
-                        <div id="dice-stats" class="dice-stats-values">
-                            <span>Rolls: <b id="stat-total">0</b></span>
-                            <span>Média: <b id="stat-avg">-</b></span>
-                            <span>Max: <b id="stat-max">-</b></span>
-                            <span>Min: <b id="stat-min">-</b></span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Who Starts Modal -->
-        <div id="who-starts-modal" class="modal who-starts-modal">
-            <div class="modal-content who-starts-content">
-                <div class="modal-header">
-                    <h2>🎯 Quem Começa?</h2>
-                    <button class="modal-close">&times;</button>
-                </div>
-                <div id="who-starts-results" class="who-starts-results"></div>
-                <button class="btn btn-primary" id="reroll-who-starts-btn">🔄 Rolar Novamente</button>
             </div>
         </div>
 
