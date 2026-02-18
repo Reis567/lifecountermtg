@@ -1350,9 +1350,11 @@ function renderPlayers(state) {
                 `<div class="player-avatar" style="background: ${player.color}"></div>`}
                         <span class="player-name">${player.name}</span>
                         ${player.tag ? `<span class="player-tag">${player.tag}</span>` : ''}
-                        ${team ? `<span class="team-badge team-${teamIndex}">🤝 ${team.name}</span>` : ''}
-                        ${player.isMonarch ? '<span class="monarch-badge-inline">👑</span>' : ''}
-                        ${state.viadoPlayerId === player.id ? '<span class="viado-badge">🏳️‍🌈 Viado</span>' : ''}
+                    </div>
+                    <div class="player-status-badges">
+                        ${player.isMonarch ? '<span class="monarch-badge-inline" title="Monarca">👑</span>' : ''}
+                        ${state.viadoPlayerId === player.id ? '<span class="viado-badge" title="Viado">🏳️‍🌈</span>' : ''}
+                        ${team ? `<span class="team-badge team-${teamIndex}" title="${team.name}">🤝</span>` : ''}
                     </div>
                     <div class="player-actions">
                         <button class="player-action-btn" data-action="commander" title="Dano de Comandante">⚔️</button>

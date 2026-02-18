@@ -902,8 +902,17 @@ select {
     display: flex;
     align-items: center;
     gap: 0.375rem;
-    flex: 1;
     min-width: 0;
+    flex-shrink: 1;
+    overflow: hidden;
+}
+
+.player-status-badges {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-shrink: 0;
+    margin-left: 0.25rem;
 }
 
 .player-avatar {
@@ -940,16 +949,14 @@ select {
 
 /* Viado Badge */
 .viado-badge {
-    font-size: 0.55rem;
-    padding: 0.15rem 0.4rem;
+    font-size: 0.9rem;
+    padding: 0.1rem;
     background: linear-gradient(135deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3, #54a0ff);
     background-size: 300% 300%;
     animation: rainbow-shift 3s ease infinite;
     border-radius: 4px;
-    font-weight: 700;
     flex-shrink: 0;
-    color: #000;
-    text-shadow: 0 0 2px rgba(255,255,255,0.5);
+    line-height: 1;
 }
 
 @keyframes rainbow-shift {
@@ -984,12 +991,11 @@ select {
 
 /* Two-Headed Giant Team Badge */
 .team-badge {
-    font-size: 0.5rem;
-    padding: 0.125rem 0.5rem;
+    font-size: 0.85rem;
+    padding: 0.1rem 0.2rem;
     border-radius: 4px;
-    font-weight: 600;
-    text-transform: uppercase;
     flex-shrink: 0;
+    line-height: 1;
 }
 
 .team-badge.team-1 {
