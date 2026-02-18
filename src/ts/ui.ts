@@ -2711,16 +2711,55 @@ const planarDieFaces = [
     { result: '🚪 Planeswalk', emoji: '🚪', type: 'planeswalk' },
 ];
 
+// Helper to reset all 3D dice scenes
+function resetAll3DScenes(): void {
+    const scenes = ['d4-scene', 'd6-scene', 'd8-scene', 'poly-scene', 'd100-scene', 'coin-3d-scene', 'planar-scene', 'dice-result'];
+    scenes.forEach(id => {
+        const el = $(id);
+        if (el) el.style.display = 'none';
+    });
+
+    // Reset D4
+    const d4 = $('d4-dice');
+    if (d4) d4.classList.remove('rolling', 'show-1', 'show-2', 'show-3', 'show-4');
+
+    // Reset D6
+    const d6 = $('d6-dice');
+    if (d6) d6.classList.remove('rolling', 'show-1', 'show-2', 'show-3', 'show-4', 'show-5', 'show-6');
+
+    // Reset D8
+    const d8 = $('d8-dice');
+    if (d8) d8.classList.remove('rolling', 'show-1', 'show-2', 'show-3', 'show-4', 'show-5', 'show-6', 'show-7', 'show-8');
+
+    // Reset Poly (D10/D12/D20)
+    const poly = $('poly-dice');
+    if (poly) {
+        poly.classList.remove('rolling', 'show-result', 'd10', 'd12', 'd20');
+    }
+    const polyResult = $('poly-result');
+    if (polyResult) polyResult.textContent = '';
+
+    // Reset D100
+    const d100tens = $('d100-tens');
+    const d100ones = $('d100-ones');
+    if (d100tens) d100tens.classList.remove('rolling');
+    if (d100ones) d100ones.classList.remove('rolling');
+
+    // Reset Coin
+    const coin = $('coin-3d');
+    if (coin) coin.classList.remove('flipping', 'show-heads', 'show-tails');
+
+    // Reset Planar
+    const planar = $('planar-dice');
+    if (planar) planar.classList.remove('rolling', 'show-1', 'show-2', 'show-3', 'show-4', 'show-5', 'show-6');
+}
+
 function rollDice(diceType: string): void {
     if (isRolling) return;
 
     const resultEl = $('dice-result');
     const valueEl = $('dice-result-value');
     const detailsEl = $('dice-result-details');
-    const dice3dScene = $('dice-3d-scene');
-    const dice3dCube = $('dice-3d-cube');
-    const coin3dScene = $('coin-3d-scene');
-    const coin3d = $('coin-3d');
     if (!resultEl || !valueEl) return;
 
     // Get quantity and modifier
@@ -2734,30 +2773,67 @@ function rollDice(diceType: string): void {
     valueEl.className = 'dice-result-value';
     if (detailsEl) detailsEl.textContent = '';
 
-    // Determine if we use 3D elements
-    const useD6Cube = diceType === '6' && quantity === 1 && modifier === 0;
-    const useCoin = diceType === 'coin';
+    // Reset all 3D scenes
+    resetAll3DScenes();
 
-    // Reset visibility and classes
-    if (dice3dScene) dice3dScene.style.display = 'none';
-    if (coin3dScene) coin3dScene.style.display = 'none';
-    resultEl.style.display = 'none';
+    // Determine which 3D element to use (only for single die, no modifier)
+    const useSingle3D = quantity === 1 && modifier === 0;
+    const max = parseInt(diceType) || 0;
 
-    if (dice3dCube) {
-        dice3dCube.classList.remove('rolling', 'show-1', 'show-2', 'show-3', 'show-4', 'show-5', 'show-6');
-    }
-    if (coin3d) {
-        coin3d.classList.remove('flipping', 'show-heads', 'show-tails');
-    }
-
-    // Show appropriate element and start animation
-    if (useD6Cube && dice3dScene && dice3dCube) {
-        dice3dScene.style.display = 'block';
-        dice3dCube.classList.add('rolling');
-    } else if (useCoin && coin3dScene && coin3d) {
-        coin3dScene.style.display = 'block';
-        coin3d.classList.add('flipping');
+    // Show and animate appropriate 3D element
+    if (diceType === 'coin') {
+        const scene = $('coin-3d-scene');
+        const coin = $('coin-3d');
+        if (scene && coin) {
+            scene.style.display = 'flex';
+            coin.classList.add('flipping');
+        }
+    } else if (diceType === 'planar') {
+        const scene = $('planar-scene');
+        const planar = $('planar-dice');
+        if (scene && planar) {
+            scene.style.display = 'flex';
+            planar.classList.add('rolling');
+        }
+    } else if (useSingle3D && max === 4) {
+        const scene = $('d4-scene');
+        const d4 = $('d4-dice');
+        if (scene && d4) {
+            scene.style.display = 'flex';
+            d4.classList.add('rolling');
+        }
+    } else if (useSingle3D && max === 6) {
+        const scene = $('d6-scene');
+        const d6 = $('d6-dice');
+        if (scene && d6) {
+            scene.style.display = 'flex';
+            d6.classList.add('rolling');
+        }
+    } else if (useSingle3D && max === 8) {
+        const scene = $('d8-scene');
+        const d8 = $('d8-dice');
+        if (scene && d8) {
+            scene.style.display = 'flex';
+            d8.classList.add('rolling');
+        }
+    } else if (useSingle3D && (max === 10 || max === 12 || max === 20)) {
+        const scene = $('poly-scene');
+        const poly = $('poly-dice');
+        if (scene && poly) {
+            scene.style.display = 'flex';
+            poly.classList.add('rolling', `d${max}`);
+        }
+    } else if (useSingle3D && max === 100) {
+        const scene = $('d100-scene');
+        const tens = $('d100-tens');
+        const ones = $('d100-ones');
+        if (scene && tens && ones) {
+            scene.style.display = 'flex';
+            tens.classList.add('rolling');
+            ones.classList.add('rolling');
+        }
     } else {
+        // Fallback to emoji for multiple dice or custom dice
         resultEl.style.display = 'block';
         resultEl.classList.add('rolling');
     }
@@ -2787,9 +2863,10 @@ function rollDice(diceType: string): void {
             emoji = finalResult === 'Cara' ? '😀' : '🦅';
 
             // Show 3D coin result
-            if (coin3d) {
-                coin3d.classList.remove('flipping');
-                coin3d.classList.add(finalResult === 'Cara' ? 'show-heads' : 'show-tails');
+            const coin = $('coin-3d');
+            if (coin) {
+                coin.classList.remove('flipping');
+                coin.classList.add(finalResult === 'Cara' ? 'show-heads' : 'show-tails');
             }
         } else if (diceType === 'planar') {
             // Planar die - 6 faces
@@ -2805,9 +2882,13 @@ function rollDice(diceType: string): void {
                 audioManager.play('turn');
             }
 
-            resultEl.textContent = emoji;
+            // Show 3D planar result
+            const planar = $('planar-dice');
+            if (planar) {
+                planar.classList.remove('rolling');
+                planar.classList.add(`show-${faceIndex + 1}`);
+            }
         } else {
-            const max = parseInt(diceType);
             emoji = getDiceEmoji(max);
 
             // Roll multiple dice
@@ -2850,10 +2931,48 @@ function rollDice(diceType: string): void {
                 }
             }
 
-            // Show 3D dice result for D6
-            if (useD6Cube && dice3dCube) {
-                dice3dCube.classList.remove('rolling');
-                dice3dCube.classList.add(`show-${sum}`);
+            // Show 3D dice result based on type
+            if (useSingle3D) {
+                if (max === 4) {
+                    const d4 = $('d4-dice');
+                    if (d4) {
+                        d4.classList.remove('rolling');
+                        d4.classList.add(`show-${sum}`);
+                    }
+                } else if (max === 6) {
+                    const d6 = $('d6-dice');
+                    if (d6) {
+                        d6.classList.remove('rolling');
+                        d6.classList.add(`show-${sum}`);
+                    }
+                } else if (max === 8) {
+                    const d8 = $('d8-dice');
+                    if (d8) {
+                        d8.classList.remove('rolling');
+                        d8.classList.add(`show-${sum}`);
+                    }
+                } else if (max === 10 || max === 12 || max === 20) {
+                    const poly = $('poly-dice');
+                    const polyResult = $('poly-result');
+                    if (poly && polyResult) {
+                        poly.classList.remove('rolling');
+                        poly.classList.add('show-result');
+                        polyResult.textContent = String(sum);
+                    }
+                } else if (max === 100) {
+                    const tens = $('d100-tens');
+                    const ones = $('d100-ones');
+                    if (tens && ones) {
+                        tens.classList.remove('rolling');
+                        ones.classList.remove('rolling');
+                        const tensDigit = tens.querySelector('.d100-digit');
+                        const onesDigit = ones.querySelector('.d100-digit');
+                        const tensValue = Math.floor((sum - 1) / 10) * 10;
+                        const onesValue = sum === 100 ? 0 : sum % 10;
+                        if (tensDigit) tensDigit.textContent = tensValue === 0 ? '00' : String(tensValue);
+                        if (onesDigit) onesDigit.textContent = String(onesValue);
+                    }
+                }
             } else {
                 resultEl.textContent = emoji;
             }
