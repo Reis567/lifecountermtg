@@ -1547,14 +1547,11 @@ function renderPlayers(state: GameState): void {
 
         const countersCollapsed = collapsedCounters.has(player.id);
 
-        const monarchCrown = player.isMonarch ? '<div class="monarch-crown">👑</div>' : '';
-
         return `
             <div class="player-card ${classes}"
                  data-player-id="${player.id}"
                  data-rotation="${rotation}"
                  style="--player-color: ${player.color}; grid-area: p${index};">
-                ${monarchCrown}
                 ${player.background ? `<div class="player-card-background has-background" style="${backgroundStyle}"></div>` : ''}
                 <div class="player-header">
                     <div class="player-info">
@@ -1564,7 +1561,7 @@ function renderPlayers(state: GameState): void {
                         <span class="player-name">${player.name}</span>
                         ${player.tag ? `<span class="player-tag">${player.tag}</span>` : ''}
                         ${team ? `<span class="team-badge team-${teamIndex}">🤝 ${team.name}</span>` : ''}
-                        ${player.isMonarch ? '<span class="player-emoji">👑</span>' : ''}
+                        ${player.isMonarch ? '<span class="monarch-badge-inline">👑</span>' : ''}
                         ${state.viadoPlayerId === player.id ? '<span class="viado-badge">🏳️‍🌈 Viado</span>' : ''}
                     </div>
                     <div class="player-actions">
@@ -2268,7 +2265,7 @@ function startViadoSelection(): void {
         $('viado-close-btn').style.display = 'inline-block';
 
         isViadoSelectionRunning = false;
-        audioManager.play('win');
+        audioManager.play('viado'); // "eu não nasci gay" (3% chance de tocar hino do Fluminense)
     }, duration);
 }
 

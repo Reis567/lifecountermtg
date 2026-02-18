@@ -15,6 +15,9 @@ class AudioManager {
     // Sound files mapping (sound name -> file path)
     private readonly soundFiles: Record<string, string> = {
         damage: 'dano.mp3',
+        viado: 'viado.mp3',           // "eu não nasci gay a culpa é do meu pai"
+        fluminense: 'fluminense.mp3', // Hino do Fluminense (easter egg)
+        monark: 'monark.mp3',         // Monark "acorda cara" (easter egg)
     };
 
     constructor() {
@@ -102,6 +105,30 @@ class AudioManager {
         if (!this.canPlaySound(soundName)) return;
 
         const volume = state.settings.volume / 100;
+
+        // Special handling for viado sound - 3% chance of Fluminense easter egg
+        if (soundName === 'viado' && state.settings.easterEggsEnabled) {
+            const easterEggChance = Math.random();
+            if (easterEggChance < 0.03) { // 3% chance
+                // Play Fluminense anthem instead!
+                if (this.playSoundFile('fluminense', volume)) {
+                    console.log('🎵 EASTER EGG: Hino do Fluminense!');
+                    return;
+                }
+            }
+        }
+
+        // Special handling for monarch sound - 3% chance of Monark "acorda cara"
+        if (soundName === 'monarch' && state.settings.easterEggsEnabled) {
+            const easterEggChance = Math.random();
+            if (easterEggChance < 0.03) { // 3% chance
+                // Play Monark "acorda cara" instead!
+                if (this.playSoundFile('monark', volume)) {
+                    console.log('🎵 EASTER EGG: Monark - Acorda cara!');
+                    return;
+                }
+            }
+        }
 
         // Try custom sound first
         const customKey = playerId ? `${playerId}-${soundName}` : soundName;
@@ -410,25 +437,42 @@ class AudioManager {
                     break;
 
                 case 'monarch':
-                    // Royal fanfare - two notes
-                    oscillator.frequency.value = 523.25; // C5
-                    oscillator.type = 'sine';
-                    gainNode.gain.value = volume * 0.3;
-                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-                    oscillator.start();
-                    oscillator.stop(audioContext.currentTime + 0.15);
-                    // Second note
-                    const osc2 = audioContext.createOscillator();
-                    const gain2 = audioContext.createGain();
-                    osc2.connect(gain2);
-                    gain2.connect(audioContext.destination);
-                    osc2.frequency.value = 783.99; // G5
-                    osc2.type = 'sine';
-                    gain2.gain.value = volume * 0.3;
-                    gain2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.45);
-                    osc2.start(audioContext.currentTime + 0.15);
-                    osc2.stop(audioContext.currentTime + 0.3);
-                    break;
+                    // Royal trumpet fanfare - "God Save the King" style
+                    const royalNotes = [
+                        { freq: 392, duration: 0.15 },    // G4
+                        { freq: 392, duration: 0.15 },    // G4
+                        { freq: 440, duration: 0.15 },    // A4
+                        { freq: 392, duration: 0.2 },     // G4
+                        { freq: 493.88, duration: 0.2 },  // B4
+                        { freq: 523.25, duration: 0.4 },  // C5 (hold)
+                    ];
+                    let royalTime = audioContext.currentTime;
+                    royalNotes.forEach((note) => {
+                        // Main trumpet
+                        const trumpet = audioContext.createOscillator();
+                        const trumpetGain = audioContext.createGain();
+                        trumpet.connect(trumpetGain);
+                        trumpetGain.connect(audioContext.destination);
+                        trumpet.type = 'sawtooth';
+                        trumpet.frequency.value = note.freq;
+                        trumpetGain.gain.value = volume * 0.15;
+                        trumpetGain.gain.exponentialRampToValueAtTime(0.01, royalTime + note.duration);
+                        trumpet.start(royalTime);
+                        trumpet.stop(royalTime + note.duration);
+                        // Harmony (fifth above)
+                        const harmony = audioContext.createOscillator();
+                        const harmonyGain = audioContext.createGain();
+                        harmony.connect(harmonyGain);
+                        harmonyGain.connect(audioContext.destination);
+                        harmony.type = 'sawtooth';
+                        harmony.frequency.value = note.freq * 1.5; // Perfect fifth
+                        harmonyGain.gain.value = volume * 0.08;
+                        harmonyGain.gain.exponentialRampToValueAtTime(0.01, royalTime + note.duration);
+                        harmony.start(royalTime);
+                        harmony.stop(royalTime + note.duration);
+                        royalTime += note.duration;
+                    });
+                    return;
 
                 default:
                     oscillator.frequency.value = 440;

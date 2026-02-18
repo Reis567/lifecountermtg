@@ -854,26 +854,22 @@ select {
     50% { box-shadow: 0 0 30px rgba(255, 215, 0, 0.6), 0 0 60px rgba(255, 215, 0, 0.3); }
 }
 
-.monarch-crown {
-    position: absolute;
-    top: -20px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 2rem;
-    z-index: 10;
-    animation: crownFloat 3s ease-in-out infinite, crownShine 2s ease-in-out infinite;
-    filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.8));
-    pointer-events: none;
+.monarch-badge-inline {
+    font-size: 1rem;
+    margin-left: 0.25rem;
+    animation: crownPulse 2s ease-in-out infinite;
+    filter: drop-shadow(0 0 6px rgba(255, 215, 0, 0.8));
 }
 
-@keyframes crownFloat {
-    0%, 100% { transform: translateX(-50%) translateY(0); }
-    50% { transform: translateX(-50%) translateY(-5px); }
-}
-
-@keyframes crownShine {
-    0%, 100% { filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.8)); }
-    50% { filter: drop-shadow(0 0 20px rgba(255, 215, 0, 1)) brightness(1.2); }
+@keyframes crownPulse {
+    0%, 100% {
+        filter: drop-shadow(0 0 6px rgba(255, 215, 0, 0.8));
+        transform: scale(1);
+    }
+    50% {
+        filter: drop-shadow(0 0 12px rgba(255, 215, 0, 1));
+        transform: scale(1.1);
+    }
 }
 
 .player-card.random-highlight {
