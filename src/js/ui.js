@@ -245,6 +245,8 @@ let undoCheckInterval = null;
 let randomStarterAnimationInterval = null;
 // Winner animation state - track to avoid re-showing animation
 let lastShownWinnerId = null;
+// Track eliminated players to play death sound only once
+const eliminatedPlayersShown = new Set();
 // Damage shadow state - tracks accumulated damage/heal per player
 const damageShadowAccumulator = new Map();
 const damageShadowTimers = new Map();
@@ -832,6 +834,7 @@ function hideShareButtons() {
     if (shareBtnRight)
         shareBtnRight.style.display = 'none';
     lastShownWinnerId = null;
+    eliminatedPlayersShown.clear(); // Reset eliminated tracking
 }
 function setupPlayerSettingsListeners() {
     // Color options
@@ -1226,6 +1229,17 @@ function renderGame(state) {
     updateSettingsControls(state);
     // Handle turn timer
     updateTurnTimer(state);
+    // Check for newly eliminated players and play death sound
+    state.players.forEach(player => {
+        if (player.isEliminated && !eliminatedPlayersShown.has(player.id)) {
+            eliminatedPlayersShown.add(player.id);
+            audioManager.play('death', player.id); // "Fon fon fon fooooom"
+        }
+        else if (!player.isEliminated && eliminatedPlayersShown.has(player.id)) {
+            // Player was revived, remove from tracking
+            eliminatedPlayersShown.delete(player.id);
+        }
+    });
     // Check for winner - show share buttons and winner animation
     if (state.winner) {
         // Show share buttons when there's a winner
@@ -3289,7 +3303,7 @@ function handleRevivePlayer(playerId) {
             return;
     }
     gameState.revivePlayer(playerId, true);
-    audioManager.play('heal', playerId);
+    audioManager.play('revive', playerId); // Angelic sound
 }
 // ===== Collapsible Counters =====
 function toggleCountersCollapse(playerId) {

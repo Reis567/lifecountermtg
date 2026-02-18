@@ -196,13 +196,39 @@ class AudioManager {
                     oscillator.stop(audioContext.currentTime + config.duration);
                     break;
                 case 'death':
-                    oscillator.frequency.value = 300;
-                    oscillator.type = 'square';
-                    oscillator.frequency.exponentialRampToValueAtTime(50, audioContext.currentTime + 0.5);
-                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-                    oscillator.start();
-                    oscillator.stop(audioContext.currentTime + 0.5);
-                    break;
+                    // "Fon fon fon fooooom" - funny fail/sad trombone sound
+                    const deathNotes = [
+                        { freq: 392, duration: 0.15 }, // G4 - fon
+                        { freq: 349.23, duration: 0.15 }, // F4 - fon
+                        { freq: 329.63, duration: 0.15 }, // E4 - fon
+                        { freq: 155.56, duration: 0.6 }, // Eb3 - fooooom (low and long)
+                    ];
+                    let deathTime = audioContext.currentTime;
+                    deathNotes.forEach((note, i) => {
+                        const osc = audioContext.createOscillator();
+                        const gain = audioContext.createGain();
+                        osc.connect(gain);
+                        gain.connect(audioContext.destination);
+                        osc.type = 'square';
+                        osc.frequency.value = note.freq;
+                        gain.gain.value = volume * 0.25;
+                        // Add vibrato to the last note
+                        if (i === 3) {
+                            const vibrato = audioContext.createOscillator();
+                            const vibratoGain = audioContext.createGain();
+                            vibrato.frequency.value = 5;
+                            vibratoGain.gain.value = 8;
+                            vibrato.connect(vibratoGain);
+                            vibratoGain.connect(osc.frequency);
+                            vibrato.start(deathTime);
+                            vibrato.stop(deathTime + note.duration);
+                        }
+                        gain.gain.exponentialRampToValueAtTime(0.01, deathTime + note.duration);
+                        osc.start(deathTime);
+                        osc.stop(deathTime + note.duration);
+                        deathTime += note.duration;
+                    });
+                    return;
                 case 'win':
                     // Play a simple victory fanfare
                     const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
@@ -243,15 +269,73 @@ class AudioManager {
                     oscillator.stop(audioContext.currentTime + 0.1);
                     break;
                 case 'commander_damage':
-                    // Heavy impact sound - deep and powerful
-                    oscillator.frequency.value = 150;
-                    oscillator.type = 'sawtooth';
-                    gainNode.gain.value = volume * 0.4;
-                    oscillator.frequency.exponentialRampToValueAtTime(80, audioContext.currentTime + 0.2);
-                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.25);
+                    // Demonic sound - deep growl with dissonance
+                    const demonFreqs = [65, 68, 73]; // Low dissonant chord
+                    demonFreqs.forEach((freq, i) => {
+                        const demonOsc = audioContext.createOscillator();
+                        const demonGain = audioContext.createGain();
+                        demonOsc.connect(demonGain);
+                        demonGain.connect(audioContext.destination);
+                        demonOsc.type = 'sawtooth';
+                        demonOsc.frequency.value = freq;
+                        demonGain.gain.value = volume * 0.2;
+                        // Add growling LFO
+                        const growl = audioContext.createOscillator();
+                        const growlGain = audioContext.createGain();
+                        growl.frequency.value = 8 + i * 2;
+                        growlGain.gain.value = 15;
+                        growl.connect(growlGain);
+                        growlGain.connect(demonOsc.frequency);
+                        growl.start();
+                        growl.stop(audioContext.currentTime + 0.5);
+                        demonGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                        demonOsc.start();
+                        demonOsc.stop(audioContext.currentTime + 0.5);
+                    });
+                    // Add a deep impact
+                    oscillator.frequency.value = 40;
+                    oscillator.type = 'sine';
+                    gainNode.gain.value = volume * 0.5;
+                    oscillator.frequency.exponentialRampToValueAtTime(25, audioContext.currentTime + 0.4);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
                     oscillator.start();
-                    oscillator.stop(audioContext.currentTime + 0.25);
+                    oscillator.stop(audioContext.currentTime + 0.4);
                     break;
+                case 'revive':
+                    // Angelic choir - ethereal ascending sound
+                    const angelNotes = [
+                        { freq: 523.25, delay: 0 }, // C5
+                        { freq: 659.25, delay: 0.05 }, // E5
+                        { freq: 783.99, delay: 0.1 }, // G5
+                        { freq: 1046.5, delay: 0.15 }, // C6
+                    ];
+                    angelNotes.forEach(note => {
+                        const angelOsc = audioContext.createOscillator();
+                        const angelGain = audioContext.createGain();
+                        angelOsc.connect(angelGain);
+                        angelGain.connect(audioContext.destination);
+                        angelOsc.type = 'sine';
+                        angelOsc.frequency.value = note.freq;
+                        // Soft attack, longer release
+                        angelGain.gain.setValueAtTime(0, audioContext.currentTime + note.delay);
+                        angelGain.gain.linearRampToValueAtTime(volume * 0.2, audioContext.currentTime + note.delay + 0.1);
+                        angelGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + note.delay + 0.8);
+                        // Add shimmer with slight detune
+                        const shimmer = audioContext.createOscillator();
+                        const shimmerGain = audioContext.createGain();
+                        shimmer.type = 'sine';
+                        shimmer.frequency.value = note.freq * 1.005; // Slight detune for chorus
+                        shimmerGain.gain.setValueAtTime(0, audioContext.currentTime + note.delay);
+                        shimmerGain.gain.linearRampToValueAtTime(volume * 0.15, audioContext.currentTime + note.delay + 0.1);
+                        shimmerGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + note.delay + 0.8);
+                        shimmer.connect(shimmerGain);
+                        shimmerGain.connect(audioContext.destination);
+                        angelOsc.start(audioContext.currentTime + note.delay);
+                        angelOsc.stop(audioContext.currentTime + note.delay + 0.8);
+                        shimmer.start(audioContext.currentTime + note.delay);
+                        shimmer.stop(audioContext.currentTime + note.delay + 0.8);
+                    });
+                    return;
                 case 'poison':
                     // Sinister bubbling sound
                     oscillator.frequency.value = 300;
