@@ -2367,28 +2367,16 @@ const planarDieFaces = [
 ];
 // Helper to reset all 3D dice scenes
 function resetAll3DScenes() {
-    const scenes = ['d4-scene', 'd6-scene', 'd8-scene', 'poly-scene', 'd100-scene', 'coin-3d-scene', 'planar-scene', 'dice-result'];
+    const scenes = ['poly-scene', 'd100-scene', 'coin-3d-scene', 'planar-scene', 'dice-result'];
     scenes.forEach(id => {
         const el = $(id);
         if (el)
             el.style.display = 'none';
     });
-    // Reset D4
-    const d4 = $('d4-dice');
-    if (d4)
-        d4.classList.remove('rolling', 'show-1', 'show-2', 'show-3', 'show-4');
-    // Reset D6
-    const d6 = $('d6-dice');
-    if (d6)
-        d6.classList.remove('rolling', 'show-1', 'show-2', 'show-3', 'show-4', 'show-5', 'show-6');
-    // Reset D8
-    const d8 = $('d8-dice');
-    if (d8)
-        d8.classList.remove('rolling', 'show-1', 'show-2', 'show-3', 'show-4', 'show-5', 'show-6', 'show-7', 'show-8');
-    // Reset Poly (D10/D12/D20)
+    // Reset Poly (all standard dice D4-D20)
     const poly = $('poly-dice');
     if (poly) {
-        poly.classList.remove('rolling', 'show-result', 'd10', 'd12', 'd20');
+        poly.classList.remove('rolling', 'show-result', 'd4', 'd6', 'd8', 'd10', 'd12', 'd20');
     }
     const polyResult = $('poly-result');
     if (polyResult)
@@ -2432,6 +2420,8 @@ function rollDice(diceType) {
     // Determine which 3D element to use (only for single die, no modifier)
     const useSingle3D = quantity === 1 && modifier === 0;
     const max = parseInt(diceType) || 0;
+    // Standard dice that use poly-scene (D4, D6, D8, D10, D12, D20)
+    const standardDice = [4, 6, 8, 10, 12, 20];
     // Show and animate appropriate 3D element
     if (diceType === 'coin') {
         const scene = $('coin-3d-scene');
@@ -2449,31 +2439,8 @@ function rollDice(diceType) {
             planar.classList.add('rolling');
         }
     }
-    else if (useSingle3D && max === 4) {
-        const scene = $('d4-scene');
-        const d4 = $('d4-dice');
-        if (scene && d4) {
-            scene.style.display = 'flex';
-            d4.classList.add('rolling');
-        }
-    }
-    else if (useSingle3D && max === 6) {
-        const scene = $('d6-scene');
-        const d6 = $('d6-dice');
-        if (scene && d6) {
-            scene.style.display = 'flex';
-            d6.classList.add('rolling');
-        }
-    }
-    else if (useSingle3D && max === 8) {
-        const scene = $('d8-scene');
-        const d8 = $('d8-dice');
-        if (scene && d8) {
-            scene.style.display = 'flex';
-            d8.classList.add('rolling');
-        }
-    }
-    else if (useSingle3D && (max === 10 || max === 12 || max === 20)) {
+    else if (useSingle3D && standardDice.includes(max)) {
+        // Use unified poly-dice for D4, D6, D8, D10, D12, D20
         const scene = $('poly-scene');
         const poly = $('poly-dice');
         if (scene && poly) {
@@ -2588,52 +2555,30 @@ function rollDice(diceType) {
                 }
             }
             // Show 3D dice result based on type
-            if (useSingle3D) {
-                if (max === 4) {
-                    const d4 = $('d4-dice');
-                    if (d4) {
-                        d4.classList.remove('rolling');
-                        d4.classList.add(`show-${sum}`);
-                    }
+            if (useSingle3D && standardDice.includes(max)) {
+                // Use unified poly-dice for D4, D6, D8, D10, D12, D20
+                const poly = $('poly-dice');
+                const polyResult = $('poly-result');
+                if (poly && polyResult) {
+                    poly.classList.remove('rolling');
+                    poly.classList.add('show-result');
+                    polyResult.textContent = String(sum);
                 }
-                else if (max === 6) {
-                    const d6 = $('d6-dice');
-                    if (d6) {
-                        d6.classList.remove('rolling');
-                        d6.classList.add(`show-${sum}`);
-                    }
-                }
-                else if (max === 8) {
-                    const d8 = $('d8-dice');
-                    if (d8) {
-                        d8.classList.remove('rolling');
-                        d8.classList.add(`show-${sum}`);
-                    }
-                }
-                else if (max === 10 || max === 12 || max === 20) {
-                    const poly = $('poly-dice');
-                    const polyResult = $('poly-result');
-                    if (poly && polyResult) {
-                        poly.classList.remove('rolling');
-                        poly.classList.add('show-result');
-                        polyResult.textContent = String(sum);
-                    }
-                }
-                else if (max === 100) {
-                    const tens = $('d100-tens');
-                    const ones = $('d100-ones');
-                    if (tens && ones) {
-                        tens.classList.remove('rolling');
-                        ones.classList.remove('rolling');
-                        const tensDigit = tens.querySelector('.d100-digit');
-                        const onesDigit = ones.querySelector('.d100-digit');
-                        const tensValue = Math.floor((sum - 1) / 10) * 10;
-                        const onesValue = sum === 100 ? 0 : sum % 10;
-                        if (tensDigit)
-                            tensDigit.textContent = tensValue === 0 ? '00' : String(tensValue);
-                        if (onesDigit)
-                            onesDigit.textContent = String(onesValue);
-                    }
+            }
+            else if (useSingle3D && max === 100) {
+                const tens = $('d100-tens');
+                const ones = $('d100-ones');
+                if (tens && ones) {
+                    tens.classList.remove('rolling');
+                    ones.classList.remove('rolling');
+                    const tensDigit = tens.querySelector('.d100-digit');
+                    const onesDigit = ones.querySelector('.d100-digit');
+                    const tensValue = Math.floor((sum - 1) / 10) * 10;
+                    const onesValue = sum === 100 ? 0 : sum % 10;
+                    if (tensDigit)
+                        tensDigit.textContent = tensValue === 0 ? '00' : String(tensValue);
+                    if (onesDigit)
+                        onesDigit.textContent = String(onesValue);
                 }
             }
             else {
