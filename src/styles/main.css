@@ -1811,7 +1811,7 @@ select {
     position: sticky;
     top: 0;
     background: var(--bg-secondary);
-    z-index: 1;
+    z-index: 10;
 }
 
 .modal-header h2 {

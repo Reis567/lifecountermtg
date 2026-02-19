@@ -610,6 +610,7 @@ class GameStateManager {
         this.state.currentTurn = 1;
         this.state.activePlayerIndex = 0;
         this.state.turnStartTime = Date.now();
+        this.state.gameStartTime = Date.now(); // Reset game timer
         this.state.winner = null;
         this.state.history = [];
         this.state.undoStack = [];
