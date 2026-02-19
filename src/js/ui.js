@@ -2367,41 +2367,34 @@ const planarDieFaces = [
 ];
 // Helper to reset all 3D dice scenes
 function resetAll3DScenes() {
-    const scenes = ['poly-scene', 'd100-scene', 'coin-3d-scene', 'planar-scene', 'dice-result'];
+    const scenes = ['dice-box-scene', 'coin-box-scene', 'planar-box-scene', 'dice-result'];
     scenes.forEach(id => {
         const el = $(id);
         if (el)
             el.style.display = 'none';
     });
-    // Reset Poly (all standard dice D4-D20)
-    const poly = $('poly-dice');
-    if (poly) {
-        poly.classList.remove('rolling', 'show-result', 'd4', 'd6', 'd8', 'd10', 'd12', 'd20');
+    // Reset single die
+    const singleDie = $('box-die-single');
+    if (singleDie) {
+        singleDie.classList.remove('rolling', 'settled', 'd4', 'd6', 'd8', 'd10', 'd12', 'd20', 'd100-tens');
+        singleDie.style.display = 'block';
+        singleDie.querySelectorAll('.box-die-face').forEach(f => f.textContent = '');
     }
-    const polyResult = $('poly-result');
-    if (polyResult)
-        polyResult.textContent = '';
-    // Reset D100 dice box
-    const d100tens = $('d100-tens');
-    const d100ones = $('d100-ones');
-    if (d100tens) {
-        d100tens.classList.remove('rolling', 'settled');
-        const faces = d100tens.querySelectorAll('.box-die-face');
-        faces.forEach(f => f.textContent = '');
-    }
-    if (d100ones) {
-        d100ones.classList.remove('rolling', 'settled');
-        const faces = d100ones.querySelectorAll('.box-die-face');
-        faces.forEach(f => f.textContent = '');
+    // Reset second die (D100)
+    const secondDie = $('box-die-second');
+    if (secondDie) {
+        secondDie.classList.remove('rolling', 'settled', 'd100-ones');
+        secondDie.style.display = 'none';
+        secondDie.querySelectorAll('.box-die-face').forEach(f => f.textContent = '');
     }
     // Reset Coin
-    const coin = $('coin-3d');
+    const coin = $('box-coin');
     if (coin)
-        coin.classList.remove('flipping', 'show-heads', 'show-tails');
+        coin.classList.remove('rolling', 'settled', 'show-heads', 'show-tails');
     // Reset Planar
-    const planar = $('planar-dice');
+    const planar = $('box-die-planar');
     if (planar)
-        planar.classList.remove('rolling', 'show-1', 'show-2', 'show-3', 'show-4', 'show-5', 'show-6');
+        planar.classList.remove('rolling', 'settled');
 }
 function rollDice(diceType) {
     if (isRolling)
@@ -2426,42 +2419,44 @@ function rollDice(diceType) {
     // Determine which 3D element to use (only for single die, no modifier)
     const useSingle3D = quantity === 1 && modifier === 0;
     const max = parseInt(diceType) || 0;
-    // Standard dice that use poly-scene (D4, D6, D8, D10, D12, D20)
+    // Standard dice that use dice box (D4, D6, D8, D10, D12, D20)
     const standardDice = [4, 6, 8, 10, 12, 20];
     // Show and animate appropriate 3D element
     if (diceType === 'coin') {
-        const scene = $('coin-3d-scene');
-        const coin = $('coin-3d');
+        const scene = $('coin-box-scene');
+        const coin = $('box-coin');
         if (scene && coin) {
             scene.style.display = 'flex';
-            coin.classList.add('flipping');
+            coin.classList.add('rolling');
         }
     }
     else if (diceType === 'planar') {
-        const scene = $('planar-scene');
-        const planar = $('planar-dice');
+        const scene = $('planar-box-scene');
+        const planar = $('box-die-planar');
         if (scene && planar) {
             scene.style.display = 'flex';
             planar.classList.add('rolling');
         }
     }
     else if (useSingle3D && standardDice.includes(max)) {
-        // Use unified poly-dice for D4, D6, D8, D10, D12, D20
-        const scene = $('poly-scene');
-        const poly = $('poly-dice');
-        if (scene && poly) {
+        // Use dice box for D4, D6, D8, D10, D12, D20
+        const scene = $('dice-box-scene');
+        const die = $('box-die-single');
+        if (scene && die) {
             scene.style.display = 'flex';
-            poly.classList.add('rolling', `d${max}`);
+            die.classList.add('rolling', `d${max}`);
         }
     }
     else if (useSingle3D && max === 100) {
-        const scene = $('d100-scene');
-        const tens = $('d100-tens');
-        const ones = $('d100-ones');
+        // D100 uses two dice
+        const scene = $('dice-box-scene');
+        const tens = $('box-die-single');
+        const ones = $('box-die-second');
         if (scene && tens && ones) {
             scene.style.display = 'flex';
-            tens.classList.add('rolling');
-            ones.classList.add('rolling');
+            tens.classList.add('rolling', 'd100-tens');
+            ones.style.display = 'block';
+            ones.classList.add('rolling', 'd100-ones');
         }
     }
     else {
@@ -2488,11 +2483,11 @@ function rollDice(diceType) {
         if (diceType === 'coin') {
             finalResult = Math.random() < 0.5 ? 'Cara' : 'Coroa';
             emoji = finalResult === 'Cara' ? '😀' : '🦅';
-            // Show 3D coin result
-            const coin = $('coin-3d');
+            // Show coin result in box
+            const coin = $('box-coin');
             if (coin) {
-                coin.classList.remove('flipping');
-                coin.classList.add(finalResult === 'Cara' ? 'show-heads' : 'show-tails');
+                coin.classList.remove('rolling');
+                coin.classList.add('settled', finalResult === 'Cara' ? 'show-heads' : 'show-tails');
             }
         }
         else if (diceType === 'planar') {
@@ -2508,11 +2503,13 @@ function rollDice(diceType) {
             else if (face.type === 'planeswalk') {
                 audioManager.play('turn');
             }
-            // Show 3D planar result
-            const planar = $('planar-dice');
+            // Show planar die result in box
+            const planar = $('box-die-planar');
             if (planar) {
                 planar.classList.remove('rolling');
-                planar.classList.add(`show-${faceIndex + 1}`);
+                planar.classList.add('settled');
+                // Update visible face with result
+                planar.querySelectorAll('.box-die-face').forEach(f => f.textContent = emoji);
             }
         }
         else {
@@ -2560,20 +2557,18 @@ function rollDice(diceType) {
                         isFail = true;
                 }
             }
-            // Show 3D dice result based on type
+            // Show dice result in box
             if (useSingle3D && standardDice.includes(max)) {
-                // Use unified poly-dice for D4, D6, D8, D10, D12, D20
-                const poly = $('poly-dice');
-                const polyResult = $('poly-result');
-                if (poly && polyResult) {
-                    poly.classList.remove('rolling');
-                    poly.classList.add('show-result');
-                    polyResult.textContent = String(sum);
+                const die = $('box-die-single');
+                if (die) {
+                    die.classList.remove('rolling');
+                    die.classList.add('settled');
+                    die.querySelectorAll('.box-die-face').forEach(f => f.textContent = String(sum));
                 }
             }
             else if (useSingle3D && max === 100) {
-                const tens = $('d100-tens');
-                const ones = $('d100-ones');
+                const tens = $('box-die-single');
+                const ones = $('box-die-second');
                 if (tens && ones) {
                     tens.classList.remove('rolling');
                     ones.classList.remove('rolling');
@@ -2584,7 +2579,6 @@ function rollDice(diceType) {
                     const onesValue = sum === 100 ? 0 : sum % 10;
                     const tensDisplay = tensValue === 0 ? '00' : String(tensValue);
                     const onesDisplay = String(onesValue);
-                    // Set all faces to show the number (visible from any angle)
                     tens.querySelectorAll('.box-die-face').forEach(f => f.textContent = tensDisplay);
                     ones.querySelectorAll('.box-die-face').forEach(f => f.textContent = onesDisplay);
                 }

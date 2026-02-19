@@ -842,24 +842,12 @@
                 </div>
 
                 <div class="dice-result-area">
-                    <!-- D4/D6/D8/D10/D12/D20 - Unified 3D Dice -->
-                    <div class="dice-3d-scene poly-scene" id="poly-scene" style="display: none;">
-                        <div class="poly-dice" id="poly-dice">
-                            <div class="poly-face poly-face-front"></div>
-                            <div class="poly-face poly-face-back"></div>
-                            <div class="poly-face poly-face-left"></div>
-                            <div class="poly-face poly-face-right"></div>
-                            <div class="poly-face poly-face-top"></div>
-                            <div class="poly-face poly-face-bottom"></div>
-                        </div>
-                        <div class="poly-result" id="poly-result"></div>
-                    </div>
-                    <!-- D100 Dice Box -->
-                    <div class="d100-scene" id="d100-scene" style="display: none;">
+                    <!-- Universal Dice Box -->
+                    <div class="dice-box-scene" id="dice-box-scene" style="display: none;">
                         <div class="dice-box" id="dice-box">
                             <div class="dice-box-inner">
-                                <!-- Tens die (00-90) -->
-                                <div class="box-die box-die-tens" id="d100-tens">
+                                <!-- Single die for D4-D20 -->
+                                <div class="box-die box-die-single" id="box-die-single">
                                     <div class="box-die-face box-die-front"></div>
                                     <div class="box-die-face box-die-back"></div>
                                     <div class="box-die-face box-die-left"></div>
@@ -867,8 +855,8 @@
                                     <div class="box-die-face box-die-top"></div>
                                     <div class="box-die-face box-die-bottom"></div>
                                 </div>
-                                <!-- Ones die (0-9) -->
-                                <div class="box-die box-die-ones" id="d100-ones">
+                                <!-- Second die for D100 -->
+                                <div class="box-die box-die-second" id="box-die-second" style="display: none;">
                                     <div class="box-die-face box-die-front"></div>
                                     <div class="box-die-face box-die-back"></div>
                                     <div class="box-die-face box-die-left"></div>
@@ -879,22 +867,30 @@
                             </div>
                         </div>
                     </div>
-                    <!-- 3D Coin Container -->
-                    <div class="coin-3d-scene" id="coin-3d-scene" style="display: none;">
-                        <div class="coin-3d" id="coin-3d">
-                            <div class="coin-face coin-heads">😀</div>
-                            <div class="coin-face coin-tails">🦅</div>
+                    <!-- Coin Box -->
+                    <div class="dice-box-scene coin-box-scene" id="coin-box-scene" style="display: none;">
+                        <div class="dice-box coin-box">
+                            <div class="dice-box-inner">
+                                <div class="box-coin" id="box-coin">
+                                    <div class="box-coin-face box-coin-heads">😀</div>
+                                    <div class="box-coin-face box-coin-tails">🦅</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <!-- Planar Die -->
-                    <div class="dice-3d-scene planar-scene" id="planar-scene" style="display: none;">
-                        <div class="planar-dice" id="planar-dice">
-                            <div class="planar-face planar-face-1">⬜</div>
-                            <div class="planar-face planar-face-2">⬜</div>
-                            <div class="planar-face planar-face-3">⬜</div>
-                            <div class="planar-face planar-face-4">⬜</div>
-                            <div class="planar-face planar-face-5">⚙️</div>
-                            <div class="planar-face planar-face-6">🚪</div>
+                    <!-- Planar Die Box -->
+                    <div class="dice-box-scene planar-box-scene" id="planar-box-scene" style="display: none;">
+                        <div class="dice-box planar-box">
+                            <div class="dice-box-inner">
+                                <div class="box-die box-die-planar" id="box-die-planar">
+                                    <div class="box-die-face box-die-front">⬜</div>
+                                    <div class="box-die-face box-die-back">⬜</div>
+                                    <div class="box-die-face box-die-left">⬜</div>
+                                    <div class="box-die-face box-die-right">⬜</div>
+                                    <div class="box-die-face box-die-top">⚙️</div>
+                                    <div class="box-die-face box-die-bottom">🚪</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <!-- Result display (fallback) -->
