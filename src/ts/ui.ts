@@ -2727,11 +2727,19 @@ function resetAll3DScenes(): void {
     const polyResult = $('poly-result');
     if (polyResult) polyResult.textContent = '';
 
-    // Reset D100
+    // Reset D100 dice box
     const d100tens = $('d100-tens');
     const d100ones = $('d100-ones');
-    if (d100tens) d100tens.classList.remove('rolling');
-    if (d100ones) d100ones.classList.remove('rolling');
+    if (d100tens) {
+        d100tens.classList.remove('rolling', 'settled');
+        const faces = d100tens.querySelectorAll('.box-die-face');
+        faces.forEach(f => f.textContent = '');
+    }
+    if (d100ones) {
+        d100ones.classList.remove('rolling', 'settled');
+        const faces = d100ones.querySelectorAll('.box-die-face');
+        faces.forEach(f => f.textContent = '');
+    }
 
     // Reset Coin
     const coin = $('coin-3d');
@@ -2918,12 +2926,18 @@ function rollDice(diceType: string): void {
                 if (tens && ones) {
                     tens.classList.remove('rolling');
                     ones.classList.remove('rolling');
-                    const tensDigit = tens.querySelector('.d100-digit');
-                    const onesDigit = ones.querySelector('.d100-digit');
+                    tens.classList.add('settled');
+                    ones.classList.add('settled');
+
+                    // Calculate tens (00-90) and ones (0-9) values
                     const tensValue = Math.floor((sum - 1) / 10) * 10;
                     const onesValue = sum === 100 ? 0 : sum % 10;
-                    if (tensDigit) tensDigit.textContent = tensValue === 0 ? '00' : String(tensValue);
-                    if (onesDigit) onesDigit.textContent = String(onesValue);
+                    const tensDisplay = tensValue === 0 ? '00' : String(tensValue);
+                    const onesDisplay = String(onesValue);
+
+                    // Set all faces to show the number (visible from any angle)
+                    tens.querySelectorAll('.box-die-face').forEach(f => f.textContent = tensDisplay);
+                    ones.querySelectorAll('.box-die-face').forEach(f => f.textContent = onesDisplay);
                 }
             } else {
                 resultEl.textContent = emoji;

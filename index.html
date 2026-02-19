@@ -854,14 +854,28 @@
                         </div>
                         <div class="poly-result" id="poly-result"></div>
                     </div>
-                    <!-- D100 Double Dice -->
-                    <div class="dice-3d-scene d100-scene" id="d100-scene" style="display: none;">
-                        <div class="d100-container">
-                            <div class="d100-tens" id="d100-tens">
-                                <div class="d100-digit"></div>
-                            </div>
-                            <div class="d100-ones" id="d100-ones">
-                                <div class="d100-digit"></div>
+                    <!-- D100 Dice Box -->
+                    <div class="d100-scene" id="d100-scene" style="display: none;">
+                        <div class="dice-box" id="dice-box">
+                            <div class="dice-box-inner">
+                                <!-- Tens die (00-90) -->
+                                <div class="box-die box-die-tens" id="d100-tens">
+                                    <div class="box-die-face box-die-front"></div>
+                                    <div class="box-die-face box-die-back"></div>
+                                    <div class="box-die-face box-die-left"></div>
+                                    <div class="box-die-face box-die-right"></div>
+                                    <div class="box-die-face box-die-top"></div>
+                                    <div class="box-die-face box-die-bottom"></div>
+                                </div>
+                                <!-- Ones die (0-9) -->
+                                <div class="box-die box-die-ones" id="d100-ones">
+                                    <div class="box-die-face box-die-front"></div>
+                                    <div class="box-die-face box-die-back"></div>
+                                    <div class="box-die-face box-die-left"></div>
+                                    <div class="box-die-face box-die-right"></div>
+                                    <div class="box-die-face box-die-top"></div>
+                                    <div class="box-die-face box-die-bottom"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
