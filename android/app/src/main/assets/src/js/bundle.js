@@ -1,7 +1,2133 @@
-// ===== UI Management =====
-import { gameState } from './state.js';
-import { audioManager, ambientMusic, narrator } from './audio.js';
-import { DEFAULT_PLAYER_COLORS, PRESET_COUNTERS, COMMANDER_DAMAGE_LETHAL, LAYOUT_PRESETS, EASTER_EGG_MESSAGES, SPECIAL_MOMENTS, TAUNT_PHRASES, MANUAL_TAUNTS, MTG_KEYWORDS, } from './types.js';
+// ===== Type Definitions =====
+// Default colors for players
+const DEFAULT_PLAYER_COLORS = [
+    '#6366f1', // Indigo
+    '#ec4899', // Pink
+    '#14b8a6', // Teal
+    '#f59e0b', // Amber
+    '#ef4444', // Red
+    '#8b5cf6', // Violet
+    '#22c55e', // Green
+    '#3b82f6', // Blue
+];
+// Preset counters
+const PRESET_COUNTERS = [
+    { id: 'poison', name: 'Veneno', icon: '☠️', lethalValue: 10 },
+    { id: 'experience', name: 'Experiência', icon: '⭐', lethalValue: null },
+    { id: 'energy', name: 'Energia', icon: '⚡', lethalValue: null },
+    { id: 'storm', name: 'Storm', icon: '🌪️', lethalValue: null },
+];
+// Commander damage lethal threshold
+const COMMANDER_DAMAGE_LETHAL = 21;
+// Layout presets for common player configurations
+const LAYOUT_PRESETS = {
+    2: [
+        { rows: [1, 1], tableMode: true, preset: '2-split' },
+        { rows: [2], tableMode: false, preset: '2-row' },
+    ],
+    3: [
+        { rows: [2, 1], tableMode: true, preset: '3-pyramid' },
+        { rows: [1, 2], tableMode: true, preset: '3-inverted' },
+        { rows: [3], tableMode: false, preset: '3-row' },
+    ],
+    4: [
+        { rows: [2, 2], tableMode: true, preset: '4-square' },
+        { rows: [3, 1], tableMode: true, preset: '4-triangle' },
+        { rows: [1, 3], tableMode: true, preset: '4-inverted' },
+        { rows: [4], tableMode: false, preset: '4-row' },
+    ],
+    5: [
+        { rows: [3, 2], tableMode: true, preset: '5-standard' },
+        { rows: [2, 3], tableMode: true, preset: '5-inverted' },
+        { rows: [2, 1, 2], tableMode: true, preset: '5-diamond' },
+    ],
+    6: [
+        { rows: [3, 3], tableMode: true, preset: '6-even' },
+        { rows: [4, 2], tableMode: true, preset: '6-wide' },
+        { rows: [2, 4], tableMode: true, preset: '6-narrow' },
+        { rows: [2, 2, 2], tableMode: true, preset: '6-triple' },
+    ],
+    7: [
+        { rows: [4, 3], tableMode: true, preset: '7-standard' },
+        { rows: [3, 4], tableMode: true, preset: '7-inverted' },
+        { rows: [3, 1, 3], tableMode: true, preset: '7-diamond' },
+    ],
+    8: [
+        { rows: [4, 4], tableMode: true, preset: '8-even' },
+        { rows: [3, 2, 3], tableMode: true, preset: '8-hourglass' },
+        { rows: [2, 4, 2], tableMode: true, preset: '8-wide' },
+    ],
+};
+// Theme configurations
+const THEMES = {
+    casual: {
+        name: 'Casual',
+        bgPrimary: '#1a1a2e',
+        bgSecondary: '#16213e',
+        bgCard: '#1f2937',
+        textPrimary: '#ffffff',
+        accent: '#6366f1',
+    },
+    dark: {
+        name: 'Dark',
+        bgPrimary: '#0a0a0a',
+        bgSecondary: '#111111',
+        bgCard: '#1a1a1a',
+        textPrimary: '#e0e0e0',
+        accent: '#8b5cf6',
+    },
+    streamer: {
+        name: 'Streamer',
+        bgPrimary: '#0f0f23',
+        bgSecondary: '#1a1a3e',
+        bgCard: '#252550',
+        textPrimary: '#ffffff',
+        accent: '#00d4ff',
+    },
+    custom: {
+        name: 'Custom',
+        bgPrimary: '#0f0f0f',
+        bgSecondary: '#1a1a1a',
+        bgCard: '#1e1e1e',
+        textPrimary: '#ffffff',
+        accent: '#6366f1',
+    },
+    'mana-white': {
+        name: 'White Mana',
+        bgPrimary: '#f5f5f0',
+        bgSecondary: '#e8e8e0',
+        bgCard: '#ffffff',
+        textPrimary: '#1a1a1a',
+        accent: '#f9e076',
+    },
+    'mana-blue': {
+        name: 'Blue Mana',
+        bgPrimary: '#0a1628',
+        bgSecondary: '#0f2744',
+        bgCard: '#1a3a5c',
+        textPrimary: '#ffffff',
+        accent: '#0ea5e9',
+    },
+    'mana-black': {
+        name: 'Black Mana',
+        bgPrimary: '#0a0a0a',
+        bgSecondary: '#121212',
+        bgCard: '#0f0f0f',
+        textPrimary: '#ffffff',
+        accent: '#a855f7',
+    },
+    'mana-red': {
+        name: 'Red Mana',
+        bgPrimary: '#1a0a0a',
+        bgSecondary: '#2a1010',
+        bgCard: '#2d1212',
+        textPrimary: '#ffffff',
+        accent: '#ef4444',
+    },
+    'mana-green': {
+        name: 'Green Mana',
+        bgPrimary: '#0a1a0a',
+        bgSecondary: '#102810',
+        bgCard: '#122d12',
+        textPrimary: '#ffffff',
+        accent: '#22c55e',
+    },
+    'high-contrast': {
+        name: 'High Contrast',
+        bgPrimary: '#000000',
+        bgSecondary: '#0a0a0a',
+        bgCard: '#000000',
+        textPrimary: '#ffffff',
+        accent: '#ffff00',
+    },
+};
+// Easter egg messages
+const EASTER_EGG_MESSAGES = [
+    "Shuffling fate...",
+    "Consulting the oracle...",
+    "The planeswalkers convene...",
+    "Destiny awaits...",
+    "Rolling for initiative...",
+    "The mana flows...",
+];
+// Special moment triggers
+const SPECIAL_MOMENTS = {
+    NEAR_DEATH: 1,
+    LOW_LIFE: 5,
+    DANGER_ZONE: 10,
+    COMMANDER_DANGER: 15,
+    COMMANDER_LETHAL: 21,
+};
+// Taunt phrases (friendly provocations)
+const TAUNT_PHRASES = {
+    // When taking big damage (5+ at once)
+    bigDamage: [
+        "Isso vai deixar marca! 💥",
+        "Ui, isso doeu! 🤕",
+        "Alguém chamou uma ambulância? 🚑",
+        "F no chat! 📉",
+        "Brutal! Sem piedade! 😈",
+        "Ouch! Ninguém merece! 😬",
+        "Cuidado, está sangrando! 🩸",
+    ],
+    // When healing a lot (5+ at once)
+    bigHeal: [
+        "De volta ao jogo! 💚",
+        "Ainda não acabou! 🏥",
+        "Que recuperação! 🌟",
+        "Nunca subestime a cura! ✨",
+        "Vida é vida! 💪",
+    ],
+    // When a player gets eliminated
+    elimination: [
+        "GG! Até a próxima! 👋",
+        "Caiu mais um! 💀",
+        "Descanse em paz... até a revanche! ⚰️",
+        "Eliminated! 🎯",
+        "Better luck next time! 🍀",
+        "De férias! 🏖️",
+    ],
+    // When reaching critical life (5 or less)
+    criticalLife: [
+        "Tá suando frio! 😰",
+        "Modo sobrevivência ativado! 🆘",
+        "Uma topdeckada e já era! 🎴",
+        "Vida por um fio! 🧵",
+        "Hora de rezar! 🙏",
+    ],
+    // When someone becomes the Monarch
+    monarch: [
+        "Longa vida ao rei! 👑",
+        "A coroa pesa... 🏰",
+        "Draw extra, baby! 🎴",
+        "Quem quer ser rei? 👑",
+    ],
+    // Random comebacks when at low life
+    comeback: [
+        "A virada está chegando! 🔄",
+        "Ainda tenho 1 de vida! 😤",
+        "Nunca desista! 💪",
+    ],
+    // When rolling a nat 20
+    criticalRoll: [
+        "NAT 20! Lendário! 🎯",
+        "Os deuses te abençoaram! ⚡",
+        "Crítico perfeito! 🌟",
+    ],
+    // When rolling a 1
+    criticalFail: [
+        "NAT 1! Oof... 😅",
+        "Os dados te odeiam! 🎲",
+        "Melhor tentar de novo... 🤷",
+    ],
+};
+// Manual taunts - provocations players can send
+const MANUAL_TAUNTS = {
+    // Emojis
+    emojis: [
+        '😂', '🤣', '💀', '☠️', '🔥', '💪', '👀', '🤡', '😈', '👑',
+        '🏳️‍🌈', '🦄', '✨', '💅', '🙄', '😤', '🥵', '🥶', '💩', '🤮',
+    ],
+    // Short phrases
+    phrases: [
+        'VISH!!!',
+        'LACROU! 💅',
+        'SEGURA ESSE! 💥',
+        'F',
+        'GG EZ',
+        'KKKKKKK',
+        'COPIUM',
+        'TILT!',
+        'REKT!',
+        'OWNED!',
+        'SIT DOWN!',
+        'GET GOOD!',
+        'EZ CLAP',
+        'NO SKILL',
+        'HOLD THIS L',
+        'BRUH...',
+        'COPE!',
+        'SEETHE!',
+        'MALD!',
+        'SKILL ISSUE',
+        'VIADO!!!',
+        'VIADO 🏳️‍🌈',
+        'QUE JOGADA!',
+        'NOSSA...',
+        'AI MEU DEUS',
+        'ACORDA!',
+        'DORMIU?',
+        'CAFÉ PRA ELE!',
+        'QUE ISSO?!',
+        'PQP!!!',
+    ],
+};
+const MTG_KEYWORDS = [
+    // Combat Keywords
+    { name: 'Primeiro Ataque', description: 'Esta criatura causa dano de combate antes de criaturas sem primeiro ataque.', category: 'combat', reminder: 'First Strike' },
+    { name: 'Golpe Duplo', description: 'Esta criatura causa dano tanto no passo de primeiro ataque quanto no passo normal.', category: 'combat', reminder: 'Double Strike' },
+    { name: 'Vigilância', description: 'Atacar não faz esta criatura ser virada.', category: 'combat', reminder: 'Vigilance' },
+    { name: 'Atropelar', description: 'Dano em excesso ao bloqueador é causado ao jogador defensor.', category: 'combat', reminder: 'Trample' },
+    { name: 'Voar', description: 'Esta criatura só pode ser bloqueada por criaturas com voar ou alcance.', category: 'combat', reminder: 'Flying' },
+    { name: 'Alcance', description: 'Esta criatura pode bloquear criaturas com voar.', category: 'combat', reminder: 'Reach' },
+    { name: 'Toque Mortífero', description: 'Qualquer quantidade de dano que esta criatura cause a uma criatura é suficiente para destruí-la.', category: 'combat', reminder: 'Deathtouch' },
+    { name: 'Vínculo com a Vida', description: 'O dano causado por esta criatura também faz você ganhar essa quantidade de vida.', category: 'combat', reminder: 'Lifelink' },
+    { name: 'Iniciativa', description: 'Quando esta criatura entra ou causa dano de combate, você pega a iniciativa e entra na dungeon.', category: 'combat', reminder: 'Initiative' },
+    { name: 'Provocar', description: 'Todas as criaturas capazes de bloquear esta criatura devem fazê-lo.', category: 'combat', reminder: 'Menace' },
+    { name: 'Ameaçar', description: 'Esta criatura não pode ser bloqueada exceto por duas ou mais criaturas.', category: 'combat', reminder: 'Menace' },
+    { name: 'Inquebrável', description: 'Dano e efeitos que dizem "destrua" não destroem esta permanente.', category: 'combat', reminder: 'Indestructible' },
+    { name: 'Proteção', description: 'Esta permanente não pode ser alvo, bloqueada, encantada ou equipada pelo tipo especificado.', category: 'combat', reminder: 'Protection from X' },
+    { name: 'Hexproof', description: 'Esta permanente não pode ser alvo de mágicas ou habilidades que seus oponentes controlam.', category: 'combat', reminder: 'Hexproof' },
+    { name: 'Ímpeto', description: 'Esta criatura pode atacar e usar habilidades de virar assim que entra sob seu controle.', category: 'combat', reminder: 'Haste' },
+    { name: 'Defensor', description: 'Esta criatura não pode atacar.', category: 'combat', reminder: 'Defender' },
+    // Mana Keywords
+    { name: 'Florescer', description: 'Se você gastou mana de cores diferentes para conjurar esta mágica, ela ganha efeitos adicionais.', category: 'mana', reminder: 'Converge' },
+    { name: 'Devoção', description: 'Conta símbolos de mana de uma cor específica no custo de mana de permanentes que você controla.', category: 'mana', reminder: 'Devotion' },
+    { name: 'Affinity', description: 'Esta mágica custa menos para conjurar para cada permanente do tipo especificado.', category: 'mana', reminder: 'Affinity' },
+    { name: 'Convocação', description: 'Suas criaturas podem ajudar a conjurar esta mágica. Cada criatura virada paga 1 ou mana de sua cor.', category: 'mana', reminder: 'Convoke' },
+    { name: 'Delve', description: 'Cada card exilado do seu cemitério paga 1 mana genérico.', category: 'mana', reminder: 'Delve' },
+    { name: 'Improvise', description: 'Seus artefatos podem ajudar a conjurar esta mágica. Cada artefato virado paga 1 mana genérico.', category: 'mana', reminder: 'Improvise' },
+    // Abilities Keywords
+    { name: 'Lampejo', description: 'Você pode conjurar esta mágica a qualquer momento que poderia conjurar um instantâneo.', category: 'abilities', reminder: 'Flash' },
+    { name: 'Retornar', description: 'Você pode conjurar este card do seu cemitério pelo custo de retornar.', category: 'abilities', reminder: 'Flashback' },
+    { name: 'Cascata', description: 'Quando você conjura esta mágica, exile cards até exilar um não-terreno com custo menor, e conjure-o sem pagar seu custo.', category: 'abilities', reminder: 'Cascade' },
+    { name: 'Tempestade', description: 'Quando você conjura esta mágica, copie-a para cada mágica conjurada antes dela neste turno.', category: 'abilities', reminder: 'Storm' },
+    { name: 'Kicker', description: 'Você pode pagar um custo adicional ao conjurar esta mágica para efeitos extras.', category: 'abilities', reminder: 'Kicker' },
+    { name: 'Replicar', description: 'Quando conjurar, você pode pagar o custo de replicar várias vezes e copiar a mágica.', category: 'abilities', reminder: 'Replicate' },
+    { name: 'Transmutar', description: 'Pague o custo, descarte este card: Busque um card com o mesmo custo de mana.', category: 'abilities', reminder: 'Transmute' },
+    { name: 'Embalsamar', description: 'Exile este card do seu cemitério: Crie uma cópia token dele, exceto que é um Zumbi branco.', category: 'abilities', reminder: 'Embalm' },
+    { name: 'Eternizar', description: 'Exile este card do seu cemitério: Crie uma cópia token 4/4 preta Zumbi dele.', category: 'abilities', reminder: 'Eternalize' },
+    { name: 'Escape', description: 'Você pode conjurar este card do seu cemitério pelo custo de escape.', category: 'abilities', reminder: 'Escape' },
+    { name: 'Transformar', description: 'Este card tem duas faces e pode se transformar na outra face.', category: 'abilities', reminder: 'Transform' },
+    { name: 'Ward', description: 'Sempre que esta permanente se tornar alvo, o oponente deve pagar um custo ou a habilidade é anulada.', category: 'abilities', reminder: 'Ward' },
+    // Counter Keywords
+    { name: 'Infeccionar', description: 'Esta criatura causa dano a jogadores na forma de contadores de veneno e a criaturas na forma de contadores -1/-1.', category: 'counters', reminder: 'Infect' },
+    { name: 'Veneno', description: 'Dano causado a jogadores resulta em contadores de veneno. 10 contadores de veneno = derrota.', category: 'counters', reminder: 'Poison' },
+    { name: 'Murchar', description: 'Esta criatura causa dano a criaturas na forma de contadores -1/-1.', category: 'counters', reminder: 'Wither' },
+    { name: 'Modular', description: 'Esta criatura entra com contadores +1/+1. Quando morre, você pode mover esses contadores.', category: 'counters', reminder: 'Modular' },
+    { name: 'Persistir', description: 'Quando esta criatura morre, se não tinha contadores -1/-1, retorne-a com um contador -1/-1.', category: 'counters', reminder: 'Persist' },
+    { name: 'Inextinguível', description: 'Quando esta criatura morre, se tinha contadores +1/+1, retorne-a com um contador +1/+1 a menos.', category: 'counters', reminder: 'Undying' },
+    { name: 'Energia', description: 'Contadores de energia são um recurso do jogador usados para pagar custos.', category: 'counters', reminder: 'Energy' },
+    { name: 'Experiência', description: 'Contadores de experiência no jogador, frequentemente usados por comandantes.', category: 'counters', reminder: 'Experience' },
+    // Other/General
+    { name: 'Lendário', description: 'Você só pode controlar uma permanente lendária com o mesmo nome.', category: 'other', reminder: 'Legendary' },
+    { name: 'Dano de Comandante', description: 'Dano de combate causado por um comandante é rastreado separadamente. 21 dano de um comandante = derrota.', category: 'other', reminder: 'Commander Damage' },
+    { name: 'Commander Tax', description: 'Cada vez que você conjura seu comandante da zona de comando, custa 2 mana a mais.', category: 'other', reminder: 'Commander Tax' },
+    { name: 'Parceiro', description: 'Você pode ter dois comandantes se ambos tiverem parceiro.', category: 'other', reminder: 'Partner' },
+    { name: 'Monarch', description: 'O monarca compra um card extra no fim do turno. Dano de combate rouba a coroa.', category: 'other', reminder: 'Monarch' },
+    { name: 'Annihilator', description: 'Sempre que esta criatura ataca, o defensor sacrifica permanentes.', category: 'other', reminder: 'Annihilator' },
+    { name: 'Affinidade', description: 'Custa menos mana para conjurar baseado em permanentes que você controla.', category: 'other', reminder: 'Affinity' },
+];
+//# sourceMappingURL=types.js.map// ===== State Management =====
+
+// Two-Headed Giant starting life per team
+const TWO_HEADED_GIANT_STARTING_LIFE = 30;
+// Generate unique ID
+function generateId() {
+    // Use crypto for better randomness
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+        const array = new Uint32Array(2);
+        crypto.getRandomValues(array);
+        return array[0].toString(36) + array[1].toString(36);
+    }
+    return Math.random().toString(36).substring(2, 11);
+}
+// Cryptographically secure random number between 0 and 1
+function secureRandom() {
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+        const array = new Uint32Array(1);
+        crypto.getRandomValues(array);
+        return array[0] / (0xFFFFFFFF + 1);
+    }
+    return Math.random();
+}
+// Secure random integer from 0 to max-1 (unbiased)
+function secureRandomInt(max) {
+    if (max <= 0)
+        return 0;
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+        // Use rejection sampling to avoid modulo bias
+        const maxValid = Math.floor(0xFFFFFFFF / max) * max;
+        let value;
+        do {
+            const array = new Uint32Array(1);
+            crypto.getRandomValues(array);
+            value = array[0];
+        } while (value >= maxValid);
+        return value % max;
+    }
+    return Math.floor(Math.random() * max);
+}
+// Fisher-Yates shuffle with secure random
+function shuffleArray(array) {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = secureRandomInt(i + 1);
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+}
+// Create default player
+function createPlayer(index, startingLife, totalPlayers) {
+    // Calculate rotation based on position for table mode
+    const rotation = calculatePlayerRotation(index, totalPlayers);
+    return {
+        id: generateId(),
+        name: `Jogador ${index + 1}`,
+        color: DEFAULT_PLAYER_COLORS[index % DEFAULT_PLAYER_COLORS.length],
+        avatar: null,
+        background: null,
+        backgroundType: 'none',
+        emoji: null,
+        tag: null,
+        life: startingLife,
+        isEliminated: false,
+        isMonarch: false,
+        counters: {
+            poison: 0,
+            experience: 0,
+            energy: 0,
+            storm: 0,
+            custom: [],
+        },
+        commanderDamage: {},
+        commanderDeaths: 0,
+        customSounds: {
+            death: null,
+            win: null,
+            damage: null,
+        },
+        rotation,
+        teamId: null,
+    };
+}
+// Calculate rotation for table mode based on player position
+function calculatePlayerRotation(index, totalPlayers) {
+    // For 2 players: top player rotated 180°
+    if (totalPlayers === 2) {
+        return index === 0 ? 180 : 0;
+    }
+    // For more players, calculate based on position
+    // Top row players: 180°, bottom row: 0°, sides: 90° or 270°
+    const defaultLayout = LAYOUT_PRESETS[totalPlayers]?.[0];
+    if (!defaultLayout)
+        return 0;
+    let playerIndex = 0;
+    for (let rowIdx = 0; rowIdx < defaultLayout.rows.length; rowIdx++) {
+        const playersInRow = defaultLayout.rows[rowIdx];
+        if (index < playerIndex + playersInRow) {
+            // Player is in this row
+            if (rowIdx === 0)
+                return 180; // Top row
+            if (rowIdx === defaultLayout.rows.length - 1)
+                return 0; // Bottom row
+            return 0; // Middle rows
+        }
+        playerIndex += playersInRow;
+    }
+    return 0;
+}
+// Get default layout for player count
+function getDefaultLayout(playerCount) {
+    const presets = LAYOUT_PRESETS[playerCount];
+    if (presets && presets.length > 0) {
+        return { ...presets[0] };
+    }
+    // Fallback: all players in rows of 2
+    const rows = [];
+    let remaining = playerCount;
+    while (remaining > 0) {
+        rows.push(Math.min(remaining, 2));
+        remaining -= 2;
+    }
+    return { rows, tableMode: true, preset: null };
+}
+// Create default settings
+function createDefaultSettings(playerCount = 4) {
+    return {
+        startingLife: 40,
+        playerCount,
+        soundEnabled: true,
+        volume: 50,
+        animationsEnabled: true,
+        animationIntensity: 'normal',
+        turnTimerEnabled: false,
+        turnTimerDuration: 120,
+        theme: 'dark',
+        layout: getDefaultLayout(playerCount),
+        randomStarterAnimation: 'highlight',
+        confirmCriticalActions: false,
+        showSpecialMoments: true,
+        showCommanderDeaths: true,
+        gifPaused: false,
+        gifFpsReduced: false,
+        easterEggsEnabled: true,
+        animatedBgEnabled: false,
+        animatedBgStyle: 'none',
+        fontStyle: 'default',
+        ambientMusicEnabled: false,
+        ambientMusicVolume: 30,
+        ambientMusicTrack: 'none',
+        narratorEnabled: false,
+        narratorVoice: 'default',
+        narratorSpeed: 1,
+        soundPack: 'default',
+    };
+}
+// Create initial game state
+function createInitialState() {
+    const settings = createDefaultSettings();
+    return {
+        players: Array.from({ length: settings.playerCount }, (_, i) => createPlayer(i, settings.startingLife, settings.playerCount)),
+        teams: [],
+        settings,
+        currentTurn: 1,
+        activePlayerIndex: 0,
+        turnStartTime: null,
+        gameStartTime: null,
+        gameStarted: false,
+        winner: null,
+        history: [],
+        undoStack: [],
+        gameMode: 'standard',
+        randomStarterInProgress: false,
+        viadoPlayerId: null,
+    };
+}
+// State management class
+class GameStateManager {
+    constructor() {
+        this.storageKey = 'mtg-life-counter-state';
+        this.undoTimeWindow = 10000; // 10 seconds to undo
+        // ===== Sortear Viado =====
+        // Names that cannot be selected (case insensitive)
+        this.protectedNames = ['reis', 'kings', 'matheus'];
+        this.state = this.loadState() || createInitialState();
+        this.listeners = new Set();
+        // Ensure rotations are consistent with current layout
+        this.updatePlayerRotations();
+        // Clean old undo actions periodically
+        setInterval(() => this.cleanOldUndoActions(), 5000);
+    }
+    // Get current state
+    getState() {
+        return this.state;
+    }
+    // Subscribe to state changes
+    subscribe(listener) {
+        this.listeners.add(listener);
+        return () => this.listeners.delete(listener);
+    }
+    // Notify all listeners
+    notify() {
+        this.listeners.forEach(listener => listener(this.state));
+        this.saveState();
+    }
+    // Save state to localStorage
+    saveState() {
+        try {
+            localStorage.setItem(this.storageKey, JSON.stringify(this.state));
+        }
+        catch (e) {
+            console.warn('Failed to save state:', e);
+        }
+    }
+    // Load state from localStorage
+    loadState() {
+        try {
+            const saved = localStorage.getItem(this.storageKey);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                // Ensure new properties exist
+                if (!parsed.undoStack)
+                    parsed.undoStack = [];
+                if (!parsed.gameMode)
+                    parsed.gameMode = 'standard';
+                if (parsed.randomStarterInProgress === undefined)
+                    parsed.randomStarterInProgress = false;
+                if (parsed.viadoPlayerId === undefined)
+                    parsed.viadoPlayerId = null;
+                if (!parsed.teams)
+                    parsed.teams = [];
+                if (!parsed.settings.layout) {
+                    parsed.settings.layout = getDefaultLayout(parsed.settings.playerCount);
+                }
+                if (!parsed.settings.theme)
+                    parsed.settings.theme = 'dark';
+                if (!parsed.settings.randomStarterAnimation)
+                    parsed.settings.randomStarterAnimation = 'highlight';
+                if (!parsed.settings.animationIntensity)
+                    parsed.settings.animationIntensity = 'normal';
+                if (parsed.settings.showCommanderDeaths === undefined)
+                    parsed.settings.showCommanderDeaths = true;
+                if (parsed.settings.animatedBgEnabled === undefined)
+                    parsed.settings.animatedBgEnabled = false;
+                if (!parsed.settings.animatedBgStyle)
+                    parsed.settings.animatedBgStyle = 'none';
+                if (!parsed.settings.fontStyle)
+                    parsed.settings.fontStyle = 'default';
+                if (parsed.settings.ambientMusicEnabled === undefined)
+                    parsed.settings.ambientMusicEnabled = false;
+                if (parsed.settings.ambientMusicVolume === undefined)
+                    parsed.settings.ambientMusicVolume = 30;
+                if (!parsed.settings.ambientMusicTrack)
+                    parsed.settings.ambientMusicTrack = 'none';
+                if (parsed.settings.narratorEnabled === undefined)
+                    parsed.settings.narratorEnabled = false;
+                if (!parsed.settings.narratorVoice)
+                    parsed.settings.narratorVoice = 'default';
+                if (parsed.settings.narratorSpeed === undefined)
+                    parsed.settings.narratorSpeed = 1;
+                if (!parsed.settings.soundPack)
+                    parsed.settings.soundPack = 'default';
+                // Ensure all players have new properties (migration for older saves)
+                parsed.players = parsed.players.map((p) => ({
+                    ...p,
+                    background: p.background ?? null,
+                    backgroundType: p.backgroundType ?? 'none',
+                    emoji: p.emoji ?? null,
+                    tag: p.tag ?? null,
+                    rotation: p.rotation ?? 0,
+                    commanderDeaths: p.commanderDeaths ?? 0,
+                    teamId: p.teamId ?? null,
+                }));
+                return parsed;
+            }
+        }
+        catch (e) {
+            console.warn('Failed to load state:', e);
+        }
+        return null;
+    }
+    // Clear saved state
+    clearSavedState() {
+        localStorage.removeItem(this.storageKey);
+    }
+    // Add event to history
+    addEvent(type, playerId, details) {
+        const event = {
+            id: generateId(),
+            timestamp: Date.now(),
+            type,
+            playerId,
+            details,
+        };
+        this.state.history.unshift(event);
+        if (this.state.history.length > 100) {
+            this.state.history = this.state.history.slice(0, 100);
+        }
+    }
+    // ===== Undo System =====
+    addUndoAction(type, playerId, previousState, description) {
+        const action = {
+            id: generateId(),
+            timestamp: Date.now(),
+            type,
+            playerId,
+            previousState,
+            description,
+        };
+        this.state.undoStack.push(action);
+        // Keep only last 20 undo actions
+        if (this.state.undoStack.length > 20) {
+            this.state.undoStack = this.state.undoStack.slice(-20);
+        }
+    }
+    cleanOldUndoActions() {
+        const now = Date.now();
+        this.state.undoStack = this.state.undoStack.filter(action => now - action.timestamp < this.undoTimeWindow);
+    }
+    canUndo() {
+        const now = Date.now();
+        return this.state.undoStack.some(action => now - action.timestamp < this.undoTimeWindow);
+    }
+    undo() {
+        const now = Date.now();
+        // Find the most recent valid undo action
+        for (let i = this.state.undoStack.length - 1; i >= 0; i--) {
+            const action = this.state.undoStack[i];
+            if (now - action.timestamp < this.undoTimeWindow) {
+                // Remove this action from stack
+                this.state.undoStack.splice(i, 1);
+                // Apply the previous state
+                const player = this.state.players.find(p => p.id === action.playerId);
+                if (player) {
+                    Object.assign(player, action.previousState);
+                    // If player was eliminated, check if we should un-eliminate
+                    if (action.previousState.life !== undefined && action.previousState.life > 0) {
+                        player.isEliminated = false;
+                    }
+                }
+                this.addEvent('undo', action.playerId, { message: action.description });
+                this.state.winner = null; // Clear winner on undo
+                this.notify();
+                return action;
+            }
+        }
+        return null;
+    }
+    // ===== Setup Actions =====
+    setPlayerCount(count) {
+        const currentCount = this.state.players.length;
+        if (count > currentCount) {
+            for (let i = currentCount; i < count; i++) {
+                this.state.players.push(createPlayer(i, this.state.settings.startingLife, count));
+            }
+        }
+        else if (count < currentCount) {
+            this.state.players = this.state.players.slice(0, count);
+        }
+        this.state.settings.playerCount = count;
+        this.state.settings.layout = getDefaultLayout(count);
+        // Recalculate rotations
+        this.updatePlayerRotations();
+        this.notify();
+    }
+    setStartingLife(life) {
+        this.state.settings.startingLife = life;
+        if (!this.state.gameStarted) {
+            this.state.players.forEach(player => {
+                player.life = life;
+            });
+        }
+        this.notify();
+    }
+    updatePlayerSetup(playerId, updates) {
+        const player = this.state.players.find(p => p.id === playerId);
+        if (player) {
+            Object.assign(player, updates);
+            this.notify();
+        }
+    }
+    // ===== Layout Actions =====
+    setLayout(layout) {
+        this.state.settings.layout = layout;
+        this.updatePlayerRotations();
+        this.notify();
+    }
+    setLayoutPreset(presetName) {
+        const presets = LAYOUT_PRESETS[this.state.settings.playerCount];
+        if (presets) {
+            const preset = presets.find(p => p.preset === presetName);
+            if (preset) {
+                this.setLayout({ ...preset });
+            }
+        }
+    }
+    toggleTableMode(enabled) {
+        this.state.settings.layout.tableMode = enabled;
+        this.updatePlayerRotations();
+        this.notify();
+    }
+    setCustomLayout(rows) {
+        const total = rows.reduce((a, b) => a + b, 0);
+        if (total === this.state.settings.playerCount) {
+            this.state.settings.layout = {
+                rows,
+                tableMode: this.state.settings.layout.tableMode,
+                preset: null,
+            };
+            this.updatePlayerRotations();
+            this.notify();
+        }
+    }
+    updatePlayerRotations() {
+        const { layout, playerCount } = this.state.settings;
+        if (!layout.tableMode) {
+            this.state.players.forEach(p => p.rotation = 0);
+            return;
+        }
+        let playerIndex = 0;
+        for (let rowIdx = 0; rowIdx < layout.rows.length; rowIdx++) {
+            const playersInRow = layout.rows[rowIdx];
+            for (let i = 0; i < playersInRow; i++) {
+                if (playerIndex < this.state.players.length) {
+                    // Top row: 180°, Bottom row: 0°
+                    if (rowIdx === 0) {
+                        this.state.players[playerIndex].rotation = 180;
+                    }
+                    else if (rowIdx === layout.rows.length - 1) {
+                        this.state.players[playerIndex].rotation = 0;
+                    }
+                    else {
+                        // Middle rows: could be sides
+                        this.state.players[playerIndex].rotation = 0;
+                    }
+                    playerIndex++;
+                }
+            }
+        }
+    }
+    // ===== Theme Actions =====
+    setTheme(theme) {
+        this.state.settings.theme = theme;
+        this.notify();
+    }
+    // ===== Game Mode Actions =====
+    setGameMode(mode) {
+        this.state.gameMode = mode;
+        // If switching to Two-Headed Giant, setup teams
+        if (mode === 'two-headed') {
+            this.setupTwoHeadedGiant();
+        }
+        else {
+            // Clear teams when leaving Two-Headed Giant
+            this.clearTeams();
+        }
+        this.notify();
+    }
+    // ===== Two-Headed Giant Mode =====
+    setupTwoHeadedGiant() {
+        // Two-Headed Giant requires 4 players in 2 teams
+        if (this.state.settings.playerCount !== 4) {
+            this.setPlayerCount(4);
+        }
+        // Create 2 teams
+        const team1Id = generateId();
+        const team2Id = generateId();
+        const team1 = {
+            id: team1Id,
+            name: 'Time 1',
+            color: '#6366f1',
+            playerIds: [this.state.players[0].id, this.state.players[1].id],
+            life: TWO_HEADED_GIANT_STARTING_LIFE,
+            isEliminated: false,
+        };
+        const team2 = {
+            id: team2Id,
+            name: 'Time 2',
+            color: '#ec4899',
+            playerIds: [this.state.players[2].id, this.state.players[3].id],
+            life: TWO_HEADED_GIANT_STARTING_LIFE,
+            isEliminated: false,
+        };
+        this.state.teams = [team1, team2];
+        // Assign players to teams and set their life to team life
+        this.state.players[0].teamId = team1Id;
+        this.state.players[1].teamId = team1Id;
+        this.state.players[0].life = TWO_HEADED_GIANT_STARTING_LIFE;
+        this.state.players[1].life = TWO_HEADED_GIANT_STARTING_LIFE;
+        this.state.players[0].tag = 'Time 1';
+        this.state.players[1].tag = 'Time 1';
+        this.state.players[2].teamId = team2Id;
+        this.state.players[3].teamId = team2Id;
+        this.state.players[2].life = TWO_HEADED_GIANT_STARTING_LIFE;
+        this.state.players[3].life = TWO_HEADED_GIANT_STARTING_LIFE;
+        this.state.players[2].tag = 'Time 2';
+        this.state.players[3].tag = 'Time 2';
+        // Set starting life to team life for settings
+        this.state.settings.startingLife = TWO_HEADED_GIANT_STARTING_LIFE;
+        // Use 2x2 layout
+        this.state.settings.layout = { rows: [2, 2], tableMode: true, preset: '4-square' };
+        this.updatePlayerRotations();
+    }
+    clearTeams() {
+        this.state.teams = [];
+        this.state.players.forEach(p => {
+            p.teamId = null;
+        });
+    }
+    getTeamForPlayer(playerId) {
+        const player = this.state.players.find(p => p.id === playerId);
+        if (!player || !player.teamId)
+            return null;
+        return this.state.teams.find(t => t.id === player.teamId) || null;
+    }
+    getTeammateId(playerId) {
+        const team = this.getTeamForPlayer(playerId);
+        if (!team)
+            return null;
+        return team.playerIds.find(id => id !== playerId) || null;
+    }
+    // Sync team life when a player's life changes in Two-Headed Giant
+    syncTeamLife(playerId) {
+        if (this.state.gameMode !== 'two-headed')
+            return;
+        const team = this.getTeamForPlayer(playerId);
+        if (!team)
+            return;
+        const player = this.state.players.find(p => p.id === playerId);
+        if (!player)
+            return;
+        // Update team life to match player's life
+        team.life = player.life;
+        // Sync teammate's life
+        const teammateId = this.getTeammateId(playerId);
+        if (teammateId) {
+            const teammate = this.state.players.find(p => p.id === teammateId);
+            if (teammate) {
+                teammate.life = player.life;
+            }
+        }
+        // Check team elimination
+        if (team.life <= 0) {
+            team.isEliminated = true;
+            team.playerIds.forEach(pid => {
+                const p = this.state.players.find(pl => pl.id === pid);
+                if (p)
+                    p.isEliminated = true;
+            });
+            // Check for winner
+            const aliveTeams = this.state.teams.filter(t => !t.isEliminated);
+            if (aliveTeams.length === 1) {
+                // All players in the winning team win
+                const winningTeam = aliveTeams[0];
+                this.state.winner = winningTeam.playerIds[0]; // First player as winner reference
+                this.addEvent('player_win', winningTeam.playerIds[0], { message: `${winningTeam.name} venceu!` });
+            }
+        }
+    }
+    // ===== Random Starter =====
+    setRandomStarterInProgress(inProgress) {
+        this.state.randomStarterInProgress = inProgress;
+        this.notify();
+    }
+    selectRandomStarter() {
+        const alivePlayers = this.state.players
+            .map((p, i) => ({ player: p, index: i }))
+            .filter(({ player }) => !player.isEliminated);
+        if (alivePlayers.length === 0)
+            return 0;
+        // Shuffle first, then pick - double randomization for fairness
+        const shuffled = shuffleArray(alivePlayers);
+        const randomIndex = secureRandomInt(shuffled.length);
+        const selected = shuffled[randomIndex];
+        this.state.activePlayerIndex = selected.index;
+        this.addEvent('random_starter', selected.player.id, {});
+        this.notify();
+        return selected.index;
+    }
+    setRandomStarterAnimation(type) {
+        this.state.settings.randomStarterAnimation = type;
+        this.notify();
+    }
+    sortearViado() {
+        // Filter out players with protected names
+        const eligiblePlayers = this.state.players.filter(player => {
+            const nameLower = player.name.toLowerCase();
+            return !this.protectedNames.some(protectedName => nameLower.includes(protectedName));
+        });
+        if (eligiblePlayers.length === 0) {
+            return null; // No eligible players
+        }
+        // Shuffle first, then pick - double randomization for fairness
+        const shuffled = shuffleArray(eligiblePlayers);
+        const randomIndex = secureRandomInt(shuffled.length);
+        const selected = shuffled[randomIndex];
+        this.state.viadoPlayerId = selected.id;
+        this.notify();
+        return selected;
+    }
+    clearViado() {
+        this.state.viadoPlayerId = null;
+        this.notify();
+    }
+    getViado() {
+        if (!this.state.viadoPlayerId)
+            return null;
+        return this.state.players.find(p => p.id === this.state.viadoPlayerId) || null;
+    }
+    // ===== Game Actions =====
+    startGame() {
+        this.state.players.forEach(player => {
+            player.commanderDamage = {};
+            this.state.players.forEach(otherPlayer => {
+                if (otherPlayer.id !== player.id) {
+                    player.commanderDamage[otherPlayer.id] = 0;
+                }
+            });
+        });
+        // Recalculate rotations to ensure they match current layout
+        this.updatePlayerRotations();
+        this.state.gameStarted = true;
+        this.state.gameStartTime = Date.now();
+        this.state.currentTurn = 1;
+        this.state.turnStartTime = Date.now();
+        this.state.winner = null;
+        this.state.history = [];
+        this.state.undoStack = [];
+        this.notify();
+    }
+    resetGame(resetCommanderDeaths = false) {
+        this.state.players.forEach(player => {
+            player.life = this.state.settings.startingLife;
+            player.isEliminated = false;
+            player.isMonarch = false;
+            player.counters = {
+                poison: 0,
+                experience: 0,
+                energy: 0,
+                storm: 0,
+                custom: [],
+            };
+            player.commanderDamage = {};
+            this.state.players.forEach(otherPlayer => {
+                if (otherPlayer.id !== player.id) {
+                    player.commanderDamage[otherPlayer.id] = 0;
+                }
+            });
+            // Optionally reset commander deaths
+            if (resetCommanderDeaths) {
+                player.commanderDeaths = 0;
+            }
+        });
+        this.state.currentTurn = 1;
+        this.state.activePlayerIndex = 0;
+        this.state.turnStartTime = Date.now();
+        this.state.gameStartTime = Date.now(); // Reset game timer
+        this.state.winner = null;
+        this.state.viadoPlayerId = null; // Clear viado marker
+        this.state.history = [];
+        this.state.undoStack = [];
+        this.notify();
+    }
+    newGame() {
+        const playerCount = this.state.settings.playerCount;
+        this.state = createInitialState();
+        this.state.settings.playerCount = playerCount;
+        this.state.settings.layout = getDefaultLayout(playerCount);
+        this.state.players = Array.from({ length: playerCount }, (_, i) => createPlayer(i, this.state.settings.startingLife, playerCount));
+        this.notify();
+    }
+    // ===== Life Actions =====
+    changeLife(playerId, amount) {
+        const player = this.state.players.find(p => p.id === playerId);
+        if (player && !player.isEliminated) {
+            // Save for undo
+            this.addUndoAction('life_change', playerId, { life: player.life }, `${player.name}: ${amount > 0 ? '+' : ''}${amount} vida`);
+            const previousLife = player.life;
+            player.life += amount;
+            this.addEvent('life_change', playerId, {
+                amount,
+                previousValue: previousLife,
+                newValue: player.life,
+            });
+            // Sync team life in Two-Headed Giant mode
+            this.syncTeamLife(playerId);
+            this.checkEliminationConditions(playerId);
+            this.notify();
+        }
+    }
+    setLife(playerId, value) {
+        const player = this.state.players.find(p => p.id === playerId);
+        if (player && !player.isEliminated) {
+            this.addUndoAction('life_set', playerId, { life: player.life }, `${player.name}: vida definida para ${value}`);
+            const previousLife = player.life;
+            player.life = value;
+            this.addEvent('life_change', playerId, {
+                amount: value - previousLife,
+                previousValue: previousLife,
+                newValue: value,
+            });
+            // Sync team life in Two-Headed Giant mode
+            this.syncTeamLife(playerId);
+            this.checkEliminationConditions(playerId);
+            this.notify();
+        }
+    }
+    // ===== Commander Damage Actions =====
+    addCommanderDamage(targetPlayerId, sourcePlayerId, amount) {
+        const targetPlayer = this.state.players.find(p => p.id === targetPlayerId);
+        if (targetPlayer && !targetPlayer.isEliminated) {
+            const previousDamage = targetPlayer.commanderDamage[sourcePlayerId] || 0;
+            const previousLife = targetPlayer.life;
+            this.addUndoAction('commander_damage', targetPlayerId, {
+                commanderDamage: { ...targetPlayer.commanderDamage },
+                life: targetPlayer.life,
+            }, `Dano de comandante: ${amount > 0 ? '+' : ''}${amount}`);
+            const newDamage = Math.max(0, previousDamage + amount);
+            targetPlayer.commanderDamage[sourcePlayerId] = newDamage;
+            // Adjust life based on actual damage change
+            // actualChange is positive when adding damage (life decreases)
+            // actualChange is negative when removing damage (life increases)
+            const actualChange = newDamage - previousDamage;
+            targetPlayer.life -= actualChange;
+            this.addEvent('commander_damage', targetPlayerId, {
+                amount: actualChange,
+                fromPlayerId: sourcePlayerId,
+                previousValue: previousDamage,
+                newValue: newDamage,
+            });
+            this.checkEliminationConditions(targetPlayerId);
+            this.notify();
+        }
+    }
+    // ===== Counter Actions =====
+    changeCounter(playerId, counterType, amount) {
+        const player = this.state.players.find(p => p.id === playerId);
+        if (player) {
+            const previousValue = player.counters[counterType];
+            this.addUndoAction('counter_change', playerId, {
+                counters: { ...player.counters },
+            }, `${counterType}: ${amount > 0 ? '+' : ''}${amount}`);
+            player.counters[counterType] = Math.max(0, previousValue + amount);
+            const newValue = player.counters[counterType];
+            this.addEvent('counter_change', playerId, {
+                amount,
+                counterType,
+                previousValue,
+                newValue,
+            });
+            if (counterType === 'poison' && newValue >= 10) {
+                this.eliminatePlayer(playerId, 'poison');
+            }
+            this.notify();
+        }
+    }
+    addCustomCounter(playerId, name, icon) {
+        const player = this.state.players.find(p => p.id === playerId);
+        if (player) {
+            player.counters.custom.push({
+                id: generateId(),
+                name,
+                value: 0,
+                icon,
+            });
+            this.notify();
+        }
+    }
+    changeCustomCounter(playerId, counterId, amount) {
+        const player = this.state.players.find(p => p.id === playerId);
+        if (player) {
+            const counter = player.counters.custom.find(c => c.id === counterId);
+            if (counter) {
+                counter.value = Math.max(0, counter.value + amount);
+                this.notify();
+            }
+        }
+    }
+    removeCustomCounter(playerId, counterId) {
+        const player = this.state.players.find(p => p.id === playerId);
+        if (player) {
+            player.counters.custom = player.counters.custom.filter(c => c.id !== counterId);
+            this.notify();
+        }
+    }
+    // ===== Monarch Actions =====
+    setMonarch(playerId) {
+        this.state.players.forEach(player => {
+            const wasMonarch = player.isMonarch;
+            player.isMonarch = player.id === playerId;
+            if (player.isMonarch && !wasMonarch) {
+                this.addEvent('monarch_change', playerId, {});
+            }
+        });
+        this.notify();
+    }
+    removeMonarch() {
+        this.state.players.forEach(player => {
+            player.isMonarch = false;
+        });
+        this.notify();
+    }
+    // ===== Commander Deaths (Tax) Actions =====
+    changeCommanderDeaths(playerId, amount) {
+        const player = this.state.players.find(p => p.id === playerId);
+        if (player) {
+            const previousValue = player.commanderDeaths;
+            const newValue = Math.max(0, player.commanderDeaths + amount);
+            this.addUndoAction('commander_deaths', playerId, {
+                commanderDeaths: previousValue,
+            }, `${player.name}: Mortes do comandante ${amount > 0 ? '+' : ''}${amount}`);
+            player.commanderDeaths = newValue;
+            this.addEvent('counter_change', playerId, {
+                amount,
+                counterType: 'commanderDeaths',
+                previousValue,
+                newValue,
+            });
+            this.notify();
+        }
+    }
+    resetCommanderDeaths(playerId) {
+        const player = this.state.players.find(p => p.id === playerId);
+        if (player && player.commanderDeaths > 0) {
+            const previousValue = player.commanderDeaths;
+            this.addUndoAction('commander_deaths', playerId, {
+                commanderDeaths: previousValue,
+            }, `${player.name}: Mortes do comandante resetadas`);
+            player.commanderDeaths = 0;
+            this.notify();
+        }
+    }
+    resetAllCommanderDeaths() {
+        this.state.players.forEach(player => {
+            player.commanderDeaths = 0;
+        });
+        this.notify();
+    }
+    // ===== Turn Actions =====
+    // Calculate clockwise turn order based on layout
+    getClockwiseTurnOrder() {
+        const { layout, playerCount } = this.state.settings;
+        const rows = layout.rows;
+        // For single row layouts, just return linear order
+        if (rows.length === 1) {
+            return Array.from({ length: playerCount }, (_, i) => i);
+        }
+        // For multi-row layouts, calculate clockwise order
+        // Top row goes left to right, bottom row goes right to left
+        const order = [];
+        let playerIndex = 0;
+        // Build a 2D map of player positions
+        const grid = [];
+        for (const playersInRow of rows) {
+            const row = [];
+            for (let i = 0; i < playersInRow; i++) {
+                row.push(playerIndex++);
+            }
+            grid.push(row);
+        }
+        // For 2 rows: top left→right, then bottom right→left (clockwise)
+        if (grid.length === 2) {
+            // Top row: left to right
+            order.push(...grid[0]);
+            // Bottom row: right to left
+            order.push(...grid[1].slice().reverse());
+        }
+        // For 3+ rows: top row left→right, middle rows alternate, bottom row right→left
+        else {
+            // Top row: left to right
+            order.push(...grid[0]);
+            // Middle rows and bottom: traverse clockwise (right side down, bottom right→left, left side up)
+            // Simplified: for now just do top L→R, bottom R→L
+            for (let r = 1; r < grid.length; r++) {
+                if (r === grid.length - 1) {
+                    // Bottom row: right to left
+                    order.push(...grid[r].slice().reverse());
+                }
+                else {
+                    // Middle rows: just add last element (right side)
+                    order.push(grid[r][grid[r].length - 1]);
+                }
+            }
+            // Add remaining middle row elements going up on the left side
+            for (let r = grid.length - 2; r >= 1; r--) {
+                for (let c = grid[r].length - 2; c >= 0; c--) {
+                    order.push(grid[r][c]);
+                }
+            }
+        }
+        return order;
+    }
+    getNextPlayerInClockwiseOrder(currentIndex) {
+        const order = this.getClockwiseTurnOrder();
+        const currentPos = order.indexOf(currentIndex);
+        if (currentPos === -1) {
+            // Fallback to linear order
+            return (currentIndex + 1) % this.state.players.length;
+        }
+        // Find next non-eliminated player in clockwise order
+        let nextPos = (currentPos + 1) % order.length;
+        let iterations = 0;
+        while (this.state.players[order[nextPos]].isEliminated && iterations < order.length) {
+            nextPos = (nextPos + 1) % order.length;
+            iterations++;
+        }
+        return order[nextPos];
+    }
+    nextTurn() {
+        const currentIndex = this.state.activePlayerIndex;
+        const nextIndex = this.getNextPlayerInClockwiseOrder(currentIndex);
+        // Check if we completed a full round (back to first player or earlier in order)
+        const order = this.getClockwiseTurnOrder();
+        const currentPos = order.indexOf(currentIndex);
+        const nextPos = order.indexOf(nextIndex);
+        if (nextPos <= currentPos) {
+            this.state.currentTurn++;
+        }
+        this.state.activePlayerIndex = nextIndex;
+        this.state.turnStartTime = Date.now();
+        this.addEvent('turn_change', this.state.players[nextIndex].id, {
+            newValue: this.state.currentTurn,
+        });
+        this.notify();
+    }
+    setActivePlayer(index) {
+        if (index >= 0 && index < this.state.players.length) {
+            this.state.activePlayerIndex = index;
+            this.state.turnStartTime = Date.now();
+            this.notify();
+        }
+    }
+    setGameStartTime(time) {
+        this.state.gameStartTime = time;
+        this.notify();
+    }
+    // ===== Elimination & Win Conditions =====
+    checkEliminationConditions(playerId) {
+        const player = this.state.players.find(p => p.id === playerId);
+        if (!player || player.isEliminated)
+            return;
+        if (player.life <= 0) {
+            this.eliminatePlayer(playerId, 'life');
+            return;
+        }
+        for (const [sourceId, damage] of Object.entries(player.commanderDamage)) {
+            if (damage >= COMMANDER_DAMAGE_LETHAL) {
+                this.eliminatePlayer(playerId, 'commander');
+                return;
+            }
+        }
+    }
+    eliminatePlayer(playerId, reason) {
+        const player = this.state.players.find(p => p.id === playerId);
+        if (player && !player.isEliminated) {
+            player.isEliminated = true;
+            this.addEvent('player_eliminated', playerId, { message: reason });
+            const alivePlayers = this.state.players.filter(p => !p.isEliminated);
+            if (alivePlayers.length === 1) {
+                this.declareWinner(alivePlayers[0].id);
+            }
+            this.notify();
+        }
+    }
+    revivePlayer(playerId, restoreLife = true) {
+        const player = this.state.players.find(p => p.id === playerId);
+        if (player && player.isEliminated) {
+            player.isEliminated = false;
+            if (restoreLife) {
+                // Restore to a safe life total if they died from life loss
+                if (player.life <= 0) {
+                    player.life = 1;
+                }
+                // Check and reduce commander damage if it was lethal
+                for (const [sourceId, damage] of Object.entries(player.commanderDamage)) {
+                    if (damage >= COMMANDER_DAMAGE_LETHAL) {
+                        player.commanderDamage[sourceId] = COMMANDER_DAMAGE_LETHAL - 1;
+                    }
+                }
+                // Reduce poison if lethal
+                if (player.counters.poison >= 10) {
+                    player.counters.poison = 9;
+                }
+            }
+            this.state.winner = null;
+            this.addEvent('undo', playerId, { message: `${player.name} foi revivido` });
+            this.notify();
+        }
+    }
+    declareWinner(playerId) {
+        this.state.winner = playerId;
+        this.addEvent('player_win', playerId, {});
+        this.notify();
+    }
+    // ===== Settings Actions =====
+    updateSettings(updates) {
+        Object.assign(this.state.settings, updates);
+        this.notify();
+    }
+    // ===== GIF Controls =====
+    toggleGifPause(paused) {
+        this.state.settings.gifPaused = paused;
+        this.notify();
+    }
+    toggleGifFpsReduction(reduced) {
+        this.state.settings.gifFpsReduced = reduced;
+        this.notify();
+    }
+}
+// Export singleton instance
+const gameState = new GameStateManager();
+//# sourceMappingURL=state.js.map// ===== Audio Management =====
+
+// Secure random for fair 50/50 chances
+function secureRandomBool() {
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+        const array = new Uint8Array(1);
+        crypto.getRandomValues(array);
+        return array[0] < 128;
+    }
+    return Math.random() < 0.5;
+}
+class AudioManager {
+    constructor() {
+        this.audioContext = null;
+        this.lastPlayTime = new Map();
+        this.MIN_PLAY_INTERVAL = 50; // Minimum ms between same sound
+        this.soundPack = 'default';
+        // Sound files mapping (sound name -> file path)
+        this.soundFiles = {
+            damage: 'dano.mp3',
+            viado: 'viado.mp3', // "eu não nasci gay a culpa é do meu pai"
+            fluminense: 'fluminense.mp3', // Hino do Fluminense (easter egg)
+            monark: 'monark.mp3', // Monark "acorda cara" (easter egg)
+        };
+        this.sounds = new Map();
+        this.customSounds = new Map();
+        this.loadCustomSounds();
+        this.preloadSoundFiles();
+    }
+    // Preload sound files for better performance
+    preloadSoundFiles() {
+        for (const [name, path] of Object.entries(this.soundFiles)) {
+            const audio = new Audio(path);
+            audio.preload = 'auto';
+            this.sounds.set(name, audio);
+        }
+    }
+    setSoundPack(pack) {
+        this.soundPack = pack;
+    }
+    // Get or create audio context (reuse single instance)
+    getAudioContext() {
+        if (!this.audioContext) {
+            try {
+                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            catch (e) {
+                console.warn('Failed to create AudioContext:', e);
+                return null;
+            }
+        }
+        // Resume if suspended (browser autoplay policy)
+        if (this.audioContext.state === 'suspended') {
+            this.audioContext.resume();
+        }
+        return this.audioContext;
+    }
+    // Check if sound can play (throttle rapid plays)
+    canPlaySound(soundName) {
+        const now = Date.now();
+        const lastPlay = this.lastPlayTime.get(soundName) || 0;
+        if (now - lastPlay < this.MIN_PLAY_INTERVAL) {
+            return false;
+        }
+        this.lastPlayTime.set(soundName, now);
+        return true;
+    }
+    // Load custom sounds from localStorage
+    loadCustomSounds() {
+        try {
+            const saved = localStorage.getItem('mtg-life-counter-sounds');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                Object.entries(parsed).forEach(([key, value]) => {
+                    this.customSounds.set(key, value);
+                });
+            }
+        }
+        catch (e) {
+            console.warn('Failed to load custom sounds:', e);
+        }
+    }
+    // Save custom sounds to localStorage
+    saveCustomSounds() {
+        try {
+            const obj = {};
+            this.customSounds.forEach((value, key) => {
+                obj[key] = value;
+            });
+            localStorage.setItem('mtg-life-counter-sounds', JSON.stringify(obj));
+        }
+        catch (e) {
+            console.warn('Failed to save custom sounds:', e);
+        }
+    }
+    // Check if name matches José/Zé variants
+    isJoseVariant(name) {
+        const nameLower = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const joseVariants = ['jose', 'ze', 'zezinwhisky', 'zezinho', 'zezin', 'zeca', 'josue', 'joseph', 'zeze', 'djze'];
+        return joseVariants.some(variant => nameLower.includes(variant));
+    }
+    // Play a sound effect
+    play(soundName, playerId, winnerName) {
+        const state = gameState.getState();
+        if (!state.settings.soundEnabled)
+            return;
+        // Throttle rapid plays of the same sound
+        if (!this.canPlaySound(soundName))
+            return;
+        const volume = state.settings.volume / 100;
+        // Special handling for viado sound
+        if (soundName === 'viado' && state.settings.easterEggsEnabled) {
+            // If winner name is José/Zé variant, 100% Fluminense
+            if (winnerName && this.isJoseVariant(winnerName)) {
+                if (this.playSoundFile('fluminense', volume)) {
+                    console.log('🎵 EASTER EGG: Hino do Fluminense! (José detected)');
+                    return;
+                }
+            }
+            else {
+                // 50/50 chance: Fluminense or normal viado sound (secure random)
+                if (secureRandomBool()) {
+                    if (this.playSoundFile('fluminense', volume)) {
+                        console.log('🎵 EASTER EGG: Hino do Fluminense!');
+                        return;
+                    }
+                }
+            }
+        }
+        // Special handling for monarch sound - 50% chance of Monark "acorda cara" (secure random)
+        if (soundName === 'monarch' && state.settings.easterEggsEnabled) {
+            if (secureRandomBool()) {
+                // Play Monark "acorda cara" instead!
+                if (this.playSoundFile('monark', volume)) {
+                    console.log('🎵 EASTER EGG: Monark - Acorda cara!');
+                    return;
+                }
+            }
+        }
+        // Try custom sound first
+        const customKey = playerId ? `${playerId}-${soundName}` : soundName;
+        const customSound = this.customSounds.get(customKey);
+        if (customSound) {
+            this.playBase64Audio(customSound, volume);
+            return;
+        }
+        // Play default sound
+        this.playDefaultSound(soundName, volume);
+    }
+    // Play base64 encoded audio
+    playBase64Audio(base64, volume) {
+        try {
+            const audio = new Audio(base64);
+            audio.volume = volume;
+            audio.play().catch(e => console.warn('Audio play failed:', e));
+        }
+        catch (e) {
+            console.warn('Failed to play custom audio:', e);
+        }
+    }
+    // Get sound parameters based on pack
+    getSoundConfig(soundName) {
+        const packConfigs = {
+            default: {
+                damage: { freq: 200, type: 'sawtooth', duration: 0.1 },
+                heal: { freq: 440, type: 'sine', duration: 0.2, freqEnd: 880 },
+                click: { freq: 1000, type: 'sine', duration: 0.05 },
+            },
+            medieval: {
+                damage: { freq: 150, type: 'square', duration: 0.15 },
+                heal: { freq: 330, type: 'triangle', duration: 0.25, freqEnd: 660 },
+                click: { freq: 800, type: 'triangle', duration: 0.08 },
+            },
+            scifi: {
+                damage: { freq: 100, type: 'sawtooth', duration: 0.15, freqEnd: 400 },
+                heal: { freq: 600, type: 'sine', duration: 0.2, freqEnd: 1200 },
+                click: { freq: 2000, type: 'square', duration: 0.03 },
+            },
+            horror: {
+                damage: { freq: 80, type: 'sawtooth', duration: 0.2 },
+                heal: { freq: 200, type: 'triangle', duration: 0.3, freqEnd: 400 },
+                click: { freq: 300, type: 'square', duration: 0.1 },
+            },
+            arcade: {
+                damage: { freq: 300, type: 'square', duration: 0.08 },
+                heal: { freq: 523, type: 'square', duration: 0.15, freqEnd: 784 },
+                click: { freq: 1500, type: 'square', duration: 0.02 },
+            },
+        };
+        return packConfigs[this.soundPack]?.[soundName] || packConfigs.default[soundName] || { freq: 440, type: 'sine', duration: 0.1 };
+    }
+    // Play a sound file
+    playSoundFile(soundName, volume) {
+        const audio = this.sounds.get(soundName);
+        if (!audio)
+            return false;
+        try {
+            // Clone the audio to allow overlapping plays
+            const audioClone = audio.cloneNode();
+            audioClone.volume = volume;
+            audioClone.play().catch(e => console.warn('Audio play failed:', e));
+            return true;
+        }
+        catch (e) {
+            console.warn('Failed to play sound file:', e);
+            return false;
+        }
+    }
+    // Play default built-in sound
+    playDefaultSound(soundName, volume) {
+        // Try to play sound file first
+        if (this.playSoundFile(soundName, volume)) {
+            return;
+        }
+        // Fall back to synthesized sound
+        const audioContext = this.getAudioContext();
+        if (!audioContext)
+            return;
+        try {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            gainNode.gain.value = volume * 0.3;
+            // Use pack-specific config for basic sounds
+            const config = this.getSoundConfig(soundName);
+            switch (soundName) {
+                case 'damage':
+                    oscillator.frequency.value = config.freq;
+                    oscillator.type = config.type;
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + config.duration);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + config.duration);
+                    break;
+                case 'heal':
+                    oscillator.frequency.value = config.freq;
+                    oscillator.type = config.type;
+                    if (config.freqEnd) {
+                        oscillator.frequency.exponentialRampToValueAtTime(config.freqEnd, audioContext.currentTime + config.duration * 0.75);
+                    }
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + config.duration);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + config.duration);
+                    break;
+                case 'death':
+                    // "Fon fon fon fooooom" - funny fail/sad trombone sound
+                    const deathNotes = [
+                        { freq: 392, duration: 0.15 }, // G4 - fon
+                        { freq: 349.23, duration: 0.15 }, // F4 - fon
+                        { freq: 329.63, duration: 0.15 }, // E4 - fon
+                        { freq: 155.56, duration: 0.6 }, // Eb3 - fooooom (low and long)
+                    ];
+                    let deathTime = audioContext.currentTime;
+                    deathNotes.forEach((note, i) => {
+                        const osc = audioContext.createOscillator();
+                        const gain = audioContext.createGain();
+                        osc.connect(gain);
+                        gain.connect(audioContext.destination);
+                        osc.type = 'square';
+                        osc.frequency.value = note.freq;
+                        gain.gain.value = volume * 0.25;
+                        // Add vibrato to the last note
+                        if (i === 3) {
+                            const vibrato = audioContext.createOscillator();
+                            const vibratoGain = audioContext.createGain();
+                            vibrato.frequency.value = 5;
+                            vibratoGain.gain.value = 8;
+                            vibrato.connect(vibratoGain);
+                            vibratoGain.connect(osc.frequency);
+                            vibrato.start(deathTime);
+                            vibrato.stop(deathTime + note.duration);
+                        }
+                        gain.gain.exponentialRampToValueAtTime(0.01, deathTime + note.duration);
+                        osc.start(deathTime);
+                        osc.stop(deathTime + note.duration);
+                        deathTime += note.duration;
+                    });
+                    return;
+                case 'win':
+                    // Play a simple victory fanfare
+                    const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+                    notes.forEach((freq, i) => {
+                        const osc = audioContext.createOscillator();
+                        const gain = audioContext.createGain();
+                        osc.connect(gain);
+                        gain.connect(audioContext.destination);
+                        osc.frequency.value = freq;
+                        osc.type = 'sine';
+                        gain.gain.value = volume * 0.2;
+                        gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3 + i * 0.15);
+                        osc.start(audioContext.currentTime + i * 0.15);
+                        osc.stop(audioContext.currentTime + 0.3 + i * 0.15);
+                    });
+                    return;
+                case 'click':
+                    oscillator.frequency.value = 1000;
+                    oscillator.type = 'sine';
+                    gainNode.gain.value = volume * 0.1;
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.05);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.05);
+                    break;
+                case 'turn':
+                    oscillator.frequency.value = 600;
+                    oscillator.type = 'sine';
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.15);
+                    break;
+                case 'timer_warning':
+                    oscillator.frequency.value = 800;
+                    oscillator.type = 'square';
+                    gainNode.gain.value = volume * 0.15;
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.1);
+                    break;
+                case 'commander_damage':
+                    // Demonic sound - deep growl with dissonance
+                    const demonFreqs = [65, 68, 73]; // Low dissonant chord
+                    demonFreqs.forEach((freq, i) => {
+                        const demonOsc = audioContext.createOscillator();
+                        const demonGain = audioContext.createGain();
+                        demonOsc.connect(demonGain);
+                        demonGain.connect(audioContext.destination);
+                        demonOsc.type = 'sawtooth';
+                        demonOsc.frequency.value = freq;
+                        demonGain.gain.value = volume * 0.2;
+                        // Add growling LFO
+                        const growl = audioContext.createOscillator();
+                        const growlGain = audioContext.createGain();
+                        growl.frequency.value = 8 + i * 2;
+                        growlGain.gain.value = 15;
+                        growl.connect(growlGain);
+                        growlGain.connect(demonOsc.frequency);
+                        growl.start();
+                        growl.stop(audioContext.currentTime + 0.5);
+                        demonGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                        demonOsc.start();
+                        demonOsc.stop(audioContext.currentTime + 0.5);
+                    });
+                    // Add a deep impact
+                    oscillator.frequency.value = 40;
+                    oscillator.type = 'sine';
+                    gainNode.gain.value = volume * 0.5;
+                    oscillator.frequency.exponentialRampToValueAtTime(25, audioContext.currentTime + 0.4);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.4);
+                    break;
+                case 'revive':
+                    // Angelic choir - ethereal ascending sound
+                    const angelNotes = [
+                        { freq: 523.25, delay: 0 }, // C5
+                        { freq: 659.25, delay: 0.05 }, // E5
+                        { freq: 783.99, delay: 0.1 }, // G5
+                        { freq: 1046.5, delay: 0.15 }, // C6
+                    ];
+                    angelNotes.forEach(note => {
+                        const angelOsc = audioContext.createOscillator();
+                        const angelGain = audioContext.createGain();
+                        angelOsc.connect(angelGain);
+                        angelGain.connect(audioContext.destination);
+                        angelOsc.type = 'sine';
+                        angelOsc.frequency.value = note.freq;
+                        // Soft attack, longer release
+                        angelGain.gain.setValueAtTime(0, audioContext.currentTime + note.delay);
+                        angelGain.gain.linearRampToValueAtTime(volume * 0.2, audioContext.currentTime + note.delay + 0.1);
+                        angelGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + note.delay + 0.8);
+                        // Add shimmer with slight detune
+                        const shimmer = audioContext.createOscillator();
+                        const shimmerGain = audioContext.createGain();
+                        shimmer.type = 'sine';
+                        shimmer.frequency.value = note.freq * 1.005; // Slight detune for chorus
+                        shimmerGain.gain.setValueAtTime(0, audioContext.currentTime + note.delay);
+                        shimmerGain.gain.linearRampToValueAtTime(volume * 0.15, audioContext.currentTime + note.delay + 0.1);
+                        shimmerGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + note.delay + 0.8);
+                        shimmer.connect(shimmerGain);
+                        shimmerGain.connect(audioContext.destination);
+                        angelOsc.start(audioContext.currentTime + note.delay);
+                        angelOsc.stop(audioContext.currentTime + note.delay + 0.8);
+                        shimmer.start(audioContext.currentTime + note.delay);
+                        shimmer.stop(audioContext.currentTime + note.delay + 0.8);
+                    });
+                    return;
+                case 'poison':
+                    // Sinister bubbling sound
+                    oscillator.frequency.value = 300;
+                    oscillator.type = 'triangle';
+                    gainNode.gain.value = volume * 0.25;
+                    // Create wobble effect
+                    const lfo = audioContext.createOscillator();
+                    const lfoGain = audioContext.createGain();
+                    lfo.frequency.value = 15;
+                    lfoGain.gain.value = 50;
+                    lfo.connect(lfoGain);
+                    lfoGain.connect(oscillator.frequency);
+                    lfo.start();
+                    lfo.stop(audioContext.currentTime + 0.3);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.3);
+                    break;
+                case 'energy':
+                    // Electric zap sound
+                    oscillator.frequency.value = 880;
+                    oscillator.type = 'square';
+                    gainNode.gain.value = volume * 0.2;
+                    oscillator.frequency.exponentialRampToValueAtTime(440, audioContext.currentTime + 0.1);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.15);
+                    break;
+                case 'experience':
+                    // Magical chime - ascending
+                    oscillator.frequency.value = 660;
+                    oscillator.type = 'sine';
+                    gainNode.gain.value = volume * 0.25;
+                    oscillator.frequency.exponentialRampToValueAtTime(990, audioContext.currentTime + 0.2);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.25);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.25);
+                    break;
+                case 'monarch':
+                    // Royal trumpet fanfare - "God Save the King" style
+                    const royalNotes = [
+                        { freq: 392, duration: 0.15 }, // G4
+                        { freq: 392, duration: 0.15 }, // G4
+                        { freq: 440, duration: 0.15 }, // A4
+                        { freq: 392, duration: 0.2 }, // G4
+                        { freq: 493.88, duration: 0.2 }, // B4
+                        { freq: 523.25, duration: 0.4 }, // C5 (hold)
+                    ];
+                    let royalTime = audioContext.currentTime;
+                    royalNotes.forEach((note) => {
+                        // Main trumpet
+                        const trumpet = audioContext.createOscillator();
+                        const trumpetGain = audioContext.createGain();
+                        trumpet.connect(trumpetGain);
+                        trumpetGain.connect(audioContext.destination);
+                        trumpet.type = 'sawtooth';
+                        trumpet.frequency.value = note.freq;
+                        trumpetGain.gain.value = volume * 0.15;
+                        trumpetGain.gain.exponentialRampToValueAtTime(0.01, royalTime + note.duration);
+                        trumpet.start(royalTime);
+                        trumpet.stop(royalTime + note.duration);
+                        // Harmony (fifth above)
+                        const harmony = audioContext.createOscillator();
+                        const harmonyGain = audioContext.createGain();
+                        harmony.connect(harmonyGain);
+                        harmonyGain.connect(audioContext.destination);
+                        harmony.type = 'sawtooth';
+                        harmony.frequency.value = note.freq * 1.5; // Perfect fifth
+                        harmonyGain.gain.value = volume * 0.08;
+                        harmonyGain.gain.exponentialRampToValueAtTime(0.01, royalTime + note.duration);
+                        harmony.start(royalTime);
+                        harmony.stop(royalTime + note.duration);
+                        royalTime += note.duration;
+                    });
+                    return;
+                default:
+                    oscillator.frequency.value = 440;
+                    oscillator.type = 'sine';
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.1);
+            }
+        }
+        catch (e) {
+            console.warn('Failed to create audio:', e);
+        }
+    }
+    // Upload custom sound from file
+    async uploadSound(playerId, soundType, file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const key = `${playerId}-${soundType}`;
+                this.customSounds.set(key, reader.result);
+                this.saveCustomSounds();
+                resolve();
+            };
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(file);
+        });
+    }
+    // Remove custom sound
+    removeSound(playerId, soundType) {
+        const key = `${playerId}-${soundType}`;
+        this.customSounds.delete(key);
+        this.saveCustomSounds();
+    }
+    // Check if custom sound exists
+    hasCustomSound(playerId, soundType) {
+        return this.customSounds.has(`${playerId}-${soundType}`);
+    }
+}
+// Export singleton instance
+const audioManager = new AudioManager();
+class AmbientMusicManager {
+    constructor() {
+        this.audioContext = null;
+        this.masterGain = null;
+        this.oscillators = [];
+        this.gains = [];
+        this.isPlaying = false;
+        this.currentTrack = 'none';
+        this.volume = 0.3;
+    }
+    getAudioContext() {
+        if (!this.audioContext) {
+            try {
+                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            catch (e) {
+                console.warn('Failed to create AudioContext for ambient music:', e);
+                return null;
+            }
+        }
+        if (this.audioContext.state === 'suspended') {
+            this.audioContext.resume();
+        }
+        return this.audioContext;
+    }
+    setVolume(volume) {
+        this.volume = volume / 100;
+        if (this.masterGain) {
+            this.masterGain.gain.value = this.volume * 0.15; // Keep ambient quiet
+        }
+    }
+    setTrack(track) {
+        if (track === this.currentTrack)
+            return;
+        this.stop();
+        this.currentTrack = track;
+        if (track !== 'none' && this.isPlaying) {
+            this.play();
+        }
+    }
+    play() {
+        if (this.currentTrack === 'none')
+            return;
+        this.isPlaying = true;
+        const ctx = this.getAudioContext();
+        if (!ctx)
+            return;
+        this.stop(); // Clean up any existing
+        this.masterGain = ctx.createGain();
+        this.masterGain.gain.value = this.volume * 0.15;
+        this.masterGain.connect(ctx.destination);
+        switch (this.currentTrack) {
+            case 'epic':
+                this.playEpicTrack(ctx);
+                break;
+            case 'dark':
+                this.playDarkTrack(ctx);
+                break;
+            case 'nature':
+                this.playNatureTrack(ctx);
+                break;
+            case 'mystical':
+                this.playMysticalTrack(ctx);
+                break;
+        }
+    }
+    playEpicTrack(ctx) {
+        // Low drone with subtle rhythm
+        const drone = ctx.createOscillator();
+        const droneGain = ctx.createGain();
+        drone.type = 'sawtooth';
+        drone.frequency.value = 55; // A1
+        droneGain.gain.value = 0.3;
+        drone.connect(droneGain);
+        droneGain.connect(this.masterGain);
+        drone.start();
+        this.oscillators.push(drone);
+        this.gains.push(droneGain);
+        // Fifth harmony
+        const fifth = ctx.createOscillator();
+        const fifthGain = ctx.createGain();
+        fifth.type = 'sine';
+        fifth.frequency.value = 82.4; // E2
+        fifthGain.gain.value = 0.2;
+        fifth.connect(fifthGain);
+        fifthGain.connect(this.masterGain);
+        fifth.start();
+        this.oscillators.push(fifth);
+        this.gains.push(fifthGain);
+        // LFO for movement
+        const lfo = ctx.createOscillator();
+        const lfoGain = ctx.createGain();
+        lfo.frequency.value = 0.1;
+        lfoGain.gain.value = 5;
+        lfo.connect(lfoGain);
+        lfoGain.connect(drone.frequency);
+        lfo.start();
+        this.oscillators.push(lfo);
+    }
+    playDarkTrack(ctx) {
+        // Deep bass drone
+        const bass = ctx.createOscillator();
+        const bassGain = ctx.createGain();
+        bass.type = 'sine';
+        bass.frequency.value = 36.7; // D1
+        bassGain.gain.value = 0.4;
+        bass.connect(bassGain);
+        bassGain.connect(this.masterGain);
+        bass.start();
+        this.oscillators.push(bass);
+        this.gains.push(bassGain);
+        // Dissonant overtone
+        const dissonant = ctx.createOscillator();
+        const disGain = ctx.createGain();
+        dissonant.type = 'triangle';
+        dissonant.frequency.value = 38.9; // Slightly detuned
+        disGain.gain.value = 0.15;
+        dissonant.connect(disGain);
+        disGain.connect(this.masterGain);
+        dissonant.start();
+        this.oscillators.push(dissonant);
+        this.gains.push(disGain);
+        // Slow LFO for unsettling effect
+        const lfo = ctx.createOscillator();
+        const lfoGain = ctx.createGain();
+        lfo.frequency.value = 0.05;
+        lfoGain.gain.value = 3;
+        lfo.connect(lfoGain);
+        lfoGain.connect(bass.frequency);
+        lfo.start();
+        this.oscillators.push(lfo);
+    }
+    playNatureTrack(ctx) {
+        // White noise for wind/water
+        const bufferSize = 2 * ctx.sampleRate;
+        const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            output[i] = Math.random() * 2 - 1;
+        }
+        const noise = ctx.createBufferSource();
+        noise.buffer = noiseBuffer;
+        noise.loop = true;
+        const noiseFilter = ctx.createBiquadFilter();
+        noiseFilter.type = 'lowpass';
+        noiseFilter.frequency.value = 400;
+        const noiseGain = ctx.createGain();
+        noiseGain.gain.value = 0.2;
+        noise.connect(noiseFilter);
+        noiseFilter.connect(noiseGain);
+        noiseGain.connect(this.masterGain);
+        noise.start();
+        // Gentle pad
+        const pad = ctx.createOscillator();
+        const padGain = ctx.createGain();
+        pad.type = 'sine';
+        pad.frequency.value = 220; // A3
+        padGain.gain.value = 0.1;
+        pad.connect(padGain);
+        padGain.connect(this.masterGain);
+        pad.start();
+        this.oscillators.push(pad);
+        this.gains.push(padGain);
+    }
+    playMysticalTrack(ctx) {
+        // Ethereal pads
+        const notes = [261.6, 329.6, 392]; // C4, E4, G4
+        notes.forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            gain.gain.value = 0.15;
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            osc.start();
+            this.oscillators.push(osc);
+            this.gains.push(gain);
+            // Slow detune for shimmer
+            const lfo = ctx.createOscillator();
+            const lfoGain = ctx.createGain();
+            lfo.frequency.value = 0.2 + i * 0.1;
+            lfoGain.gain.value = 2;
+            lfo.connect(lfoGain);
+            lfoGain.connect(osc.frequency);
+            lfo.start();
+            this.oscillators.push(lfo);
+        });
+    }
+    stop() {
+        this.oscillators.forEach(osc => {
+            try {
+                osc.stop();
+            }
+            catch (e) { }
+        });
+        this.oscillators = [];
+        this.gains = [];
+        if (this.masterGain) {
+            this.masterGain.disconnect();
+            this.masterGain = null;
+        }
+    }
+    toggle(enabled) {
+        this.isPlaying = enabled;
+        if (enabled && this.currentTrack !== 'none') {
+            this.play();
+        }
+        else {
+            this.stop();
+        }
+    }
+}
+const ambientMusic = new AmbientMusicManager();
+// ===== Event Narrator =====
+class EventNarrator {
+    constructor() {
+        this.enabled = false;
+        this.speed = 1;
+        this.synthesis = null;
+        this.voice = null;
+        if ('speechSynthesis' in window) {
+            this.synthesis = window.speechSynthesis;
+            // Load voices when ready
+            if (this.synthesis.onvoiceschanged !== undefined) {
+                this.synthesis.onvoiceschanged = () => this.loadVoice();
+            }
+            setTimeout(() => this.loadVoice(), 100);
+        }
+    }
+    loadVoice() {
+        if (!this.synthesis)
+            return;
+        const voices = this.synthesis.getVoices();
+        // Try to find a Portuguese voice
+        this.voice = voices.find(v => v.lang.startsWith('pt')) ||
+            voices.find(v => v.lang.startsWith('en')) ||
+            voices[0] || null;
+    }
+    setEnabled(enabled) {
+        this.enabled = enabled;
+    }
+    setSpeed(speed) {
+        this.speed = speed;
+    }
+    speak(text) {
+        if (!this.enabled || !this.synthesis)
+            return;
+        // Cancel any ongoing speech
+        this.synthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        if (this.voice) {
+            utterance.voice = this.voice;
+        }
+        utterance.rate = this.speed;
+        utterance.pitch = 1;
+        utterance.volume = 0.8;
+        this.synthesis.speak(utterance);
+    }
+    // Announce game events
+    announceLifeChange(playerName, amount, newLife) {
+        if (amount > 0) {
+            this.speak(`${playerName} ganha ${amount} de vida. Agora tem ${newLife}.`);
+        }
+        else {
+            this.speak(`${playerName} perde ${Math.abs(amount)} de vida. Agora tem ${newLife}.`);
+        }
+    }
+    announceElimination(playerName) {
+        this.speak(`${playerName} foi eliminado!`);
+    }
+    announceWinner(playerName) {
+        this.speak(`${playerName} venceu a partida! Parabéns!`);
+    }
+    announceTurnChange(playerName, turnNumber) {
+        this.speak(`Turno ${turnNumber}. Vez de ${playerName}.`);
+    }
+    announceMonarch(playerName) {
+        this.speak(`${playerName} é agora o Monarca!`);
+    }
+    announceRandomStarter(playerName) {
+        this.speak(`${playerName} começa a partida!`);
+    }
+    announceCommanderDamage(targetName, sourceName, damage) {
+        this.speak(`${targetName} recebe ${damage} de dano de comandante de ${sourceName}.`);
+    }
+    announcePoisonDanger(playerName, counters) {
+        if (counters >= 10) {
+            this.speak(`${playerName} foi envenenado até a morte!`);
+        }
+        else if (counters >= 7) {
+            this.speak(`${playerName} está com ${counters} marcadores de veneno. Cuidado!`);
+        }
+    }
+}
+const narrator = new EventNarrator();
+//# sourceMappingURL=audio.js.map// ===== UI Management =====
+
+
+
 // ===== Secure Random Functions =====
 // Cryptographically secure random number between 0 and 1
 function secureRandom() {
@@ -570,7 +2696,7 @@ function showTauntOverlay(playerName, taunt, isRainbow) {
     }, 2000);
 }
 // Initialize UI
-export function initUI() {
+function initUI() {
     setupEventListeners();
     gameState.subscribe(render);
     render(gameState.getState());
@@ -3736,4 +5862,26 @@ function handleCommanderDeathChange(playerId, amount) {
         }
     }
 }
-//# sourceMappingURL=ui.js.map
+//# sourceMappingURL=ui.js.map// ===== Main Entry Point =====
+
+// Initialize the application when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('MTG Life Counter initialized');
+    initUI();
+});
+// Handle visibility change to pause/resume timer sounds
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        // Pause audio when tab is hidden
+        console.log('Tab hidden - pausing sounds');
+    }
+    else {
+        // Resume when visible
+        console.log('Tab visible - resuming');
+    }
+});
+// Register service worker for PWA (optional future enhancement)
+// if ('serviceWorker' in navigator) {
+//     navigator.serviceWorker.register('/sw.js');
+// }
+//# sourceMappingURL=main.js.map

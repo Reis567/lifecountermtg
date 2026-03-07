@@ -4,48 +4,7 @@ import { DEFAULT_PLAYER_COLORS, COMMANDER_DAMAGE_LETHAL, LAYOUT_PRESETS, } from 
 export const TWO_HEADED_GIANT_STARTING_LIFE = 30;
 // Generate unique ID
 export function generateId() {
-    // Use crypto for better randomness
-    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-        const array = new Uint32Array(2);
-        crypto.getRandomValues(array);
-        return array[0].toString(36) + array[1].toString(36);
-    }
     return Math.random().toString(36).substring(2, 11);
-}
-// Cryptographically secure random number between 0 and 1
-function secureRandom() {
-    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-        const array = new Uint32Array(1);
-        crypto.getRandomValues(array);
-        return array[0] / (0xFFFFFFFF + 1);
-    }
-    return Math.random();
-}
-// Secure random integer from 0 to max-1 (unbiased)
-function secureRandomInt(max) {
-    if (max <= 0)
-        return 0;
-    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-        // Use rejection sampling to avoid modulo bias
-        const maxValid = Math.floor(0xFFFFFFFF / max) * max;
-        let value;
-        do {
-            const array = new Uint32Array(1);
-            crypto.getRandomValues(array);
-            value = array[0];
-        } while (value >= maxValid);
-        return value % max;
-    }
-    return Math.floor(Math.random() * max);
-}
-// Fisher-Yates shuffle with secure random
-function shuffleArray(array) {
-    const shuffled = [...array];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = secureRandomInt(i + 1);
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
 }
 // Create default player
 export function createPlayer(index, startingLife, totalPlayers) {
@@ -568,10 +527,8 @@ class GameStateManager {
             .filter(({ player }) => !player.isEliminated);
         if (alivePlayers.length === 0)
             return 0;
-        // Shuffle first, then pick - double randomization for fairness
-        const shuffled = shuffleArray(alivePlayers);
-        const randomIndex = secureRandomInt(shuffled.length);
-        const selected = shuffled[randomIndex];
+        const randomIndex = Math.floor(Math.random() * alivePlayers.length);
+        const selected = alivePlayers[randomIndex];
         this.state.activePlayerIndex = selected.index;
         this.addEvent('random_starter', selected.player.id, {});
         this.notify();
@@ -590,10 +547,9 @@ class GameStateManager {
         if (eligiblePlayers.length === 0) {
             return null; // No eligible players
         }
-        // Shuffle first, then pick - double randomization for fairness
-        const shuffled = shuffleArray(eligiblePlayers);
-        const randomIndex = secureRandomInt(shuffled.length);
-        const selected = shuffled[randomIndex];
+        // Randomly select one
+        const randomIndex = Math.floor(Math.random() * eligiblePlayers.length);
+        const selected = eligiblePlayers[randomIndex];
         this.state.viadoPlayerId = selected.id;
         this.notify();
         return selected;

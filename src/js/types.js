@@ -221,6 +221,47 @@ export const TAUNT_PHRASES = {
         "Melhor tentar de novo... 🤷",
     ],
 };
+// Manual taunts - provocations players can send
+export const MANUAL_TAUNTS = {
+    // Emojis
+    emojis: [
+        '😂', '🤣', '💀', '☠️', '🔥', '💪', '👀', '🤡', '😈', '👑',
+        '🏳️‍🌈', '🦄', '✨', '💅', '🙄', '😤', '🥵', '🥶', '💩', '🤮',
+    ],
+    // Short phrases
+    phrases: [
+        'VISH!!!',
+        'LACROU! 💅',
+        'SEGURA ESSE! 💥',
+        'F',
+        'GG EZ',
+        'KKKKKKK',
+        'COPIUM',
+        'TILT!',
+        'REKT!',
+        'OWNED!',
+        'SIT DOWN!',
+        'GET GOOD!',
+        'EZ CLAP',
+        'NO SKILL',
+        'HOLD THIS L',
+        'BRUH...',
+        'COPE!',
+        'SEETHE!',
+        'MALD!',
+        'SKILL ISSUE',
+        'VIADO!!!',
+        'VIADO 🏳️‍🌈',
+        'QUE JOGADA!',
+        'NOSSA...',
+        'AI MEU DEUS',
+        'ACORDA!',
+        'DORMIU?',
+        'CAFÉ PRA ELE!',
+        'QUE ISSO?!',
+        'PQP!!!',
+    ],
+};
 export const MTG_KEYWORDS = [
     // Combat Keywords
     { name: 'Primeiro Ataque', description: 'Esta criatura causa dano de combate antes de criaturas sem primeiro ataque.', category: 'combat', reminder: 'First Strike' },

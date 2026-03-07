@@ -1,14 +1,5 @@
 // ===== Audio Management =====
 import { gameState } from './state.js';
-// Secure random for fair 50/50 chances
-function secureRandomBool() {
-    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-        const array = new Uint8Array(1);
-        crypto.getRandomValues(array);
-        return array[0] < 128;
-    }
-    return Math.random() < 0.5;
-}
 class AudioManager {
     constructor() {
         this.audioContext = null;
@@ -93,14 +84,8 @@ class AudioManager {
             console.warn('Failed to save custom sounds:', e);
         }
     }
-    // Check if name matches José/Zé variants
-    isJoseVariant(name) {
-        const nameLower = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        const joseVariants = ['jose', 'ze', 'zezinwhisky', 'zezinho', 'zezin', 'zeca', 'josue', 'joseph', 'zeze', 'djze'];
-        return joseVariants.some(variant => nameLower.includes(variant));
-    }
     // Play a sound effect
-    play(soundName, playerId, winnerName) {
+    play(soundName, playerId) {
         const state = gameState.getState();
         if (!state.settings.soundEnabled)
             return;
@@ -108,28 +93,21 @@ class AudioManager {
         if (!this.canPlaySound(soundName))
             return;
         const volume = state.settings.volume / 100;
-        // Special handling for viado sound
+        // Special handling for viado sound - 3% chance of Fluminense easter egg
         if (soundName === 'viado' && state.settings.easterEggsEnabled) {
-            // If winner name is José/Zé variant, 100% Fluminense
-            if (winnerName && this.isJoseVariant(winnerName)) {
+            const easterEggChance = Math.random();
+            if (easterEggChance < 0.03) { // 3% chance
+                // Play Fluminense anthem instead!
                 if (this.playSoundFile('fluminense', volume)) {
-                    console.log('🎵 EASTER EGG: Hino do Fluminense! (José detected)');
+                    console.log('🎵 EASTER EGG: Hino do Fluminense!');
                     return;
                 }
             }
-            else {
-                // 50/50 chance: Fluminense or normal viado sound (secure random)
-                if (secureRandomBool()) {
-                    if (this.playSoundFile('fluminense', volume)) {
-                        console.log('🎵 EASTER EGG: Hino do Fluminense!');
-                        return;
-                    }
-                }
-            }
         }
-        // Special handling for monarch sound - 50% chance of Monark "acorda cara" (secure random)
+        // Special handling for monarch sound - 3% chance of Monark "acorda cara"
         if (soundName === 'monarch' && state.settings.easterEggsEnabled) {
-            if (secureRandomBool()) {
+            const easterEggChance = Math.random();
+            if (easterEggChance < 0.03) { // 3% chance
                 // Play Monark "acorda cara" instead!
                 if (this.playSoundFile('monark', volume)) {
                     console.log('🎵 EASTER EGG: Monark - Acorda cara!');

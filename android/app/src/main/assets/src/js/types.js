@@ -1,163 +1,4 @@
 // ===== Type Definitions =====
-
-export interface Player {
-    id: string;
-    name: string;
-    color: string;
-    avatar: string | null;
-    background: string | null; // Background image/GIF
-    backgroundType: 'none' | 'image' | 'gif';
-    emoji: string | null; // Personal emoji/icon
-    tag: string | null; // Optional tag (ex: "Archenemy")
-    life: number;
-    isEliminated: boolean;
-    isMonarch: boolean;
-    counters: PlayerCounters;
-    commanderDamage: Record<string, number>;
-    commanderDeaths: number; // Number of times commander died (for Commander Tax)
-    customSounds: PlayerSounds;
-    rotation: number; // Rotation in degrees for table mode
-    teamId: string | null; // Team ID for Two-Headed Giant mode
-}
-
-export interface PlayerCounters {
-    poison: number;
-    experience: number;
-    energy: number;
-    storm: number;
-    custom: CustomCounter[];
-}
-
-export interface CustomCounter {
-    id: string;
-    name: string;
-    value: number;
-    icon?: string;
-}
-
-export interface PlayerSounds {
-    death: string | null;
-    win: string | null;
-    damage: string | null;
-}
-
-export interface Team {
-    id: string;
-    name: string;
-    color: string;
-    playerIds: string[];
-    life: number;
-    isEliminated: boolean;
-}
-
-export interface LayoutConfig {
-    rows: number[]; // Array of player counts per row, e.g., [3, 2] = 3 top, 2 bottom
-    tableMode: boolean; // Enable rotation for table mode
-    preset: string | null; // Preset name if using one
-}
-
-export interface GameSettings {
-    startingLife: number;
-    playerCount: number;
-    soundEnabled: boolean;
-    volume: number;
-    animationsEnabled: boolean;
-    animationIntensity: 'subtle' | 'normal' | 'intense';
-    turnTimerEnabled: boolean;
-    turnTimerDuration: number;
-    theme: ThemePreset;
-    layout: LayoutConfig;
-    randomStarterAnimation: RandomAnimationType;
-    confirmCriticalActions: boolean;
-    showSpecialMoments: boolean;
-    showCommanderDeaths: boolean; // Show commander death counter on player cards
-    gifPaused: boolean;
-    gifFpsReduced: boolean;
-    easterEggsEnabled: boolean;
-    animatedBgEnabled: boolean;
-    animatedBgStyle: AnimatedBgStyle;
-    fontStyle: FontStyle;
-    ambientMusicEnabled: boolean;
-    ambientMusicVolume: number;
-    ambientMusicTrack: AmbientMusicTrack;
-    narratorEnabled: boolean;
-    narratorVoice: string;
-    narratorSpeed: number;
-    soundPack: SoundPack;
-}
-
-export type AmbientMusicTrack = 'none' | 'epic' | 'dark' | 'nature' | 'mystical';
-export type SoundPack = 'default' | 'medieval' | 'scifi' | 'horror' | 'arcade';
-
-export type AnimatedBgStyle = 'none' | 'stars' | 'mana' | 'sparks' | 'bubbles' | 'matrix';
-export type FontStyle = 'default' | 'beleren' | 'pixel' | 'gothic' | 'elegant' | 'rounded';
-
-export type ThemePreset = 'casual' | 'dark' | 'streamer' | 'custom' | 'mana-white' | 'mana-blue' | 'mana-black' | 'mana-red' | 'mana-green' | 'high-contrast';
-export type RandomAnimationType = 'highlight' | 'roulette' | 'flash';
-export type GameMode = 'standard' | 'planechase' | 'archenemy' | 'two-headed';
-
-export interface GameState {
-    players: Player[];
-    teams: Team[];
-    settings: GameSettings;
-    currentTurn: number;
-    activePlayerIndex: number;
-    turnStartTime: number | null;
-    gameStartTime: number | null;
-    gameStarted: boolean;
-    winner: string | null;
-    history: GameEvent[];
-    undoStack: UndoAction[];
-    gameMode: GameMode;
-    randomStarterInProgress: boolean;
-    viadoPlayerId: string | null; // ID do jogador sorteado como "viado"
-}
-
-export interface UndoAction {
-    id: string;
-    timestamp: number;
-    type: string;
-    playerId: string;
-    previousState: Partial<Player>;
-    description: string;
-}
-
-export interface GameEvent {
-    id: string;
-    timestamp: number;
-    type: EventType;
-    playerId: string;
-    details: EventDetails;
-}
-
-export type EventType =
-    | 'life_change'
-    | 'commander_damage'
-    | 'counter_change'
-    | 'player_eliminated'
-    | 'player_win'
-    | 'turn_change'
-    | 'monarch_change'
-    | 'random_starter'
-    | 'undo';
-
-export interface EventDetails {
-    amount?: number;
-    fromPlayerId?: string;
-    counterType?: string;
-    previousValue?: number;
-    newValue?: number;
-    message?: string;
-}
-
-export interface TablePreset {
-    id: string;
-    name: string;
-    playerCount: number;
-    layout: LayoutConfig;
-    theme: ThemePreset;
-}
-
 // Default colors for players
 export const DEFAULT_PLAYER_COLORS = [
     '#6366f1', // Indigo
@@ -169,7 +10,6 @@ export const DEFAULT_PLAYER_COLORS = [
     '#22c55e', // Green
     '#3b82f6', // Blue
 ];
-
 // Preset counters
 export const PRESET_COUNTERS = [
     { id: 'poison', name: 'Veneno', icon: '☠️', lethalValue: 10 },
@@ -177,12 +17,10 @@ export const PRESET_COUNTERS = [
     { id: 'energy', name: 'Energia', icon: '⚡', lethalValue: null },
     { id: 'storm', name: 'Storm', icon: '🌪️', lethalValue: null },
 ];
-
 // Commander damage lethal threshold
 export const COMMANDER_DAMAGE_LETHAL = 21;
-
 // Layout presets for common player configurations
-export const LAYOUT_PRESETS: Record<number, LayoutConfig[]> = {
+export const LAYOUT_PRESETS = {
     2: [
         { rows: [1, 1], tableMode: true, preset: '2-split' },
         { rows: [2], tableMode: false, preset: '2-row' },
@@ -220,9 +58,8 @@ export const LAYOUT_PRESETS: Record<number, LayoutConfig[]> = {
         { rows: [2, 4, 2], tableMode: true, preset: '8-wide' },
     ],
 };
-
 // Theme configurations
-export const THEMES: Record<ThemePreset, ThemeConfig> = {
+export const THEMES = {
     casual: {
         name: 'Casual',
         bgPrimary: '#1a1a2e',
@@ -304,16 +141,6 @@ export const THEMES: Record<ThemePreset, ThemeConfig> = {
         accent: '#ffff00',
     },
 };
-
-export interface ThemeConfig {
-    name: string;
-    bgPrimary: string;
-    bgSecondary: string;
-    bgCard: string;
-    textPrimary: string;
-    accent: string;
-}
-
 // Easter egg messages
 export const EASTER_EGG_MESSAGES = [
     "Shuffling fate...",
@@ -323,7 +150,6 @@ export const EASTER_EGG_MESSAGES = [
     "Rolling for initiative...",
     "The mana flows...",
 ];
-
 // Special moment triggers
 export const SPECIAL_MOMENTS = {
     NEAR_DEATH: 1,
@@ -332,7 +158,6 @@ export const SPECIAL_MOMENTS = {
     COMMANDER_DANGER: 15,
     COMMANDER_LETHAL: 21,
 };
-
 // Taunt phrases (friendly provocations)
 export const TAUNT_PHRASES = {
     // When taking big damage (5+ at once)
@@ -396,58 +221,7 @@ export const TAUNT_PHRASES = {
         "Melhor tentar de novo... 🤷",
     ],
 };
-
-// Manual taunts - provocations players can send
-export const MANUAL_TAUNTS = {
-    // Emojis
-    emojis: [
-        '😂', '🤣', '💀', '☠️', '🔥', '💪', '👀', '🤡', '😈', '👑',
-        '🏳️‍🌈', '🦄', '✨', '💅', '🙄', '😤', '🥵', '🥶', '💩', '🤮',
-    ],
-    // Short phrases
-    phrases: [
-        'VISH!!!',
-        'LACROU! 💅',
-        'SEGURA ESSE! 💥',
-        'F',
-        'GG EZ',
-        'KKKKKKK',
-        'COPIUM',
-        'TILT!',
-        'REKT!',
-        'OWNED!',
-        'SIT DOWN!',
-        'GET GOOD!',
-        'EZ CLAP',
-        'NO SKILL',
-        'HOLD THIS L',
-        'BRUH...',
-        'COPE!',
-        'SEETHE!',
-        'MALD!',
-        'SKILL ISSUE',
-        'VIADO!!!',
-        'VIADO 🏳️‍🌈',
-        'QUE JOGADA!',
-        'NOSSA...',
-        'AI MEU DEUS',
-        'ACORDA!',
-        'DORMIU?',
-        'CAFÉ PRA ELE!',
-        'QUE ISSO?!',
-        'PQP!!!',
-    ],
-};
-
-// MTG Keywords and Rules
-export interface MTGKeyword {
-    name: string;
-    description: string;
-    category: 'combat' | 'mana' | 'abilities' | 'counters' | 'other';
-    reminder?: string;
-}
-
-export const MTG_KEYWORDS: MTGKeyword[] = [
+export const MTG_KEYWORDS = [
     // Combat Keywords
     { name: 'Primeiro Ataque', description: 'Esta criatura causa dano de combate antes de criaturas sem primeiro ataque.', category: 'combat', reminder: 'First Strike' },
     { name: 'Golpe Duplo', description: 'Esta criatura causa dano tanto no passo de primeiro ataque quanto no passo normal.', category: 'combat', reminder: 'Double Strike' },
@@ -465,7 +239,6 @@ export const MTG_KEYWORDS: MTGKeyword[] = [
     { name: 'Hexproof', description: 'Esta permanente não pode ser alvo de mágicas ou habilidades que seus oponentes controlam.', category: 'combat', reminder: 'Hexproof' },
     { name: 'Ímpeto', description: 'Esta criatura pode atacar e usar habilidades de virar assim que entra sob seu controle.', category: 'combat', reminder: 'Haste' },
     { name: 'Defensor', description: 'Esta criatura não pode atacar.', category: 'combat', reminder: 'Defender' },
-
     // Mana Keywords
     { name: 'Florescer', description: 'Se você gastou mana de cores diferentes para conjurar esta mágica, ela ganha efeitos adicionais.', category: 'mana', reminder: 'Converge' },
     { name: 'Devoção', description: 'Conta símbolos de mana de uma cor específica no custo de mana de permanentes que você controla.', category: 'mana', reminder: 'Devotion' },
@@ -473,7 +246,6 @@ export const MTG_KEYWORDS: MTGKeyword[] = [
     { name: 'Convocação', description: 'Suas criaturas podem ajudar a conjurar esta mágica. Cada criatura virada paga 1 ou mana de sua cor.', category: 'mana', reminder: 'Convoke' },
     { name: 'Delve', description: 'Cada card exilado do seu cemitério paga 1 mana genérico.', category: 'mana', reminder: 'Delve' },
     { name: 'Improvise', description: 'Seus artefatos podem ajudar a conjurar esta mágica. Cada artefato virado paga 1 mana genérico.', category: 'mana', reminder: 'Improvise' },
-
     // Abilities Keywords
     { name: 'Lampejo', description: 'Você pode conjurar esta mágica a qualquer momento que poderia conjurar um instantâneo.', category: 'abilities', reminder: 'Flash' },
     { name: 'Retornar', description: 'Você pode conjurar este card do seu cemitério pelo custo de retornar.', category: 'abilities', reminder: 'Flashback' },
@@ -487,7 +259,6 @@ export const MTG_KEYWORDS: MTGKeyword[] = [
     { name: 'Escape', description: 'Você pode conjurar este card do seu cemitério pelo custo de escape.', category: 'abilities', reminder: 'Escape' },
     { name: 'Transformar', description: 'Este card tem duas faces e pode se transformar na outra face.', category: 'abilities', reminder: 'Transform' },
     { name: 'Ward', description: 'Sempre que esta permanente se tornar alvo, o oponente deve pagar um custo ou a habilidade é anulada.', category: 'abilities', reminder: 'Ward' },
-
     // Counter Keywords
     { name: 'Infeccionar', description: 'Esta criatura causa dano a jogadores na forma de contadores de veneno e a criaturas na forma de contadores -1/-1.', category: 'counters', reminder: 'Infect' },
     { name: 'Veneno', description: 'Dano causado a jogadores resulta em contadores de veneno. 10 contadores de veneno = derrota.', category: 'counters', reminder: 'Poison' },
@@ -497,7 +268,6 @@ export const MTG_KEYWORDS: MTGKeyword[] = [
     { name: 'Inextinguível', description: 'Quando esta criatura morre, se tinha contadores +1/+1, retorne-a com um contador +1/+1 a menos.', category: 'counters', reminder: 'Undying' },
     { name: 'Energia', description: 'Contadores de energia são um recurso do jogador usados para pagar custos.', category: 'counters', reminder: 'Energy' },
     { name: 'Experiência', description: 'Contadores de experiência no jogador, frequentemente usados por comandantes.', category: 'counters', reminder: 'Experience' },
-
     // Other/General
     { name: 'Lendário', description: 'Você só pode controlar uma permanente lendária com o mesmo nome.', category: 'other', reminder: 'Legendary' },
     { name: 'Dano de Comandante', description: 'Dano de combate causado por um comandante é rastreado separadamente. 21 dano de um comandante = derrota.', category: 'other', reminder: 'Commander Damage' },
@@ -507,3 +277,4 @@ export const MTG_KEYWORDS: MTGKeyword[] = [
     { name: 'Annihilator', description: 'Sempre que esta criatura ataca, o defensor sacrifica permanentes.', category: 'other', reminder: 'Annihilator' },
     { name: 'Affinidade', description: 'Custa menos mana para conjurar baseado em permanentes que você controla.', category: 'other', reminder: 'Affinity' },
 ];
+//# sourceMappingURL=types.js.map

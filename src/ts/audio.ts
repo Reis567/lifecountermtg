@@ -2,6 +2,16 @@
 
 import { gameState } from './state.js';
 
+// Secure random for fair 50/50 chances
+function secureRandomBool(): boolean {
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+        const array = new Uint8Array(1);
+        crypto.getRandomValues(array);
+        return array[0] < 128;
+    }
+    return Math.random() < 0.5;
+}
+
 type SoundPackType = 'default' | 'medieval' | 'scifi' | 'horror' | 'arcade';
 
 class AudioManager {
@@ -122,8 +132,8 @@ class AudioManager {
                     return;
                 }
             } else {
-                // 50/50 chance: Fluminense or normal viado sound
-                if (Math.random() < 0.5) {
+                // 50/50 chance: Fluminense or normal viado sound (secure random)
+                if (secureRandomBool()) {
                     if (this.playSoundFile('fluminense', volume)) {
                         console.log('🎵 EASTER EGG: Hino do Fluminense!');
                         return;
@@ -132,9 +142,9 @@ class AudioManager {
             }
         }
 
-        // Special handling for monarch sound - 50% chance of Monark "acorda cara"
+        // Special handling for monarch sound - 50% chance of Monark "acorda cara" (secure random)
         if (soundName === 'monarch' && state.settings.easterEggsEnabled) {
-            if (Math.random() < 0.5) {
+            if (secureRandomBool()) {
                 // Play Monark "acorda cara" instead!
                 if (this.playSoundFile('monark', volume)) {
                     console.log('🎵 EASTER EGG: Monark - Acorda cara!');

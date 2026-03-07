@@ -7,9 +7,7 @@
     <title>MTG Life Counter - Commander</title>
     <link rel="icon" type="image/jpeg" href="favicon.jfif">
     <link rel="stylesheet" href="src/styles/main.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Fonts loaded locally or using system fallback -->
 </head>
 <body>
     <div id="app">
@@ -977,50 +975,6 @@
             </div>
         </div>
 
-        <!-- Taunt Modal -->
-        <div id="taunt-modal" class="modal">
-            <div class="modal-content taunt-modal-content">
-                <div class="modal-header">
-                    <h2>💬 Provocar</h2>
-                    <button class="modal-close">&times;</button>
-                </div>
-                <div class="taunt-player-name" id="taunt-player-name"></div>
-
-                <div class="taunt-section">
-                    <h3>😈 Emojis</h3>
-                    <div class="taunt-grid" id="taunt-emojis">
-                        <!-- Emojis will be injected -->
-                    </div>
-                </div>
-
-                <div class="taunt-section">
-                    <h3>🔥 Frases</h3>
-                    <div class="taunt-grid taunt-phrases-grid" id="taunt-phrases">
-                        <!-- Phrases will be injected -->
-                    </div>
-                </div>
-
-                <div class="taunt-section">
-                    <h3>✨ Customizados (esta partida)</h3>
-                    <div class="taunt-grid taunt-phrases-grid" id="taunt-custom">
-                        <!-- Custom taunts will be injected -->
-                    </div>
-                    <div class="taunt-custom-input">
-                        <input type="text" id="custom-taunt-input" placeholder="Criar taunt personalizado..." maxlength="30">
-                        <button id="add-custom-taunt-btn" class="action-btn">➕</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Taunt Display Overlay -->
-        <div id="taunt-overlay" class="taunt-overlay">
-            <div class="taunt-display">
-                <div class="taunt-from" id="taunt-from"></div>
-                <div class="taunt-text" id="taunt-text"></div>
-            </div>
-        </div>
-
         <!-- Winner Overlay -->
         <div id="winner-overlay" class="winner-overlay">
             <div class="winner-content">
@@ -1054,6 +1008,6 @@
         <div id="timer-display" class="timer-display"></div>
     </div>
 
-    <script type="module" src="src/js/main.js?v=4"></script>
+    <script src="src/js/bundle.js"></script>
 </body>
 </html>

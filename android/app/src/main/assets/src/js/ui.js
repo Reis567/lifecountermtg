@@ -1,37 +1,7 @@
 // ===== UI Management =====
 import { gameState } from './state.js';
 import { audioManager, ambientMusic, narrator } from './audio.js';
-import { DEFAULT_PLAYER_COLORS, PRESET_COUNTERS, COMMANDER_DAMAGE_LETHAL, LAYOUT_PRESETS, EASTER_EGG_MESSAGES, SPECIAL_MOMENTS, TAUNT_PHRASES, MANUAL_TAUNTS, MTG_KEYWORDS, } from './types.js';
-// ===== Secure Random Functions =====
-// Cryptographically secure random number between 0 and 1
-function secureRandom() {
-    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-        const array = new Uint32Array(1);
-        crypto.getRandomValues(array);
-        return array[0] / (0xFFFFFFFF + 1);
-    }
-    return Math.random();
-}
-// Secure random integer from 0 to max-1 (unbiased)
-function secureRandomInt(max) {
-    if (max <= 0)
-        return 0;
-    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-        const maxValid = Math.floor(0xFFFFFFFF / max) * max;
-        let value;
-        do {
-            const array = new Uint32Array(1);
-            crypto.getRandomValues(array);
-            value = array[0];
-        } while (value >= maxValid);
-        return value % max;
-    }
-    return Math.floor(Math.random() * max);
-}
-// Secure random integer from min to max (inclusive)
-function secureRandomRange(min, max) {
-    return min + secureRandomInt(max - min + 1);
-}
+import { DEFAULT_PLAYER_COLORS, PRESET_COUNTERS, COMMANDER_DAMAGE_LETHAL, LAYOUT_PRESETS, EASTER_EGG_MESSAGES, SPECIAL_MOMENTS, TAUNT_PHRASES, MTG_KEYWORDS, } from './types.js';
 class AnimatedBackground {
     constructor() {
         this.canvas = null;
@@ -346,9 +316,6 @@ const playerMediaPaused = new Map();
 const collapsedCounters = new Set();
 // Dice roller history
 const diceHistory = [];
-// Custom taunts (temporary, for current match only)
-const customTaunts = [];
-let currentTauntPlayerId = null;
 // Debounce for life changes (mobile touch sensitivity fix)
 let lastLifeChangeTime = 0;
 const LIFE_CHANGE_DEBOUNCE_MS = 150;
@@ -435,139 +402,6 @@ function triggerShakeRoll() {
     }
     audioManager.play('click');
     startRandomStarterAnimation();
-}
-// ===== Taunt System =====
-function openTauntModal(playerId) {
-    currentTauntPlayerId = playerId;
-    const state = gameState.getState();
-    const player = state.players.find(p => p.id === playerId);
-    if (!player)
-        return;
-    const modal = $('taunt-modal');
-    const playerName = $('taunt-player-name');
-    const emojisGrid = $('taunt-emojis');
-    const phrasesGrid = $('taunt-phrases');
-    const customGrid = $('taunt-custom');
-    if (playerName) {
-        playerName.textContent = `Provocando como: ${player.name}`;
-    }
-    // Render emojis
-    if (emojisGrid) {
-        emojisGrid.innerHTML = MANUAL_TAUNTS.emojis.map(emoji => `<button class="taunt-btn" data-taunt="${emoji}">${emoji}</button>`).join('');
-    }
-    // Render phrases
-    if (phrasesGrid) {
-        phrasesGrid.innerHTML = MANUAL_TAUNTS.phrases.map(phrase => `<button class="taunt-btn" data-taunt="${phrase}">${phrase}</button>`).join('');
-    }
-    // Render custom taunts
-    renderCustomTaunts();
-    modal?.classList.add('active');
-    setupTauntListeners();
-}
-function renderCustomTaunts() {
-    const customGrid = $('taunt-custom');
-    if (!customGrid)
-        return;
-    if (customTaunts.length === 0) {
-        customGrid.innerHTML = '<span style="color: var(--text-muted); font-size: 0.85rem;">Nenhum taunt customizado ainda</span>';
-    }
-    else {
-        customGrid.innerHTML = customTaunts.map(taunt => `<button class="taunt-btn" data-taunt="${taunt}">${taunt}</button>`).join('');
-    }
-    // Re-setup listeners for new buttons
-    setupTauntListeners();
-}
-function setupTauntListeners() {
-    const modal = $('taunt-modal');
-    if (!modal)
-        return;
-    // Taunt buttons
-    modal.querySelectorAll('.taunt-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const taunt = e.target.dataset.taunt;
-            if (taunt && currentTauntPlayerId) {
-                sendTaunt(currentTauntPlayerId, taunt);
-                closeTauntModal();
-            }
-        });
-    });
-    // Add custom taunt button
-    $('add-custom-taunt-btn')?.addEventListener('click', addCustomTaunt);
-    // Enter key for custom taunt input
-    const customInput = $('custom-taunt-input');
-    customInput?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            addCustomTaunt();
-        }
-    });
-    // Close button
-    modal.querySelector('.modal-close')?.addEventListener('click', closeTauntModal);
-}
-function addCustomTaunt() {
-    const input = $('custom-taunt-input');
-    if (!input)
-        return;
-    const taunt = input.value.trim();
-    if (taunt && taunt.length > 0 && taunt.length <= 30) {
-        if (!customTaunts.includes(taunt)) {
-            customTaunts.push(taunt);
-            renderCustomTaunts();
-        }
-        input.value = '';
-    }
-}
-function closeTauntModal() {
-    $('taunt-modal')?.classList.remove('active');
-    currentTauntPlayerId = null;
-}
-function sendTaunt(playerId, taunt) {
-    const state = gameState.getState();
-    const player = state.players.find(p => p.id === playerId);
-    if (!player)
-        return;
-    // Check if it's an LGBT/viado taunt - play fluminense
-    const isLgbtTaunt = isViadoTaunt(taunt);
-    if (isLgbtTaunt && state.settings.soundEnabled) {
-        audioManager.play('viado', undefined, 'jose'); // Force fluminense by passing 'jose'
-    }
-    else {
-        audioManager.play('click');
-    }
-    // Vibrate
-    if (navigator.vibrate) {
-        navigator.vibrate(100);
-    }
-    // Show taunt overlay
-    showTauntOverlay(player.name, taunt, isLgbtTaunt);
-}
-function isViadoTaunt(taunt) {
-    const lowerTaunt = taunt.toLowerCase();
-    // Check for LGBT flag emoji or viado text
-    return taunt.includes('🏳️‍🌈') ||
-        taunt.includes('🦄') ||
-        lowerTaunt.includes('viado') ||
-        lowerTaunt.includes('gay') ||
-        lowerTaunt.includes('lgbt');
-}
-function showTauntOverlay(playerName, taunt, isRainbow) {
-    const overlay = $('taunt-overlay');
-    const fromEl = $('taunt-from');
-    const textEl = $('taunt-text');
-    if (!overlay || !fromEl || !textEl)
-        return;
-    fromEl.textContent = `${playerName} diz:`;
-    textEl.textContent = taunt;
-    if (isRainbow) {
-        textEl.classList.add('rainbow');
-    }
-    else {
-        textEl.classList.remove('rainbow');
-    }
-    overlay.classList.add('active');
-    // Auto-hide after 2 seconds
-    setTimeout(() => {
-        overlay.classList.remove('active');
-    }, 2000);
 }
 // Initialize UI
 export function initUI() {
@@ -1525,7 +1359,6 @@ function renderPlayers(state) {
                         ${team ? `<span class="team-badge team-${teamIndex}" title="${team.name}">🤝</span>` : ''}
                     </div>
                     <div class="player-actions">
-                        <button class="player-action-btn" data-action="taunt" title="Taunt / Provocação">💬</button>
                         <button class="player-action-btn" data-action="commander" title="Dano de Comandante">⚔️</button>
                         <button class="player-action-btn" data-action="counters" title="Contadores">📊</button>
                         <button class="player-action-btn" data-action="settings" title="Config">⚙️</button>
@@ -1578,9 +1411,6 @@ function renderPlayers(state) {
         });
         card.querySelector('[data-action="settings"]')?.addEventListener('click', () => {
             openPlayerSettings(playerId);
-        });
-        card.querySelector('[data-action="taunt"]')?.addEventListener('click', () => {
-            openTauntModal(playerId);
         });
         // Revive button
         card.querySelector('[data-action="revive"]')?.addEventListener('click', () => {
@@ -1982,9 +1812,9 @@ function startRandomStarterAnimation() {
         againBtn.disabled = true;
     if (closeBtn)
         closeBtn.disabled = true;
-    // Show easter egg message occasionally (20% chance)
-    if (state.settings.easterEggsEnabled && secureRandomInt(5) === 0) {
-        const randomMessage = EASTER_EGG_MESSAGES[secureRandomInt(EASTER_EGG_MESSAGES.length)];
+    // Show easter egg message occasionally
+    if (state.settings.easterEggsEnabled && Math.random() < 0.2) {
+        const randomMessage = EASTER_EGG_MESSAGES[Math.floor(Math.random() * EASTER_EGG_MESSAGES.length)];
         message.textContent = randomMessage;
     }
     else {
@@ -2021,7 +1851,7 @@ function startRandomStarterAnimation() {
             currentIndex = (currentIndex + 1) % alivePlayers.length;
         }
         else if (animationType === 'flash') {
-            const randomIdx = secureRandomInt(alivePlayers.length);
+            const randomIdx = Math.floor(Math.random() * alivePlayers.length);
             playerElements[randomIdx]?.classList.add('highlight');
         }
         audioManager.play('click');
@@ -2140,7 +1970,7 @@ function startViadoSelection() {
         $('viado-again-btn').style.display = 'inline-block';
         $('viado-close-btn').style.display = 'inline-block';
         isViadoSelectionRunning = false;
-        audioManager.play('viado', undefined, winner.name); // "eu não nasci gay" (100% Fluminense se José/Zé, senão 50/50)
+        audioManager.play('viado'); // "eu não nasci gay" (3% chance de tocar hino do Fluminense)
     }, duration);
 }
 function closeViadoOverlay() {
@@ -2494,7 +2324,7 @@ let lastTauntTime = 0;
 const TAUNT_COOLDOWN = 3000; // 3 seconds between taunts
 function getRandomTaunt(category) {
     const phrases = TAUNT_PHRASES[category];
-    return phrases[secureRandomInt(phrases.length)];
+    return phrases[Math.floor(Math.random() * phrases.length)];
 }
 function showTaunt(category) {
     const state = gameState.getState();
@@ -2651,8 +2481,7 @@ function rollDice(diceType) {
         let details = '';
         let individualRolls = [];
         if (diceType === 'coin') {
-            // Secure 50/50 coin flip
-            finalResult = secureRandomInt(2) === 0 ? 'Cara' : 'Coroa';
+            finalResult = Math.random() < 0.5 ? 'Cara' : 'Coroa';
             emoji = finalResult === 'Cara' ? '😀' : '🦅';
             // Show coin result in box
             const coin = $('box-coin');
@@ -2662,8 +2491,8 @@ function rollDice(diceType) {
             }
         }
         else if (diceType === 'planar') {
-            // Planar die - 6 faces (secure random)
-            const faceIndex = secureRandomInt(6);
+            // Planar die - 6 faces
+            const faceIndex = Math.floor(Math.random() * 6);
             const face = planarDieFaces[faceIndex];
             finalResult = face.result;
             emoji = face.emoji;
@@ -2685,10 +2514,10 @@ function rollDice(diceType) {
         }
         else {
             emoji = getDiceEmoji(max);
-            // Roll multiple dice (secure random)
+            // Roll multiple dice
             let sum = 0;
             for (let i = 0; i < quantity; i++) {
-                const roll = secureRandomRange(1, max);
+                const roll = Math.floor(Math.random() * max) + 1;
                 individualRolls.push(roll);
                 sum += roll;
                 // Check for crits on each roll (for D20)
