@@ -1782,7 +1782,8 @@ select {
     width: 100%;
     max-width: 500px;
     max-height: 90vh;
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
     animation: modalSlideIn 200ms ease;
 }
 
@@ -2129,6 +2130,32 @@ select {
     font-weight: 700;
     font-family: 'Courier New', monospace;
     color: var(--accent-primary);
+}
+
+/* Quick Actions Section */
+.settings-quick-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+    background: var(--bg-tertiary);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+}
+
+.settings-quick-actions .tool-btn {
+    width: 100%;
+}
+
+.settings-action-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.settings-action-row button {
+    flex: 1;
 }
 
 .settings-group {
@@ -4583,13 +4610,22 @@ select {
         max-width: 95vw;
         max-height: 90vh;
         margin: 0;
-        padding: 0.75rem;
+        padding: 0;
         overflow-y: auto;
     }
 
     .modal-header {
-        padding: 0.5rem 0;
-        margin-bottom: 0.5rem;
+        padding: 0.75rem 1rem;
+        margin-bottom: 0;
+    }
+
+    /* Content padding for modals in landscape */
+    .settings-list,
+    .dice-roller-content,
+    .commander-damage-grid,
+    .counters-list,
+    .player-settings-form {
+        padding: 0.5rem 0.75rem;
     }
 
     .modal-header h2 {

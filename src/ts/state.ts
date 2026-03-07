@@ -688,6 +688,7 @@ class GameStateManager {
         this.state.turnStartTime = Date.now();
         this.state.gameStartTime = Date.now(); // Reset game timer
         this.state.winner = null;
+        this.state.viadoPlayerId = null; // Clear viado marker
         this.state.history = [];
         this.state.undoStack = [];
         this.notify();

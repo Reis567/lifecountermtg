@@ -84,8 +84,14 @@ class AudioManager {
             console.warn('Failed to save custom sounds:', e);
         }
     }
+    // Check if name matches José/Zé variants
+    isJoseVariant(name) {
+        const nameLower = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const joseVariants = ['jose', 'ze', 'zezinwhisky', 'zezinho', 'zezin', 'zeca', 'josue', 'joseph', 'zeze', 'djze'];
+        return joseVariants.some(variant => nameLower.includes(variant));
+    }
     // Play a sound effect
-    play(soundName, playerId) {
+    play(soundName, playerId, winnerName) {
         const state = gameState.getState();
         if (!state.settings.soundEnabled)
             return;
@@ -93,21 +99,28 @@ class AudioManager {
         if (!this.canPlaySound(soundName))
             return;
         const volume = state.settings.volume / 100;
-        // Special handling for viado sound - 3% chance of Fluminense easter egg
+        // Special handling for viado sound
         if (soundName === 'viado' && state.settings.easterEggsEnabled) {
-            const easterEggChance = Math.random();
-            if (easterEggChance < 0.03) { // 3% chance
-                // Play Fluminense anthem instead!
+            // If winner name is José/Zé variant, 100% Fluminense
+            if (winnerName && this.isJoseVariant(winnerName)) {
                 if (this.playSoundFile('fluminense', volume)) {
-                    console.log('🎵 EASTER EGG: Hino do Fluminense!');
+                    console.log('🎵 EASTER EGG: Hino do Fluminense! (José detected)');
                     return;
                 }
             }
+            else {
+                // 50/50 chance: Fluminense or normal viado sound
+                if (Math.random() < 0.5) {
+                    if (this.playSoundFile('fluminense', volume)) {
+                        console.log('🎵 EASTER EGG: Hino do Fluminense!');
+                        return;
+                    }
+                }
+            }
         }
-        // Special handling for monarch sound - 3% chance of Monark "acorda cara"
+        // Special handling for monarch sound - 50% chance of Monark "acorda cara"
         if (soundName === 'monarch' && state.settings.easterEggsEnabled) {
-            const easterEggChance = Math.random();
-            if (easterEggChance < 0.03) { // 3% chance
+            if (Math.random() < 0.5) {
                 // Play Monark "acorda cara" instead!
                 if (this.playSoundFile('monark', volume)) {
                     console.log('🎵 EASTER EGG: Monark - Acorda cara!');

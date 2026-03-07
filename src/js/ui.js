@@ -1970,7 +1970,7 @@ function startViadoSelection() {
         $('viado-again-btn').style.display = 'inline-block';
         $('viado-close-btn').style.display = 'inline-block';
         isViadoSelectionRunning = false;
-        audioManager.play('viado'); // "eu não nasci gay" (3% chance de tocar hino do Fluminense)
+        audioManager.play('viado', undefined, winner.name); // "eu não nasci gay" (100% Fluminense se José/Zé, senão 50/50)
     }, duration);
 }
 function closeViadoOverlay() {
