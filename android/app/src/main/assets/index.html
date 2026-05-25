@@ -897,11 +897,15 @@
                         <input type="file" id="cs-file-input" accept="image/*" style="display:none">
                     </div>
 
-                    <!-- Juiz (texto) -->
+                    <!-- Juiz (texto + foto opcional) -->
                     <div id="cs-view-judge" class="cs-view" style="display:none">
                         <p id="cs-judge-context" class="cs-card-sub" style="display:none"></p>
+                        <div id="cs-judge-shot" class="cs-shots" style="display:none"></div>
                         <textarea id="cs-judge-input" class="cs-judge-input" rows="3" placeholder="Pergunte uma regra ou sobre uma carta..."></textarea>
-                        <button id="cs-judge-btn" class="primary-btn">Perguntar</button>
+                        <div class="cs-capture-actions">
+                            <button id="cs-judge-photo-btn" class="cs-gallery-btn">📷 Foto da carta</button>
+                            <button id="cs-judge-btn" class="primary-btn">Perguntar</button>
+                        </div>
                         <div id="cs-judge-answer" class="cs-judge-answer" style="display:none"></div>
                     </div>
 

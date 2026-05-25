@@ -14,6 +14,7 @@ let cardScanBusy = false;
 let csMode = 'identify';
 let csShots = [];
 let csLastCardName = '';
+let csJudgeImage = null;
 // ----- Helpers -----
 function csEl(id) {
     return document.getElementById(id);
@@ -70,14 +71,16 @@ export function setupCardScanner() {
     });
     csEl('cs-capture-btn')?.addEventListener('click', () => csCaptureFromVideo());
     csEl('cs-judge-btn')?.addEventListener('click', () => void csAskJudge());
+    csEl('cs-judge-photo-btn')?.addEventListener('click', () => csPickFile(true));
     csEl('cs-retry-btn')?.addEventListener('click', () => csReturnToCapture());
     csEl('cs-error-retry-btn')?.addEventListener('click', () => csReturnToCapture());
     const fileInput = csEl('cs-file-input');
-    csEl('cs-gallery-btn')?.addEventListener('click', () => fileInput?.click());
+    csEl('cs-gallery-btn')?.addEventListener('click', () => csPickFile(false));
     fileInput?.addEventListener('change', () => {
         const file = fileInput.files?.[0];
         if (file) {
-            csStopCamera();
+            if (csMode !== 'judge')
+                csStopCamera();
             void csHandleFile(file);
         }
         fileInput.value = '';
@@ -101,6 +104,13 @@ function csSetMode(mode) {
     }
     if (mode === 'judge') {
         csStopCamera();
+        csJudgeImage = null;
+        csRenderJudgeShot();
+        const answer = csEl('cs-judge-answer');
+        if (answer) {
+            answer.style.display = 'none';
+            answer.innerHTML = '';
+        }
         const ctx = csEl('cs-judge-context');
         if (ctx) {
             if (csLastCardName) {
@@ -205,6 +215,17 @@ function csCaptureFromVideo() {
         void csIdentify(base64);
     }
 }
+// Abre o seletor de arquivo; com useCamera, pede a câmera (capture) — usado no Juiz.
+function csPickFile(useCamera) {
+    const input = csEl('cs-file-input');
+    if (!input)
+        return;
+    if (useCamera)
+        input.setAttribute('capture', 'environment');
+    else
+        input.removeAttribute('capture');
+    input.click();
+}
 async function csHandleFile(file) {
     if (cardScanBusy)
         return;
@@ -214,6 +235,9 @@ async function csHandleFile(file) {
         const base64 = csDownscaleToJpeg(img, img.naturalWidth, img.naturalHeight, 1024);
         if (csMode === 'interaction') {
             csAddShot(base64);
+        }
+        else if (csMode === 'judge') {
+            csSetJudgeImage(base64);
         }
         else {
             void csIdentify(base64);
@@ -434,25 +458,64 @@ function csAddShot(base64) {
         void csStartCamera();
     }
 }
+// Identifica uma carta (Gemini) e busca o texto oficial (Scryfall), best-effort.
+async function csIdentifyCardData(base64) {
+    try {
+        const id = await csCallIdentify(base64);
+        let name = id.name_printed || id.name_en;
+        let oracle = '';
+        if (id.name_en) {
+            try {
+                const s = await csFetchScryfall(id.name_en);
+                name = s.name;
+                oracle = s.oracleText;
+            }
+            catch { /* sem Scryfall: usa só o nome do Gemini */ }
+        }
+        return { name, oracle };
+    }
+    catch {
+        return { name: '', oracle: '' };
+    }
+}
 async function csAnalyzeInteraction() {
     if (csShots.length < 2)
         return;
     csStopCamera();
     cardScanBusy = true;
-    csShowLoading('Analisando a interação...');
-    const prompt = [
-        'Estas são duas cartas de Magic: The Gathering (podem estar em japonês).',
-        'Responda em português, de forma objetiva e correta segundo as regras:',
-        '1) o que cada carta faz (cite o nome de cada uma);',
-        '2) se elas combam/sinergizam entre si;',
-        '3) como a interação resolve nas regras (pilha, timing, prioridade).',
-        'Use no máximo ~150 palavras. Pode usar **negrito** nos nomes.',
-    ].join('\n');
+    if (!isGeminiConfigured()) {
+        csShowError('Chave do Gemini não configurada. Edite src/ts/config.ts e adicione sua chave.');
+        cardScanBusy = false;
+        csShots = [];
+        return;
+    }
+    csShowLoading('Identificando as cartas...');
     try {
-        const text = await geminiGenerate([{ text: prompt }, jpegPart(csShots[0]), jpegPart(csShots[1])], { temperature: 0.3, maxOutputTokens: 700 });
+        // Identifica cada carta separadamente (mais confiável que mandar 2 fotos cruas).
+        const [c1, c2] = await Promise.all([
+            csIdentifyCardData(csShots[0]),
+            csIdentifyCardData(csShots[1]),
+        ]);
+        csShowLoading('Analisando a interação...');
+        const context = [
+            c1.name ? `Carta 1: ${c1.name}${c1.oracle ? ` — ${c1.oracle}` : ''}` : 'Carta 1: (veja a imagem)',
+            c2.name ? `Carta 2: ${c2.name}${c2.oracle ? ` — ${c2.oracle}` : ''}` : 'Carta 2: (veja a imagem)',
+        ].join('\n');
+        const prompt = [
+            'Você é um juiz de Magic: The Gathering. Em português, objetivo (~150 palavras):',
+            '1) o que cada carta faz; 2) se elas combam/sinergizam; 3) como a interação resolve nas regras (pilha, timing, prioridade).',
+            'Dados das cartas (use as imagens caso falte algum texto):',
+            context,
+            'Pode usar **negrito** nos nomes.',
+        ].join('\n');
+        const text = await geminiGenerate([{ text: prompt }, jpegPart(csShots[0]), jpegPart(csShots[1])], { temperature: 0.3, maxOutputTokens: 800 });
         const container = csEl('cs-result');
-        if (container)
-            container.innerHTML = `<div class="cs-answer">${csFormatText(text.trim())}</div>`;
+        if (container) {
+            const header = (c1.name && c2.name)
+                ? `<div class="cs-card-sub" style="margin-bottom:.4rem"><strong>${csEsc(c1.name)}</strong> + <strong>${csEsc(c2.name)}</strong></div>`
+                : '';
+            container.innerHTML = header + `<div class="cs-answer">${csFormatText(text.trim())}</div>`;
+        }
         csShowView('result');
     }
     catch (e) {
@@ -464,16 +527,49 @@ async function csAnalyzeInteraction() {
         csShots = [];
     }
 }
-// ===== Modo JUDGE (texto) =====
+// ===== Modo JUDGE (texto + foto opcional) =====
+function csSetJudgeImage(base64) {
+    csJudgeImage = base64;
+    csRenderJudgeShot();
+}
+function csRenderJudgeShot() {
+    const shot = csEl('cs-judge-shot');
+    const btn = csEl('cs-judge-photo-btn');
+    if (!shot)
+        return;
+    if (csJudgeImage) {
+        shot.style.display = 'flex';
+        shot.innerHTML =
+            `<img class="cs-shot-thumb" src="data:image/jpeg;base64,${csJudgeImage}" alt="carta">` +
+                '<button id="cs-judge-clear" class="cs-judge-clear" aria-label="Remover foto">✕</button>';
+        shot.querySelector('#cs-judge-clear')?.addEventListener('click', () => {
+            csJudgeImage = null;
+            csRenderJudgeShot();
+        });
+        if (btn)
+            btn.textContent = '📷 Trocar foto';
+    }
+    else {
+        shot.style.display = 'none';
+        shot.innerHTML = '';
+        if (btn)
+            btn.textContent = '📷 Foto da carta';
+    }
+}
 async function csAskJudge() {
     const input = csEl('cs-judge-input');
     const answer = csEl('cs-judge-answer');
     const btn = csEl('cs-judge-btn');
     if (!input || !answer)
         return;
-    const question = input.value.trim();
-    if (!question)
+    let question = input.value.trim();
+    if (!question && csJudgeImage)
+        question = 'O que essa carta faz? Explique as regras dela.';
+    if (!question) {
+        answer.style.display = '';
+        answer.innerHTML = '<div class="cs-answer-error">Escreva uma pergunta ou anexe a foto de uma carta.</div>';
         return;
+    }
     if (!isGeminiConfigured()) {
         answer.style.display = '';
         answer.innerHTML = '<div class="cs-answer-error">Chave do Gemini não configurada (src/ts/config.ts).</div>';
@@ -485,12 +581,16 @@ async function csAskJudge() {
     answer.innerHTML = '<div class="loading-spinner"></div>';
     const prompt = [
         'Você é um juiz oficial de Magic: The Gathering. Responda em português, claro e correto segundo as regras atuais.',
+        csJudgeImage
+            ? 'A imagem anexada mostra uma carta (pode estar em japonês). Considere-a ao responder.'
+            : (csLastCardName ? `Contexto: a última carta vista pelo jogador foi "${csLastCardName}".` : ''),
         'Se a pergunta for sobre uma carta específica, explique o que ela faz.',
-        csLastCardName ? `Contexto: a última carta vista pelo jogador foi "${csLastCardName}".` : '',
         `Pergunta: ${question}`,
     ].filter(Boolean).join('\n');
     try {
-        const text = await geminiText(prompt, { temperature: 0.3, maxOutputTokens: 800 });
+        const text = csJudgeImage
+            ? await geminiGenerate([{ text: prompt }, jpegPart(csJudgeImage)], { temperature: 0.3, maxOutputTokens: 800 })
+            : await geminiText(prompt, { temperature: 0.3, maxOutputTokens: 800 });
         answer.innerHTML = `<div class="cs-answer">${csFormatText(text.trim())}</div>`;
     }
     catch (e) {

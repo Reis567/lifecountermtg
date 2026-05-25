@@ -5807,6 +5807,16 @@ select {
     border: 2px solid var(--accent-primary);
 }
 
+.cs-judge-clear {
+    align-self: flex-start;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--danger);
+    color: #fff;
+    font-size: 0.85rem;
+}
+
 /* Juiz / respostas em texto */
 .cs-judge-input {
     width: 100%;
