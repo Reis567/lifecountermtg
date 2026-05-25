@@ -5,6 +5,8 @@
     "type": "module",
     "scripts": {
         "build": "tsc",
+        "build:bundle": "node scripts/build-bundle.mjs",
+        "build:android": "tsc && node scripts/build-bundle.mjs",
         "watch": "tsc --watch",
         "serve": "npx serve .",
         "dev": "concurrently \"npm run watch\" \"npm run serve\""

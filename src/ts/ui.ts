@@ -2,6 +2,9 @@
 
 import { gameState } from './state.js';
 import { audioManager, ambientMusic, narrator } from './audio.js';
+import { openCardScanner, setupCardScanner } from './cardScanner.js';
+import { openFingerPicker } from './fingerPicker.js';
+import { narrateElimination, narrateWinner } from './aiNarrator.js';
 import {
     GameState,
     Player,
@@ -19,6 +22,7 @@ import {
     MTGKeyword,
     ThemePreset,
     RandomAnimationType,
+    NarratorPersona,
     AnimatedBgStyle,
     FontStyle,
     AmbientMusicTrack,
@@ -710,6 +714,9 @@ export function initUI(): void {
 
     // Initialize sound pack
     audioManager.setSoundPack(state.settings.soundPack);
+
+    // Initialize card scanner modal
+    setupCardScanner();
 }
 
 // Get element safely
@@ -879,6 +886,12 @@ function setupGameScreenListeners(): void {
         openModal($('dice-roller-modal'));
     });
 
+    // Card scanner button (identificar carta por foto)
+    $('card-scan-btn')?.addEventListener('click', () => openCardScanner());
+
+    // Finger picker (quem começa pelos dedos)
+    $('finger-picker-btn')?.addEventListener('click', () => openFingerPicker());
+
     // Share result button
     $('share-result-btn')?.addEventListener('click', openShareModal);
 
@@ -924,6 +937,10 @@ function setupGameScreenListeners(): void {
     $('dice-roller-btn-left')?.addEventListener('click', () => {
         openModal($('dice-roller-modal'));
     });
+
+    $('card-scan-btn-left')?.addEventListener('click', () => openCardScanner());
+
+    $('finger-picker-btn-left')?.addEventListener('click', () => openFingerPicker());
 
     $('random-starter-btn-left')?.addEventListener('click', () => {
         if (isButtonDebounced('random-starter-btn-left')) return;
@@ -1067,6 +1084,11 @@ function setupSettingsListeners(): void {
         const enabled = (e.target as HTMLInputElement).checked;
         gameState.updateSettings({ narratorEnabled: enabled });
         narrator.setEnabled(enabled);
+    });
+
+    $('narrator-persona')?.addEventListener('change', (e) => {
+        const persona = (e.target as HTMLSelectElement).value as NarratorPersona;
+        gameState.updateSettings({ narratorPersona: persona });
     });
 
     $('narrator-speed')?.addEventListener('change', (e) => {
@@ -1634,6 +1656,7 @@ function renderGame(state: GameState): void {
         if (player.isEliminated && !eliminatedPlayersShown.has(player.id)) {
             eliminatedPlayersShown.add(player.id);
             audioManager.play('death', player.id); // "Fon fon fon fooooom"
+            narrateElimination(player.name); // narrador/roast (IA) na morte
         } else if (!player.isEliminated && eliminatedPlayersShown.has(player.id)) {
             // Player was revived, remove from tracking
             eliminatedPlayersShown.delete(player.id);
@@ -1653,6 +1676,7 @@ function renderGame(state: GameState): void {
             const winner = state.players.find(p => p.id === state.winner);
             if (winner) {
                 showWinner(winner);
+                narrateWinner(winner.name); // narração de vitória (persona/IA)
                 lastShownWinnerId = state.winner;
             }
         }
@@ -1999,6 +2023,8 @@ function updateSettingsControls(state: GameState): void {
     ($('music-volume-slider') as HTMLInputElement).value = state.settings.ambientMusicVolume.toString();
     ($('narrator-enabled') as HTMLInputElement).checked = state.settings.narratorEnabled;
     ($('narrator-speed') as HTMLSelectElement).value = state.settings.narratorSpeed.toString();
+    const personaSel = $('narrator-persona') as HTMLSelectElement | null;
+    if (personaSel) personaSel.value = state.settings.narratorPersona ?? 'classic';
     ($('sound-pack') as HTMLSelectElement).value = state.settings.soundPack;
     ($('gif-paused') as HTMLInputElement).checked = state.settings.gifPaused;
     ($('gif-fps-reduced') as HTMLInputElement).checked = state.settings.gifFpsReduced;

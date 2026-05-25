@@ -6,6 +6,14 @@
     <meta name="description" content="Life Counter para Magic: The Gathering - Commander (EDH)">
     <title>MTG Life Counter - Commander</title>
     <link rel="icon" type="image/jpeg" href="favicon.jfif">
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#6366f1">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Life Counter">
+    <link rel="apple-touch-icon" href="icon.svg">
     <link rel="stylesheet" href="src/styles/main.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -124,6 +132,19 @@
                         <circle cx="12" cy="12" r="1.5" fill="currentColor"></circle>
                     </svg>
                 </button>
+                <button id="card-scan-btn-left" class="header-btn" title="IA &amp; Cartas">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                        <circle cx="12" cy="13" r="4"></circle>
+                    </svg>
+                </button>
+                <button id="finger-picker-btn-left" class="header-btn" title="Quem começa (dedos)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M8 13V5a2 2 0 0 1 4 0v6"></path>
+                        <path d="M12 11V4a2 2 0 0 1 4 0v7"></path>
+                        <path d="M16 11.5V7a2 2 0 0 1 4 0v6a8 8 0 0 1-8 8h-1a8 8 0 0 1-6.5-3.3l-2.2-3a2 2 0 0 1 3.2-2.4L8 14"></path>
+                    </svg>
+                </button>
                 <button id="random-starter-btn-left" class="header-btn" title="Quem comeca?">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="2" y="2" width="8" height="8" rx="1"></rect>
@@ -188,6 +209,19 @@
                             <circle cx="8" cy="16" r="1.5" fill="currentColor"></circle>
                             <circle cx="16" cy="16" r="1.5" fill="currentColor"></circle>
                             <circle cx="12" cy="12" r="1.5" fill="currentColor"></circle>
+                        </svg>
+                    </button>
+                    <button id="card-scan-btn" class="header-btn" title="IA &amp; Cartas">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                            <circle cx="12" cy="13" r="4"></circle>
+                        </svg>
+                    </button>
+                    <button id="finger-picker-btn" class="header-btn" title="Quem começa (dedos)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M8 13V5a2 2 0 0 1 4 0v6"></path>
+                            <path d="M12 11V4a2 2 0 0 1 4 0v7"></path>
+                            <path d="M16 11.5V7a2 2 0 0 1 4 0v6a8 8 0 0 1-8 8h-1a8 8 0 0 1-6.5-3.3l-2.2-3a2 2 0 0 1 3.2-2.4L8 14"></path>
                         </svg>
                     </button>
                     <button id="random-starter-btn" class="header-btn" title="Quem comeca?">
@@ -414,6 +448,16 @@
                                 <input type="checkbox" id="narrator-enabled">
                                 Narrador de Eventos
                             </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>Estilo do Narrador (IA)</label>
+                            <select id="narrator-persona">
+                                <option value="classic" selected>Clássico (sem IA)</option>
+                                <option value="futebol">Locutor de Futebol</option>
+                                <option value="galvao">Galvão Bueno</option>
+                                <option value="novela">Novela das 9</option>
+                                <option value="caze">Casimiro (CazéTV)</option>
+                            </select>
                         </div>
                         <div class="setting-item">
                             <label>Velocidade</label>
@@ -829,6 +873,65 @@
                             <button id="cancel-image-btn" class="secondary-btn-sm">Cancelar</button>
                             <button id="apply-image-btn" class="primary-btn-sm">Aplicar</button>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI & Cartas Modal -->
+        <div id="card-scan-modal" class="modal card-scan-modal">
+            <div class="modal-content card-scan-content">
+                <div class="modal-header">
+                    <h2>🔍 IA &amp; Cartas</h2>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div class="card-scan-body">
+                    <div class="cs-tabs">
+                        <button class="cs-tab active" data-mode="identify">Identificar</button>
+                        <button class="cs-tab" data-mode="interaction">Interação</button>
+                        <button class="cs-tab" data-mode="judge">Juiz</button>
+                    </div>
+
+                    <!-- Captura (identify / translate / interaction) -->
+                    <div id="cs-view-capture" class="cs-view">
+                        <div class="cs-camera-wrap">
+                            <video id="cs-video" class="cs-video" autoplay playsinline muted></video>
+                            <div class="cs-frame-guide"></div>
+                        </div>
+                        <p id="cs-camera-msg" class="cs-camera-msg">Iniciando câmera...</p>
+                        <div id="cs-shots" class="cs-shots" style="display:none"></div>
+                        <div class="cs-capture-actions">
+                            <button id="cs-capture-btn" class="primary-btn cs-capture-btn" disabled>📷 Capturar</button>
+                            <button id="cs-gallery-btn" class="cs-gallery-btn">🖼️ Galeria</button>
+                        </div>
+                        <input type="file" id="cs-file-input" accept="image/*" style="display:none">
+                    </div>
+
+                    <!-- Juiz (texto) -->
+                    <div id="cs-view-judge" class="cs-view" style="display:none">
+                        <p id="cs-judge-context" class="cs-card-sub" style="display:none"></p>
+                        <textarea id="cs-judge-input" class="cs-judge-input" rows="3" placeholder="Pergunte uma regra ou sobre uma carta..."></textarea>
+                        <button id="cs-judge-btn" class="primary-btn">Perguntar</button>
+                        <div id="cs-judge-answer" class="cs-judge-answer" style="display:none"></div>
+                    </div>
+
+                    <!-- Carregando -->
+                    <div id="cs-view-loading" class="cs-view" style="display:none">
+                        <div class="loading-spinner"></div>
+                        <p id="cs-loading-msg">Identificando carta...</p>
+                    </div>
+
+                    <!-- Resultado -->
+                    <div id="cs-view-result" class="cs-view" style="display:none">
+                        <div id="cs-result" class="cs-result"></div>
+                        <button id="cs-retry-btn" class="cs-gallery-btn cs-retry-btn">↩️ Voltar</button>
+                    </div>
+
+                    <!-- Erro -->
+                    <div id="cs-view-error" class="cs-view" style="display:none">
+                        <div class="cs-error-icon">⚠️</div>
+                        <p id="cs-error-msg" class="cs-error-msg"></p>
+                        <button id="cs-error-retry-btn" class="cs-gallery-btn">Tentar de novo</button>
                     </div>
                 </div>
             </div>

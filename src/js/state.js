@@ -151,6 +151,7 @@ export function createDefaultSettings(playerCount = 4) {
         narratorEnabled: false,
         narratorVoice: 'default',
         narratorSpeed: 1,
+        narratorPersona: 'classic',
         soundPack: 'default',
     };
 }

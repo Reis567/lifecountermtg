@@ -5567,3 +5567,403 @@ select {
         break-inside: avoid;
     }
 }
+
+/* ===== Card Scanner Modal ===== */
+.card-scan-content {
+    max-width: 440px;
+}
+
+.card-scan-body {
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.cs-view {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.85rem;
+}
+
+.cs-camera-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    max-height: 48vh;
+    background: #000;
+    border-radius: var(--border-radius);
+    overflow: hidden;
+}
+
+.cs-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.cs-frame-guide {
+    position: absolute;
+    inset: 8% 16%;
+    border: 2px dashed rgba(255, 255, 255, 0.6);
+    border-radius: 10px;
+    pointer-events: none;
+}
+
+.cs-camera-msg {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-align: center;
+    min-height: 1.1em;
+}
+
+.cs-capture-actions {
+    display: flex;
+    gap: 0.6rem;
+    width: 100%;
+}
+
+.cs-capture-actions .primary-btn {
+    flex: 2;
+    width: auto;
+}
+
+.cs-capture-actions .cs-gallery-btn {
+    flex: 1;
+    width: auto;
+}
+
+.cs-capture-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.cs-gallery-btn {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-weight: 600;
+    border-radius: var(--border-radius);
+    font-size: 0.875rem;
+    transition: all var(--transition-fast);
+}
+
+.cs-gallery-btn:hover {
+    background: var(--border-color);
+}
+
+.cs-retry-btn {
+    margin-top: 0.5rem;
+}
+
+/* Resultado */
+.cs-result {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.55rem;
+    width: 100%;
+}
+
+.cs-card-img {
+    width: 62%;
+    max-width: 220px;
+    border-radius: 12px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+
+.cs-card-info {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.cs-card-name {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 800;
+    text-align: center;
+}
+
+.cs-card-sub {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.cs-card-row {
+    font-size: 0.85rem;
+}
+
+.cs-label {
+    display: inline-block;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin-right: 0.4rem;
+}
+
+.cs-card-oracle {
+    font-size: 0.85rem;
+    line-height: 1.45;
+    background: var(--bg-tertiary);
+    border-radius: var(--border-radius-sm);
+    padding: 0.6rem 0.75rem;
+}
+
+.cs-card-set {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.cs-scryfall-link {
+    font-size: 0.8rem;
+    color: var(--accent-primary);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.cs-card-warn,
+.cs-card-note {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    background: var(--bg-tertiary);
+    padding: 0.5rem 0.6rem;
+    border-radius: var(--border-radius-sm);
+}
+
+.cs-confidence {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.cs-confidence-high {
+    color: var(--success);
+}
+
+.cs-confidence-mid {
+    color: #f59e0b;
+}
+
+.cs-confidence-low {
+    color: var(--danger);
+}
+
+/* Erro */
+.cs-error-icon {
+    font-size: 2rem;
+}
+
+.cs-error-msg {
+    margin: 0;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+/* Tabs de modo */
+.cs-tabs {
+    display: flex;
+    gap: 0.3rem;
+    background: var(--bg-tertiary);
+    padding: 0.25rem;
+    border-radius: var(--border-radius);
+}
+
+.cs-tab {
+    flex: 1;
+    padding: 0.5rem 0.25rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-radius: var(--border-radius-sm);
+    transition: all var(--transition-fast);
+}
+
+.cs-tab.active {
+    background: var(--accent-primary);
+    color: #fff;
+}
+
+/* Miniaturas do modo interação */
+.cs-shots {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+}
+
+.cs-shot-thumb {
+    width: 54px;
+    height: 76px;
+    object-fit: cover;
+    border-radius: var(--border-radius-sm);
+    border: 2px solid var(--accent-primary);
+}
+
+/* Juiz / respostas em texto */
+.cs-judge-input {
+    width: 100%;
+    resize: vertical;
+    min-height: 70px;
+    padding: 0.6rem 0.75rem;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    font-size: 0.9rem;
+    font-family: inherit;
+}
+
+.cs-judge-answer,
+.cs-answer {
+    width: 100%;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    background: var(--bg-tertiary);
+    border-radius: var(--border-radius-sm);
+    padding: 0.7rem 0.85rem;
+    text-align: left;
+}
+
+.cs-judge-answer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.cs-answer-error {
+    color: var(--danger);
+    font-size: 0.85rem;
+}
+
+/* ===== Finger Picker ===== */
+.finger-picker-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    background: radial-gradient(circle at center, #1a1a2e 0%, #050509 100%);
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.fp-instructions {
+    position: absolute;
+    top: 8%;
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: #fff;
+    pointer-events: none;
+    padding: 0 1rem;
+}
+
+.fp-instructions h2 {
+    font-size: 1.6rem;
+    font-weight: 800;
+    margin: 0 0 0.4rem;
+}
+
+.fp-instructions p {
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.75);
+    margin: 0;
+}
+
+.fp-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    font-size: 1.3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+}
+
+.fp-status {
+    position: absolute;
+    bottom: 9%;
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: #fff;
+    font-size: 1rem;
+    padding: 0 1rem;
+}
+
+.fp-dot {
+    position: fixed;
+    width: 92px;
+    height: 92px;
+    margin: 0;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    border: 4px solid rgba(255, 255, 255, 0.85);
+    transition: opacity 350ms ease, transform 350ms ease;
+    pointer-events: none;
+}
+
+.fp-counting .fp-dot {
+    animation: fpPulse 0.7s ease-in-out infinite;
+}
+
+@keyframes fpPulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.18); }
+}
+
+.fp-dot.fp-loser {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.2);
+}
+
+.fp-dot.fp-winner {
+    transform: translate(-50%, -50%) scale(1.6);
+    border-color: #fff;
+    animation: fpWinner 0.9s ease-in-out infinite;
+    z-index: 1;
+}
+
+@keyframes fpWinner {
+    0%, 100% { transform: translate(-50%, -50%) scale(1.55); }
+    50% { transform: translate(-50%, -50%) scale(1.75); }
+}
+
+.fp-result {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 1rem;
+}
+
+.fp-result-actions {
+    display: flex;
+    gap: 0.6rem;
+    justify-content: center;
+}
+
+.fp-btn {
+    padding: 0.7rem 1.2rem;
+    border-radius: var(--border-radius);
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.fp-btn-primary {
+    background: var(--accent-primary);
+}

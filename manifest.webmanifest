@@ -1,0 +1,14 @@
+{
+    "name": "MTG Life Counter - Commander",
+    "short_name": "Life Counter",
+    "description": "Life Counter para Magic: The Gathering - Commander (EDH)",
+    "start_url": "./index.html",
+    "scope": "./",
+    "display": "standalone",
+    "orientation": "any",
+    "background_color": "#0f0f0f",
+    "theme_color": "#6366f1",
+    "icons": [
+        { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    ]
+}

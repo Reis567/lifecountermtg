@@ -32,3 +32,12 @@ android/app/*.iml
 
 # PDFs
 *.pdf
+
+# API keys (embedded build config — keep the real key out of git)
+src/ts/config.ts
+src/js/config.js
+src/js/config.js.map
+
+# Android WebView bundle: artefato gerado que EMBUTE a chave do Gemini.
+# Não versionar (a chave não pode ir pro git). Gere com: npm run build:android
+android/app/src/main/assets/src/js/bundle.js

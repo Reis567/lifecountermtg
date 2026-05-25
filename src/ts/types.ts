@@ -83,9 +83,11 @@ export interface GameSettings {
     narratorEnabled: boolean;
     narratorVoice: string;
     narratorSpeed: number;
+    narratorPersona: NarratorPersona;
     soundPack: SoundPack;
 }
 
+export type NarratorPersona = 'classic' | 'futebol' | 'galvao' | 'novela' | 'caze';
 export type AmbientMusicTrack = 'none' | 'epic' | 'dark' | 'nature' | 'mystical';
 export type SoundPack = 'default' | 'medieval' | 'scifi' | 'horror' | 'arcade';
 

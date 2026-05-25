@@ -15,12 +15,42 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.Manifest
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.webkit.PermissionRequest
+import android.webkit.ValueCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private val TAG = "LifeCounter"
+
+    // Callback do <input type="file"> da web (fallback "Galeria" do scanner).
+    private var filePathCallback: ValueCallback<Array<Uri>>? = null
+    // Pedido de permissão de câmera vindo do getUserMedia, aguardando resposta do usuário.
+    private var pendingPermissionRequest: PermissionRequest? = null
+
+    private val fileChooserLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val uris = WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data)
+        filePathCallback?.onReceiveValue(uris)
+        filePathCallback = null
+    }
+
+    private val cameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val req = pendingPermissionRequest
+        pendingPermissionRequest = null
+        req?.let {
+            if (granted) it.grant(it.resources) else it.deny()
+        }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -83,6 +113,52 @@ class MainActivity : AppCompatActivity() {
                         Log.e(TAG, "JS Error: ${consoleMessage.message()}")
                     }
                     return true
+                }
+
+                // Concede o acesso à câmera para o getUserMedia (scanner de cartas).
+                override fun onPermissionRequest(request: PermissionRequest) {
+                    runOnUiThread {
+                        val wantsCamera = request.resources.any {
+                            it == PermissionRequest.RESOURCE_VIDEO_CAPTURE
+                        }
+                        if (!wantsCamera) {
+                            request.deny()
+                            return@runOnUiThread
+                        }
+                        if (ContextCompat.checkSelfPermission(
+                                this@MainActivity, Manifest.permission.CAMERA
+                            ) == PackageManager.PERMISSION_GRANTED
+                        ) {
+                            request.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE))
+                        } else {
+                            pendingPermissionRequest = request
+                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                        }
+                    }
+                }
+
+                // Suporte ao <input type="file"> (fallback "Galeria" do scanner).
+                override fun onShowFileChooser(
+                    view: WebView?,
+                    callback: ValueCallback<Array<Uri>>?,
+                    params: FileChooserParams?
+                ): Boolean {
+                    this@MainActivity.filePathCallback?.onReceiveValue(null)
+                    this@MainActivity.filePathCallback = callback
+                    return try {
+                        val intent = params?.createIntent()
+                        if (intent != null) {
+                            fileChooserLauncher.launch(intent)
+                            true
+                        } else {
+                            this@MainActivity.filePathCallback = null
+                            false
+                        }
+                    } catch (e: Exception) {
+                        this@MainActivity.filePathCallback = null
+                        Log.e(TAG, "File chooser error: ${e.message}")
+                        false
+                    }
                 }
             }
 

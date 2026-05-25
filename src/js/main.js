@@ -16,8 +16,13 @@ document.addEventListener('visibilitychange', () => {
         console.log('Tab visible - resuming');
     }
 });
-// Register service worker for PWA (optional future enhancement)
-// if ('serviceWorker' in navigator) {
-//     navigator.serviceWorker.register('/sw.js');
-// }
+// Register service worker for PWA (instalável + offline). Caminho relativo para
+// funcionar em subpastas (ex.: GitHub Pages). Falha silenciosa no WebView (file://).
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch((err) => {
+            console.warn('Service worker não registrado:', err);
+        });
+    });
+}
 //# sourceMappingURL=main.js.map

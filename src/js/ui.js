@@ -1,6 +1,9 @@
 // ===== UI Management =====
 import { gameState } from './state.js';
 import { audioManager, ambientMusic, narrator } from './audio.js';
+import { openCardScanner, setupCardScanner } from './cardScanner.js';
+import { openFingerPicker } from './fingerPicker.js';
+import { narrateElimination, narrateWinner } from './aiNarrator.js';
 import { DEFAULT_PLAYER_COLORS, PRESET_COUNTERS, COMMANDER_DAMAGE_LETHAL, LAYOUT_PRESETS, EASTER_EGG_MESSAGES, SPECIAL_MOMENTS, TAUNT_PHRASES, MANUAL_TAUNTS, MTG_KEYWORDS, } from './types.js';
 // ===== Secure Random Functions =====
 // Cryptographically secure random number between 0 and 1
@@ -598,6 +601,8 @@ export function initUI() {
     narrator.setSpeed(state.settings.narratorSpeed);
     // Initialize sound pack
     audioManager.setSoundPack(state.settings.soundPack);
+    // Initialize card scanner modal
+    setupCardScanner();
 }
 // Get element safely
 function $(id) {
@@ -745,6 +750,10 @@ function setupGameScreenListeners() {
     $('dice-roller-btn')?.addEventListener('click', () => {
         openModal($('dice-roller-modal'));
     });
+    // Card scanner button (identificar carta por foto)
+    $('card-scan-btn')?.addEventListener('click', () => openCardScanner());
+    // Finger picker (quem começa pelos dedos)
+    $('finger-picker-btn')?.addEventListener('click', () => openFingerPicker());
     // Share result button
     $('share-result-btn')?.addEventListener('click', openShareModal);
     // Share modal buttons
@@ -782,6 +791,8 @@ function setupGameScreenListeners() {
     $('dice-roller-btn-left')?.addEventListener('click', () => {
         openModal($('dice-roller-modal'));
     });
+    $('card-scan-btn-left')?.addEventListener('click', () => openCardScanner());
+    $('finger-picker-btn-left')?.addEventListener('click', () => openFingerPicker());
     $('random-starter-btn-left')?.addEventListener('click', () => {
         if (isButtonDebounced('random-starter-btn-left'))
             return;
@@ -904,6 +915,10 @@ function setupSettingsListeners() {
         const enabled = e.target.checked;
         gameState.updateSettings({ narratorEnabled: enabled });
         narrator.setEnabled(enabled);
+    });
+    $('narrator-persona')?.addEventListener('change', (e) => {
+        const persona = e.target.value;
+        gameState.updateSettings({ narratorPersona: persona });
     });
     $('narrator-speed')?.addEventListener('change', (e) => {
         const speed = parseFloat(e.target.value);
@@ -1402,6 +1417,7 @@ function renderGame(state) {
         if (player.isEliminated && !eliminatedPlayersShown.has(player.id)) {
             eliminatedPlayersShown.add(player.id);
             audioManager.play('death', player.id); // "Fon fon fon fooooom"
+            narrateElimination(player.name); // narrador/roast (IA) na morte
         }
         else if (!player.isEliminated && eliminatedPlayersShown.has(player.id)) {
             // Player was revived, remove from tracking
@@ -1422,6 +1438,7 @@ function renderGame(state) {
             const winner = state.players.find(p => p.id === state.winner);
             if (winner) {
                 showWinner(winner);
+                narrateWinner(winner.name); // narração de vitória (persona/IA)
                 lastShownWinnerId = state.winner;
             }
         }
@@ -1732,6 +1749,9 @@ function updateSettingsControls(state) {
     $('music-volume-slider').value = state.settings.ambientMusicVolume.toString();
     $('narrator-enabled').checked = state.settings.narratorEnabled;
     $('narrator-speed').value = state.settings.narratorSpeed.toString();
+    const personaSel = $('narrator-persona');
+    if (personaSel)
+        personaSel.value = state.settings.narratorPersona ?? 'classic';
     $('sound-pack').value = state.settings.soundPack;
     $('gif-paused').checked = state.settings.gifPaused;
     $('gif-fps-reduced').checked = state.settings.gifFpsReduced;

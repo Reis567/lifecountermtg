@@ -178,6 +178,7 @@ export function createDefaultSettings(playerCount: number = 4): GameSettings {
         narratorEnabled: false,
         narratorVoice: 'default',
         narratorSpeed: 1,
+        narratorPersona: 'classic',
         soundPack: 'default',
     };
 }
