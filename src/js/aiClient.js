@@ -17,6 +17,9 @@ export async function geminiGenerate(parts, opts = {}) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`;
     const generationConfig = {
         temperature: opts.temperature ?? 0.4,
+        // Desliga (ou limita) o thinking do Gemini 2.5 para a resposta não ser
+        // truncada pelos tokens de raciocínio interno.
+        thinkingConfig: { thinkingBudget: opts.thinkingBudget ?? 0 },
     };
     if (opts.json)
         generationConfig.responseMimeType = 'application/json';

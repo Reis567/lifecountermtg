@@ -531,7 +531,7 @@ async function csAnalyzeInteraction(): Promise<void> {
         ].join('\n');
 
         const prompt = [
-            'Você é um juiz de Magic: The Gathering. Em português, objetivo (~150 palavras):',
+            'Você é um juiz de Magic: The Gathering. Responda direto, sem saudação nem preâmbulo (não comece com "Olá"). Em português, objetivo (~150 palavras):',
             '1) o que cada carta faz; 2) se elas combam/sinergizam; 3) como a interação resolve nas regras (pilha, timing, prioridade).',
             'Dados das cartas (use as imagens caso falte algum texto):',
             context,
@@ -540,7 +540,7 @@ async function csAnalyzeInteraction(): Promise<void> {
 
         const text = await geminiGenerate(
             [{ text: prompt }, jpegPart(csShots[0]), jpegPart(csShots[1])],
-            { temperature: 0.3, maxOutputTokens: 800 },
+            { temperature: 0.3, maxOutputTokens: 1100 },
         );
 
         const container = csEl('cs-result');
@@ -612,6 +612,7 @@ async function csAskJudge(): Promise<void> {
 
     const prompt = [
         'Você é um juiz oficial de Magic: The Gathering. Responda em português, claro e correto segundo as regras atuais.',
+        'Vá direto ao ponto, sem saudação nem preâmbulo (não comece com "Olá").',
         csJudgeImage
             ? 'A imagem anexada mostra uma carta (pode estar em japonês). Considere-a ao responder.'
             : (csLastCardName ? `Contexto: a última carta vista pelo jogador foi "${csLastCardName}".` : ''),
@@ -621,8 +622,8 @@ async function csAskJudge(): Promise<void> {
 
     try {
         const text = csJudgeImage
-            ? await geminiGenerate([{ text: prompt }, jpegPart(csJudgeImage)], { temperature: 0.3, maxOutputTokens: 800 })
-            : await geminiText(prompt, { temperature: 0.3, maxOutputTokens: 800 });
+            ? await geminiGenerate([{ text: prompt }, jpegPart(csJudgeImage)], { temperature: 0.3, maxOutputTokens: 1100 })
+            : await geminiText(prompt, { temperature: 0.3, maxOutputTokens: 1100 });
         answer.innerHTML = `<div class="cs-answer">${csFormatText(text.trim())}</div>`;
     } catch (e) {
         console.error('Judge error:', e);

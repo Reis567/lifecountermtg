@@ -25,7 +25,7 @@ async function speakPersona(persona, situation) {
         situation,
     ].join('\n');
     try {
-        const line = await geminiText(prompt, { temperature: 0.95, maxOutputTokens: 90 });
+        const line = await geminiText(prompt, { temperature: 0.95, maxOutputTokens: 120 });
         narrator.speak(line.replace(/["*_#]/g, '').trim());
     }
     catch (e) {

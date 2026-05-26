@@ -13,6 +13,9 @@ export interface GeminiOptions {
     json?: boolean; // força responseMimeType = application/json
     maxOutputTokens?: number;
     model?: string;
+    // Gemini 2.5 é "pensante" e os tokens de thinking consomem o maxOutputTokens,
+    // truncando a resposta. Padrão 0 = desliga o thinking (resposta completa).
+    thinkingBudget?: number;
 }
 
 export function isGeminiConfigured(): boolean {
@@ -34,6 +37,9 @@ export async function geminiGenerate(parts: GeminiPart[], opts: GeminiOptions = 
 
     const generationConfig: Record<string, unknown> = {
         temperature: opts.temperature ?? 0.4,
+        // Desliga (ou limita) o thinking do Gemini 2.5 para a resposta não ser
+        // truncada pelos tokens de raciocínio interno.
+        thinkingConfig: { thinkingBudget: opts.thinkingBudget ?? 0 },
     };
     if (opts.json) generationConfig.responseMimeType = 'application/json';
     if (opts.maxOutputTokens) generationConfig.maxOutputTokens = opts.maxOutputTokens;
