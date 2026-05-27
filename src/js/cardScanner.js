@@ -56,6 +56,16 @@ export function setupCardScanner() {
     const modal = csEl('card-scan-modal');
     if (!modal)
         return;
+    // Sem chave do Gemini (ex.: web público sem config.js) os recursos de IA não
+    // funcionam — esconde os botões que abrem o modal "IA & Cartas".
+    if (!isGeminiConfigured()) {
+        ['card-scan-btn', 'card-scan-btn-left'].forEach((id) => {
+            const btn = document.getElementById(id);
+            if (btn)
+                btn.style.display = 'none';
+        });
+        return; // nem adianta ligar os listeners do modal
+    }
     modal.querySelector('.modal-close')?.addEventListener('click', () => csStopCamera());
     modal.addEventListener('click', (e) => {
         if (e.target === modal)
