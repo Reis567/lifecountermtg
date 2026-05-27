@@ -20,7 +20,26 @@ interface VoiceCommand {
     setValue?: number;
     commander?: { targetId: string; sourceId: string; amount: number };
     death?: { targetId: string; killerId?: string };
+    counter?: { playerId: string; type: 'poison' | 'experience' | 'energy' | 'storm'; amount: number };
+    monarch?: { playerId?: string; remove?: boolean };
+    theme?: string;
+    music?: string;
+    dice?: string;
+    action?: 'randomStarter' | 'viado' | 'undo' | 'nextTurn';
+    massLife?: number;
 }
+
+// Ações de UI que o voiceControl não consegue chamar direto (ficam no ui.ts).
+export interface VoiceActions {
+    randomStarter?: () => void;
+    viado?: () => void;
+    undo?: () => void;
+    nextTurn?: () => void;
+    dice?: (d: string) => void;
+    theme?: (t: string) => void;
+    music?: (t: string) => void;
+}
+let vcActions: VoiceActions = {};
 
 // ----- Detecção de suporte -----
 function vcWebSpeech(): any {
@@ -136,17 +155,92 @@ function vcParseCommander(tokens: string[], idx: number): VoiceCommand | null {
     return { commander: { targetId: target.id, sourceId: source.id, amount: parseInt(m[0], 10) } };
 }
 
+// ----- Reconhecimento de tema / música / dado / contador -----
+const VC_THEME: Array<[RegExp, string]> = [
+    [/escur|dark|noturno/, 'dark'],
+    [/casual|claro|padrao|normal/, 'casual'],
+    [/streamer|transmiss|live/, 'streamer'],
+    [/contraste/, 'high-contrast'],
+    [/branco/, 'mana-white'],
+    [/azul/, 'mana-blue'],
+    [/preto|preta/, 'mana-black'],
+    [/vermelh/, 'mana-red'],
+    [/verde/, 'mana-green'],
+];
+function vcTheme(text: string): string | null {
+    for (const [re, val] of VC_THEME) if (re.test(text)) return val;
+    return null;
+}
+
+const VC_MUSIC: Array<[RegExp, string]> = [
+    [/parar|sem musica|deslig|silencio|nenhuma|para a musica/, 'none'],
+    [/epic|epica/, 'epic'],
+    [/sombri|soturna|tensa|dark/, 'dark'],
+    [/natur|floresta/, 'nature'],
+    [/mistic|misteri|mystical/, 'mystical'],
+];
+function vcMusic(text: string): string {
+    for (const [re, val] of VC_MUSIC) if (re.test(text)) return val;
+    return 'epic';
+}
+
+function vcDice(text: string): string {
+    if (/moeda|cara ou coroa|cara e coroa/.test(text)) return 'coin';
+    if (/planar/.test(text)) return 'planar';
+    const dm = text.match(/\bd\s?(\d{1,3})\b/) || text.match(/\b(\d{1,3})\b/);
+    if (dm && ['4', '6', '8', '10', '12', '20', '100'].includes(dm[1])) return dm[1];
+    return '20';
+}
+
+function vcCounterType(text: string): 'poison' | 'experience' | 'energy' | 'storm' | null {
+    if (/veneno|poison|envenen/.test(text)) return 'poison';
+    if (/energia|energy/.test(text)) return 'energy';
+    if (/experiencia|experience|\bexp\b/.test(text)) return 'experience';
+    if (/storm|tempestade/.test(text)) return 'storm';
+    return null;
+}
+
+// Comandos que não dependem de um jogador específico.
+function vcParseGlobal(text: string): VoiceCommand | null {
+    if (text.includes('tema')) {
+        const t = vcTheme(text);
+        if (t) return { theme: t };
+    }
+    if (/musica|trilha|som ambiente/.test(text)) return { music: vcMusic(text) };
+    if (/\b(rola|rolar|dado|dados|moeda)\b/.test(text) || /\bd\d{1,3}\b/.test(text) || /cara ou coroa/.test(text)) {
+        return { dice: vcDice(text) };
+    }
+    if (/quem comeca|sortear inicial|quem inicia|quem joga primeiro/.test(text)
+        || (/sorteia|sortear|sorteio/.test(text) && /comeca|inicio|primeiro/.test(text))) {
+        return { action: 'randomStarter' };
+    }
+    if (/viado/.test(text)) return { action: 'viado' };
+    if (/proximo turno|passa o turno|passar o turno|passa a vez|passar a vez|proxima vez|vira o turno/.test(text)) {
+        return { action: 'nextTurn' };
+    }
+    if (/\bdesfaz|desfazer\b/.test(text)) return { action: 'undo' };
+    if (/\btodos\b|todo mundo|\bgeral\b|mesa toda/.test(text)) {
+        const sign = /menos|perde|tira|dano|leva/.test(text) ? -1 : (/mais|ganha|cura|sobe/.test(text) ? 1 : 0);
+        const m = text.match(/\d+/);
+        if (sign !== 0 && m) return { massLife: sign * parseInt(m[0], 10) };
+    }
+    return null;
+}
+
 function vcParse(raw: string): VoiceCommand | null {
-    // Converte palavras-número em dígitos PRIMEIRO, para o nome ("jogador 1" / "jogador um")
-    // ser removido inteiro e não sobrar o número do nome para somar com a quantidade.
+    // Converte palavras-número em dígitos PRIMEIRO (nome "jogador 1"/"jogador um" sai inteiro).
     const text = vcDigitize(vcNorm(raw));
     if (!text) return null;
 
-    // Dano de comandante tem prioridade (estrutura própria com "comandante").
+    // 1) Comandos globais (sem jogador): tema, música, dado, sorteio, viado, turno, desfazer, massa.
+    const global = vcParseGlobal(text);
+    if (global) return global;
+
+    // 2) Dano de comandante.
     const cmdIdx = text.split(' ').indexOf('comandante');
     if (cmdIdx !== -1) return vcParseCommander(text.split(' '), cmdIdx);
 
-    // Morte: "A matou B" -> B morre (por A); "fulano morre/morreu" -> fulano morre.
+    // 3) Morte: "A matou B" -> B morre (por A); "fulano morre/morreu".
     if (text.includes('matou') || text.includes('mataram')) {
         const sep = text.includes('mataram') ? 'mataram' : 'matou';
         const parts = text.split(sep);
@@ -164,9 +258,29 @@ function vcParse(raw: string): VoiceCommand | null {
         return null;
     }
 
+    // 4) Monarca: "monarca pro fulano" / "coroa pro fulano"; "tira o monarca" remove.
+    if (/monarc|coroa/.test(text)) {
+        if (/tira|sem |remove|remova|sai /.test(text)) return { monarch: { remove: true } };
+        const mp = vcMatchPlayer(text);
+        if (mp) return { monarch: { playerId: mp.id } };
+        return null;
+    }
+
+    // 5) A partir daqui precisa de um jogador.
     const player = vcMatchPlayer(text);
     if (!player) return null;
 
+    // 6) Contador (veneno / energia / experiência / storm).
+    const ctype = vcCounterType(text);
+    if (ctype) {
+        const restc = text.replace(player.matched, ' ');
+        const csign = /menos|tira|remove|cura|tirar/.test(restc) ? -1 : 1;
+        const cm = restc.match(/\d+/);
+        const camount = (cm ? parseInt(cm[0], 10) : 1) * csign;
+        return { counter: { playerId: player.id, type: ctype, amount: camount } };
+    }
+
+    // 7) Vida (delta ou definir).
     const rest = text.replace(player.matched, ' ').replace(/\s+/g, ' ').trim();
     const tokens = rest.split(' ');
 
@@ -178,18 +292,56 @@ function vcParse(raw: string): VoiceCommand | null {
         else if (VC_SET.includes(t)) isSet = true;
     }
 
-    const m = rest.match(/\d+/); // após remover o nome, sobra só a quantidade
+    const m = rest.match(/\d+/);
     if (!m) return null;
     const num = parseInt(m[0], 10);
 
     if (isSet && sign === 0) return { playerId: player.id, setValue: num };
-    if (sign === 0) return null; // sem "mais/menos" e sem "vida" -> ambíguo, ignora
+    if (sign === 0) return null;
     return { playerId: player.id, delta: sign * num };
 }
 
 // ----- Aplicação -----
 function vcApply(cmd: VoiceCommand): void {
     const players = gameState.getState().players;
+
+    // Ações de UI (delegadas ao ui.ts).
+    if (cmd.action) {
+        if (cmd.action === 'randomStarter') { vcActions.randomStarter?.(); vcToast('🎲 Sorteando quem começa', true); }
+        else if (cmd.action === 'viado') { vcActions.viado?.(); vcToast('🏳️‍🌈 Sorteando o viado', true); }
+        else if (cmd.action === 'undo') { vcActions.undo?.(); vcToast('↩️ Desfeito', true); }
+        else if (cmd.action === 'nextTurn') { vcActions.nextTurn?.(); vcToast('▶️ Próximo turno', true); }
+        return;
+    }
+    if (cmd.theme) { vcActions.theme?.(cmd.theme); vcToast('🎨 Tema alterado', true); return; }
+    if (cmd.music) { vcActions.music?.(cmd.music); vcToast(cmd.music === 'none' ? '🔇 Música parada' : '🎵 Música trocada', true); return; }
+    if (cmd.dice) { vcActions.dice?.(cmd.dice); vcToast(`🎲 Rolando ${cmd.dice === 'coin' ? 'moeda' : 'd' + cmd.dice}`, true); return; }
+    if (cmd.monarch) {
+        if (cmd.monarch.remove) {
+            gameState.removeMonarch();
+            vcToast('👑 Sem monarca', true);
+        } else if (cmd.monarch.playerId) {
+            gameState.setMonarch(cmd.monarch.playerId);
+            const mp = players.find((p) => p.id === cmd.monarch!.playerId);
+            vcToast(`👑 ${mp?.name} é o monarca`, true);
+        }
+        try { navigator.vibrate?.(40); } catch { /* ignore */ }
+        return;
+    }
+    if (cmd.counter) {
+        gameState.changeCounter(cmd.counter.playerId, cmd.counter.type, cmd.counter.amount);
+        const cp = players.find((p) => p.id === cmd.counter!.playerId);
+        const icons: Record<string, string> = { poison: '☠️', energy: '⚡', experience: '⭐', storm: '🌪️' };
+        vcToast(`${icons[cmd.counter.type] || ''} ${cp?.name} ${cmd.counter.amount > 0 ? '+' : ''}${cmd.counter.amount}`, true);
+        try { navigator.vibrate?.(40); } catch { /* ignore */ }
+        return;
+    }
+    if (cmd.massLife !== undefined) {
+        players.filter((p) => !p.isEliminated).forEach((p) => gameState.changeLife(p.id, cmd.massLife!));
+        vcToast(`Todos ${cmd.massLife > 0 ? '+' : ''}${cmd.massLife}`, true);
+        try { navigator.vibrate?.(40); } catch { /* ignore */ }
+        return;
+    }
 
     // Morte / "matou" — vai pro histórico (player_eliminated) e dispara som/roast.
     if (cmd.death) {
@@ -265,6 +417,13 @@ function vcHandleTranscript(raw: string, final: boolean): void {
 }
 
 function vcCmdKey(cmd: VoiceCommand): string {
+    if (cmd.action) return `ac:${cmd.action}`;
+    if (cmd.theme) return `th:${cmd.theme}`;
+    if (cmd.music) return `mu:${cmd.music}`;
+    if (cmd.dice) return `di:${cmd.dice}`;
+    if (cmd.monarch) return `mo:${cmd.monarch.remove ? 'rm' : cmd.monarch.playerId}`;
+    if (cmd.counter) return `ct:${cmd.counter.playerId}:${cmd.counter.type}:${cmd.counter.amount}`;
+    if (cmd.massLife !== undefined) return `ml:${cmd.massLife}`;
     if (cmd.death) return `k:${cmd.death.targetId}`;
     if (cmd.commander) return `c:${cmd.commander.targetId}:${cmd.commander.sourceId}:${cmd.commander.amount}`;
     if (cmd.setValue !== undefined) return `s:${cmd.playerId}:${cmd.setValue}`;
@@ -272,7 +431,8 @@ function vcCmdKey(cmd: VoiceCommand): string {
 }
 
 // ===== UI =====
-export function setupVoiceControl(): void {
+export function setupVoiceControl(actions: VoiceActions = {}): void {
+    vcActions = actions;
     if (!vcSupported()) {
         // Sem reconhecimento de voz (ex.: web sem suporte): esconde os botões.
         ['voice-btn', 'voice-btn-left'].forEach((id) => {

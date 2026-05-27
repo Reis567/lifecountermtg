@@ -720,7 +720,22 @@ export function initUI(): void {
     setupCardScanner();
 
     // Initialize voice control (comando de vida por voz)
-    setupVoiceControl();
+    setupVoiceControl({
+        randomStarter: () => startRandomStarterAnimation(),
+        viado: () => startViadoSelection(),
+        undo: () => performUndo(),
+        nextTurn: () => { audioManager.play('turn'); gameState.nextTurn(); },
+        dice: (d) => { openModal($('dice-roller-modal')); rollDice(d); },
+        theme: (t) => {
+            gameState.updateSettings({ theme: t as ThemePreset });
+            applyTheme(t as ThemePreset);
+        },
+        music: (t) => {
+            gameState.updateSettings({ ambientMusicTrack: t as AmbientMusicTrack, ambientMusicEnabled: t !== 'none' });
+            ambientMusic.setTrack(t as AmbientMusicTrack);
+            ambientMusic.toggle(t !== 'none');
+        },
+    });
 }
 
 // Get element safely

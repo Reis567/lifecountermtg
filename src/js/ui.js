@@ -605,7 +605,22 @@ export function initUI() {
     // Initialize card scanner modal
     setupCardScanner();
     // Initialize voice control (comando de vida por voz)
-    setupVoiceControl();
+    setupVoiceControl({
+        randomStarter: () => startRandomStarterAnimation(),
+        viado: () => startViadoSelection(),
+        undo: () => performUndo(),
+        nextTurn: () => { audioManager.play('turn'); gameState.nextTurn(); },
+        dice: (d) => { openModal($('dice-roller-modal')); rollDice(d); },
+        theme: (t) => {
+            gameState.updateSettings({ theme: t });
+            applyTheme(t);
+        },
+        music: (t) => {
+            gameState.updateSettings({ ambientMusicTrack: t, ambientMusicEnabled: t !== 'none' });
+            ambientMusic.setTrack(t);
+            ambientMusic.toggle(t !== 'none');
+        },
+    });
 }
 // Get element safely
 function $(id) {
