@@ -3,7 +3,7 @@ import { gameState } from './state.js';
 import { audioManager, ambientMusic, narrator } from './audio.js';
 import { openCardScanner, setupCardScanner } from './cardScanner.js';
 import { openFingerPicker } from './fingerPicker.js';
-import { setupVoiceControl } from './voiceControl.js';
+import { setupVoiceControl, maybeAutoStartVoice } from './voiceControl.js';
 import { narrateElimination, narrateWinner } from './aiNarrator.js';
 import { DEFAULT_PLAYER_COLORS, PRESET_COUNTERS, COMMANDER_DAMAGE_LETHAL, LAYOUT_PRESETS, EASTER_EGG_MESSAGES, SPECIAL_MOMENTS, TAUNT_PHRASES, MANUAL_TAUNTS, MTG_KEYWORDS, } from './types.js';
 // ===== Secure Random Functions =====
@@ -1424,6 +1424,8 @@ function renderLayoutPresets() {
 function renderGame(state) {
     $('setup-screen').classList.remove('active');
     $('game-screen').classList.add('active');
+    // Liga a escuta de voz sozinha (1x) — permite "contador" sem abrir o menu.
+    maybeAutoStartVoice();
     // Update turn indicator
     $('turn-count').textContent = `Turno ${state.currentTurn}`;
     const activePlayer = state.players[state.activePlayerIndex];

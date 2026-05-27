@@ -10,6 +10,7 @@ let vcActive = false; // microfone ligado
 let vcArmed = false; // comandos ativos (depois de "life counter")
 let vcLastCmdKey = ''; // dedup: último comando aplicado
 let vcLastCmdAt = 0;
+let vcAutoTried = false; // já tentou ligar sozinho nesta sessão
 let vcRec: any = null; // SpeechRecognition (web)
 let vcOverlay: HTMLDivElement | null = null;
 
@@ -18,6 +19,7 @@ interface VoiceCommand {
     delta?: number;
     setValue?: number;
     commander?: { targetId: string; sourceId: string; amount: number };
+    death?: { targetId: string; killerId?: string };
 }
 
 // ----- Detecção de suporte -----
@@ -144,6 +146,24 @@ function vcParse(raw: string): VoiceCommand | null {
     const cmdIdx = text.split(' ').indexOf('comandante');
     if (cmdIdx !== -1) return vcParseCommander(text.split(' '), cmdIdx);
 
+    // Morte: "A matou B" -> B morre (por A); "fulano morre/morreu" -> fulano morre.
+    if (text.includes('matou') || text.includes('mataram')) {
+        const sep = text.includes('mataram') ? 'mataram' : 'matou';
+        const parts = text.split(sep);
+        const killer = vcMatchPlayer(parts[0] || '');
+        const victim = vcMatchPlayer(parts[1] || '');
+        if (victim) {
+            const killerId = killer && killer.id !== victim.id ? killer.id : undefined;
+            return { death: { targetId: victim.id, killerId } };
+        }
+        return null;
+    }
+    if (/\bmorr|\bmorto\b|\bmorta\b|elimin/.test(text)) {
+        const dead = vcMatchPlayer(text);
+        if (dead) return { death: { targetId: dead.id } };
+        return null;
+    }
+
     const player = vcMatchPlayer(text);
     if (!player) return null;
 
@@ -170,6 +190,16 @@ function vcParse(raw: string): VoiceCommand | null {
 // ----- Aplicação -----
 function vcApply(cmd: VoiceCommand): void {
     const players = gameState.getState().players;
+
+    // Morte / "matou" — vai pro histórico (player_eliminated) e dispara som/roast.
+    if (cmd.death) {
+        const victim = players.find((p) => p.id === cmd.death!.targetId);
+        const killer = cmd.death.killerId ? players.find((p) => p.id === cmd.death!.killerId) : null;
+        gameState.eliminatePlayer(cmd.death.targetId, killer ? `morto por ${killer.name}` : 'morreu');
+        vcToast(`💀 ${victim?.name}${killer ? ` (por ${killer.name})` : ' morreu'}`, true);
+        try { navigator.vibrate?.(60); } catch { /* ignore */ }
+        return;
+    }
 
     // Dano de comandante (já reduz vida e checa eliminação no state).
     if (cmd.commander) {
@@ -235,6 +265,7 @@ function vcHandleTranscript(raw: string, final: boolean): void {
 }
 
 function vcCmdKey(cmd: VoiceCommand): string {
+    if (cmd.death) return `k:${cmd.death.targetId}`;
     if (cmd.commander) return `c:${cmd.commander.targetId}:${cmd.commander.sourceId}:${cmd.commander.amount}`;
     if (cmd.setValue !== undefined) return `s:${cmd.playerId}:${cmd.setValue}`;
     return `d:${cmd.playerId}:${cmd.delta}`;
@@ -260,6 +291,15 @@ export function setupVoiceControl(): void {
 export function vcToggle(): void {
     if (vcActive) vcStop();
     else vcStart();
+}
+
+// Liga a escuta automaticamente (1x por sessão) ao entrar na partida, para o
+// "contador" funcionar sem abrir o menu. No web, só vinga se chamado dentro de
+// um gesto do usuário (o clique em "Iniciar Partida"); no APK funciona sempre.
+export function maybeAutoStartVoice(): void {
+    if (vcAutoTried || vcActive || !vcSupported()) return;
+    vcAutoTried = true;
+    vcStart();
 }
 
 function vcStart(): void {
@@ -327,7 +367,7 @@ function vcArm(): void {
     if (vcArmed) return;
     vcArmed = true;
     vcBtnClass(true, true);
-    vcSetTitle('Comandos ATIVOS — ex.: "fulano menos 3" · diga "tchau contador" para sair');
+    vcSetTitle('Ouvindo comandos · diga "tchau contador" p/ sair');
     vcToast('🎙️ Comandos de voz ativados', true);
     try { navigator.vibrate?.(60); } catch { /* ignore */ }
 }
@@ -335,7 +375,7 @@ function vcArm(): void {
 function vcDisarm(): void {
     vcArmed = false;
     vcBtnClass(true, false);
-    vcSetTitle('Diga "contador" (ou "life counter") para ativar');
+    vcSetTitle('Diga "contador" p/ ativar');
     vcToast('🎙️ Comandos pausados', false);
     try { navigator.vibrate?.(30); } catch { /* ignore */ }
 }
@@ -347,7 +387,7 @@ function vcShowOverlay(): void {
     el.innerHTML = `
         <div class="voice-mic">🎙️</div>
         <div class="voice-text">
-            <div class="voice-title" id="voice-title">Diga "contador" (ou "life counter") para ativar</div>
+            <div class="voice-title" id="voice-title">Diga "contador" p/ ativar</div>
             <div class="voice-heard" id="voice-heard"></div>
         </div>
         <button class="voice-stop" id="voice-stop-btn" type="button">Parar</button>

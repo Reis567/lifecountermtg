@@ -4,7 +4,7 @@ import { gameState } from './state.js';
 import { audioManager, ambientMusic, narrator } from './audio.js';
 import { openCardScanner, setupCardScanner } from './cardScanner.js';
 import { openFingerPicker } from './fingerPicker.js';
-import { setupVoiceControl } from './voiceControl.js';
+import { setupVoiceControl, maybeAutoStartVoice } from './voiceControl.js';
 import { narrateElimination, narrateWinner } from './aiNarrator.js';
 import {
     GameState,
@@ -1657,6 +1657,9 @@ function renderLayoutPresets(): void {
 function renderGame(state: GameState): void {
     $('setup-screen').classList.remove('active');
     $('game-screen').classList.add('active');
+
+    // Liga a escuta de voz sozinha (1x) — permite "contador" sem abrir o menu.
+    maybeAutoStartVoice();
 
     // Update turn indicator
     $('turn-count').textContent = `Turno ${state.currentTurn}`;
