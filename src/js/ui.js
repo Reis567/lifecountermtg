@@ -3,6 +3,7 @@ import { gameState } from './state.js';
 import { audioManager, ambientMusic, narrator } from './audio.js';
 import { openCardScanner, setupCardScanner } from './cardScanner.js';
 import { openFingerPicker } from './fingerPicker.js';
+import { setupVoiceControl } from './voiceControl.js';
 import { narrateElimination, narrateWinner } from './aiNarrator.js';
 import { DEFAULT_PLAYER_COLORS, PRESET_COUNTERS, COMMANDER_DAMAGE_LETHAL, LAYOUT_PRESETS, EASTER_EGG_MESSAGES, SPECIAL_MOMENTS, TAUNT_PHRASES, MANUAL_TAUNTS, MTG_KEYWORDS, } from './types.js';
 // ===== Secure Random Functions =====
@@ -603,6 +604,8 @@ export function initUI() {
     audioManager.setSoundPack(state.settings.soundPack);
     // Initialize card scanner modal
     setupCardScanner();
+    // Initialize voice control (comando de vida por voz)
+    setupVoiceControl();
 }
 // Get element safely
 function $(id) {

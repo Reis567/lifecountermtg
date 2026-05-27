@@ -16,8 +16,13 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import androidx.activity.result.contract.ActivityResultContracts
@@ -50,6 +55,16 @@ class MainActivity : AppCompatActivity() {
         req?.let {
             if (granted) it.grant(it.resources) else it.deny()
         }
+    }
+
+    // Comando de vida por voz (SpeechRecognizer) — o WebView não tem Web Speech API.
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var voiceActive = false
+
+    private val audioPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) startSpeech()
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -162,6 +177,9 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            // Ponte de voz (comando de vida por voz) — o WebView não tem Web Speech API.
+            webView.addJavascriptInterface(VoiceBridge(), "LCVoice")
+
             // Use hardware acceleration for better performance
             webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
 
@@ -229,7 +247,103 @@ class MainActivity : AppCompatActivity() {
         super.onPause()
     }
 
+    // ===== Comando de voz (SpeechRecognizer) exposto como window.LCVoice =====
+    inner class VoiceBridge {
+        @JavascriptInterface
+        fun start() {
+            runOnUiThread {
+                if (ContextCompat.checkSelfPermission(
+                        this@MainActivity, Manifest.permission.RECORD_AUDIO
+                    ) == PackageManager.PERMISSION_GRANTED
+                ) {
+                    startSpeech()
+                } else {
+                    audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun stop() {
+            runOnUiThread { stopSpeech() }
+        }
+    }
+
+    private fun startSpeech() {
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            Log.w(TAG, "Reconhecimento de voz indisponível neste aparelho")
+            return
+        }
+        voiceActive = true
+        if (speechRecognizer == null) {
+            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
+                setRecognitionListener(object : RecognitionListener {
+                    override fun onResults(results: Bundle?) {
+                        results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            ?.firstOrNull()?.let { sendVoiceResult(it, true) }
+                        if (voiceActive) restartListening()
+                    }
+                    override fun onPartialResults(partialResults: Bundle?) {
+                        partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            ?.firstOrNull()?.let { sendVoiceResult(it, false) }
+                    }
+                    override fun onError(error: Int) {
+                        if (voiceActive) restartListening()
+                    }
+                    override fun onReadyForSpeech(params: Bundle?) {}
+                    override fun onBeginningOfSpeech() {}
+                    override fun onRmsChanged(rmsdB: Float) {}
+                    override fun onBufferReceived(buffer: ByteArray?) {}
+                    override fun onEndOfSpeech() {}
+                    override fun onEvent(eventType: Int, params: Bundle?) {}
+                })
+            }
+        }
+        listenOnce()
+    }
+
+    private fun listenOnce() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pt-BR")
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+        }
+        try {
+            speechRecognizer?.startListening(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "startListening: ${e.message}")
+        }
+    }
+
+    private fun restartListening() {
+        if (::webView.isInitialized) {
+            webView.postDelayed({ if (voiceActive) listenOnce() }, 350)
+        }
+    }
+
+    private fun sendVoiceResult(text: String, final: Boolean) {
+        val safe = text.replace("\\", "\\\\").replace("'", "\\'")
+        runOnUiThread {
+            if (::webView.isInitialized) {
+                webView.evaluateJavascript(
+                    "window.__lcVoiceResult && window.__lcVoiceResult('$safe', $final)", null
+                )
+            }
+        }
+    }
+
+    private fun stopSpeech() {
+        voiceActive = false
+        speechRecognizer?.let {
+            try { it.stopListening() } catch (_: Exception) {}
+            try { it.cancel() } catch (_: Exception) {}
+        }
+    }
+
     override fun onDestroy() {
+        voiceActive = false
+        try { speechRecognizer?.destroy() } catch (_: Exception) {}
+        speechRecognizer = null
         if (::webView.isInitialized) {
             webView.destroy()
         }

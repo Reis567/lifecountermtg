@@ -4,6 +4,7 @@ import { gameState } from './state.js';
 import { audioManager, ambientMusic, narrator } from './audio.js';
 import { openCardScanner, setupCardScanner } from './cardScanner.js';
 import { openFingerPicker } from './fingerPicker.js';
+import { setupVoiceControl } from './voiceControl.js';
 import { narrateElimination, narrateWinner } from './aiNarrator.js';
 import {
     GameState,
@@ -717,6 +718,9 @@ export function initUI(): void {
 
     // Initialize card scanner modal
     setupCardScanner();
+
+    // Initialize voice control (comando de vida por voz)
+    setupVoiceControl();
 }
 
 // Get element safely
