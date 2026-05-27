@@ -11,9 +11,10 @@ let vcRec: any = null; // SpeechRecognition (web)
 let vcOverlay: HTMLDivElement | null = null;
 
 interface VoiceCommand {
-    playerId: string;
+    playerId?: string;
     delta?: number;
     setValue?: number;
+    commander?: { targetId: string; sourceId: string; amount: number };
 }
 
 // ----- Detecção de suporte -----
@@ -110,11 +111,35 @@ function vcMatchPlayer(text: string): { id: string; matched: string } | null {
     return best;
 }
 
+// Dano de comandante: "<alvo> <N> de comandante do <fonte>"
+// ex.: "jogador 1 15 de comandante do jogador 2", "jose 10 de comandante do reis".
+function vcParseCommander(tokens: string[], idx: number): VoiceCommand | null {
+    const beforeText = tokens.slice(0, idx).join(' ');
+    const after = tokens.slice(idx + 1);
+    const preps = ['do', 'da', 'de', 'dos', 'das', 'o', 'a'];
+    while (after.length && preps.includes(after[0])) after.shift();
+    const sourceText = after.join(' ');
+
+    const target = vcMatchPlayer(beforeText);
+    const source = vcMatchPlayer(sourceText);
+    if (!target || !source || target.id === source.id) return null;
+
+    const restBefore = beforeText.replace(target.matched, ' ');
+    const m = restBefore.match(/\d+/); // quantidade (depois de tirar o nome do alvo)
+    if (!m) return null;
+
+    return { commander: { targetId: target.id, sourceId: source.id, amount: parseInt(m[0], 10) } };
+}
+
 function vcParse(raw: string): VoiceCommand | null {
     // Converte palavras-número em dígitos PRIMEIRO, para o nome ("jogador 1" / "jogador um")
     // ser removido inteiro e não sobrar o número do nome para somar com a quantidade.
     const text = vcDigitize(vcNorm(raw));
     if (!text) return null;
+
+    // Dano de comandante tem prioridade (estrutura própria com "comandante").
+    const cmdIdx = text.split(' ').indexOf('comandante');
+    if (cmdIdx !== -1) return vcParseCommander(text.split(' '), cmdIdx);
 
     const player = vcMatchPlayer(text);
     if (!player) return null;
@@ -141,8 +166,21 @@ function vcParse(raw: string): VoiceCommand | null {
 
 // ----- Aplicação -----
 function vcApply(cmd: VoiceCommand): void {
-    const player = gameState.getState().players.find((p) => p.id === cmd.playerId);
-    if (!player) return;
+    const players = gameState.getState().players;
+
+    // Dano de comandante (já reduz vida e checa eliminação no state).
+    if (cmd.commander) {
+        const { targetId, sourceId, amount } = cmd.commander;
+        gameState.addCommanderDamage(targetId, sourceId, amount);
+        const t = players.find((p) => p.id === targetId);
+        const s = players.find((p) => p.id === sourceId);
+        vcToast(`${t?.name} ⚔️ ${amount} de comandante de ${s?.name}`, true);
+        try { navigator.vibrate?.(40); } catch { /* ignore */ }
+        return;
+    }
+
+    const player = players.find((p) => p.id === cmd.playerId);
+    if (!player || !cmd.playerId) return;
 
     if (cmd.setValue !== undefined) {
         gameState.setLife(cmd.playerId, cmd.setValue);
@@ -242,7 +280,7 @@ function vcShowOverlay(): void {
     el.innerHTML = `
         <div class="voice-mic">🎙️</div>
         <div class="voice-text">
-            <div class="voice-title">Ouvindo… diga "nome menos 3"</div>
+            <div class="voice-title">Ouvindo… ex.: "fulano menos 3" • "fulano 5 de comandante do beltrano"</div>
             <div class="voice-heard" id="voice-heard"></div>
         </div>
         <button class="voice-stop" id="voice-stop-btn" type="button">Parar</button>
