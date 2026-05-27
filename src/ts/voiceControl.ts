@@ -52,36 +52,57 @@ const VC_MINUS = ['menos', 'perde', 'perdeu', 'perder', 'tomou', 'toma', 'tomar'
 const VC_PLUS = ['mais', 'ganha', 'ganhou', 'ganhar', 'soma', 'somar', 'cura', 'curou', 'curar', 'recupera', 'recuperou', 'sobe', 'aumenta', 'subiu'];
 const VC_SET = ['vida', 'igual', 'fica', 'define', 'definir', 'setar', 'seta', 'vale'];
 
-function vcParseNumber(text: string, tokens: string[]): number | null {
-    const digits = text.match(/\d+/);
-    if (digits) return parseInt(digits[0], 10);
-    let total: number | null = null;
-    for (const t of tokens) {
-        if (t in VC_TENS) total = (total ?? 0) + VC_TENS[t];
-        else if (t in VC_UNITS) total = (total ?? 0) + VC_UNITS[t];
-        else if (t === 'cem' || t === 'cento') total = (total ?? 0) + 100;
+// Converte palavras-número em dígitos: "jogador um mais dois" -> "jogador 1 mais 2",
+// "menos vinte e um" -> "menos 21". Resolve nomes com número ("Jogador 1") ditos por extenso.
+function vcDigitize(text: string): string {
+    const tokens = text.split(' ').filter(Boolean);
+    const out: string[] = [];
+    let i = 0;
+    while (i < tokens.length) {
+        const t = tokens[i];
+        if (t in VC_TENS) {
+            let val = VC_TENS[t];
+            let consumed = 1;
+            let j = i + 1;
+            if (tokens[j] === 'e') j++;
+            if (tokens[j] !== undefined && tokens[j] in VC_UNITS) {
+                val += VC_UNITS[tokens[j]];
+                consumed = (j - i) + 1;
+            }
+            out.push(String(val));
+            i += consumed;
+        } else if (t in VC_UNITS) {
+            out.push(String(VC_UNITS[t]));
+            i++;
+        } else if (t === 'cem' || t === 'cento') {
+            out.push('100');
+            i++;
+        } else {
+            out.push(t);
+            i++;
+        }
     }
-    return total;
+    return out.join(' ');
 }
 
 function vcMatchPlayer(text: string): { id: string; matched: string } | null {
     const players = gameState.getState().players;
     let best: { id: string; matched: string } | null = null;
 
-    // 1) nome completo como substring (ex.: "jogador 1", "joao silva")
+    // 1) nome completo (já em dígitos) como substring (ex.: "jogador 1", "joao silva")
     for (const p of players) {
-        const n = vcNorm(p.name);
+        const n = vcDigitize(vcNorm(p.name));
         if (n && text.includes(n) && (!best || n.length > best.matched.length)) {
             best = { id: p.id, matched: n };
         }
     }
     if (best) return best;
 
-    // 2) qualquer palavra do nome (ex.: só "joao" de "João Silva")
+    // 2) qualquer palavra do nome com 2+ letras (evita casar com o dígito do nome)
     const tokens = text.split(' ');
     for (const p of players) {
-        for (const w of vcNorm(p.name).split(' ')) {
-            if (w.length >= 2 && tokens.includes(w) && (!best || w.length > best.matched.length)) {
+        for (const w of vcDigitize(vcNorm(p.name)).split(' ')) {
+            if (w.length >= 2 && /[a-z]/.test(w) && tokens.includes(w) && (!best || w.length > best.matched.length)) {
                 best = { id: p.id, matched: w };
             }
         }
@@ -90,13 +111,14 @@ function vcMatchPlayer(text: string): { id: string; matched: string } | null {
 }
 
 function vcParse(raw: string): VoiceCommand | null {
-    const text = vcNorm(raw);
+    // Converte palavras-número em dígitos PRIMEIRO, para o nome ("jogador 1" / "jogador um")
+    // ser removido inteiro e não sobrar o número do nome para somar com a quantidade.
+    const text = vcDigitize(vcNorm(raw));
     if (!text) return null;
 
     const player = vcMatchPlayer(text);
     if (!player) return null;
 
-    // Remove o nome do jogador antes de extrair o número (evita pegar o "1" de "Jogador 1").
     const rest = text.replace(player.matched, ' ').replace(/\s+/g, ' ').trim();
     const tokens = rest.split(' ');
 
@@ -108,8 +130,9 @@ function vcParse(raw: string): VoiceCommand | null {
         else if (VC_SET.includes(t)) isSet = true;
     }
 
-    const num = vcParseNumber(rest, tokens);
-    if (num === null) return null;
+    const m = rest.match(/\d+/); // após remover o nome, sobra só a quantidade
+    if (!m) return null;
+    const num = parseInt(m[0], 10);
 
     if (isSet && sign === 0) return { playerId: player.id, setValue: num };
     if (sign === 0) return null; // sem "mais/menos" e sem "vida" -> ambíguo, ignora
