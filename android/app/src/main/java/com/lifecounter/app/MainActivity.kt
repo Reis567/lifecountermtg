@@ -288,9 +288,19 @@ class MainActivity : AppCompatActivity() {
                             ?.firstOrNull()?.let { sendVoiceResult(it, false) }
                     }
                     override fun onError(error: Int) {
+                        if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                            sendVoiceStatus("sem permissão de microfone")
+                            voiceActive = false
+                            return
+                        }
+                        if (error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                            sendVoiceStatus(errText(error))
+                        }
                         if (voiceActive) restartListening()
                     }
-                    override fun onReadyForSpeech(params: Bundle?) {}
+                    override fun onReadyForSpeech(params: Bundle?) {
+                        sendVoiceStatus("ouvindo… pode falar")
+                    }
                     override fun onBeginningOfSpeech() {}
                     override fun onRmsChanged(rmsdB: Float) {}
                     override fun onBufferReceived(buffer: ByteArray?) {}
@@ -330,6 +340,26 @@ class MainActivity : AppCompatActivity() {
                 )
             }
         }
+    }
+
+    private fun sendVoiceStatus(msg: String) {
+        val safe = msg.replace("\\", "\\\\").replace("'", "\\'")
+        runOnUiThread {
+            if (::webView.isInitialized) {
+                webView.evaluateJavascript("window.__lcVoiceStatus && window.__lcVoiceStatus('$safe')", null)
+            }
+        }
+    }
+
+    private fun errText(code: Int): String = when (code) {
+        SpeechRecognizer.ERROR_AUDIO -> "erro de áudio"
+        SpeechRecognizer.ERROR_CLIENT -> "erro de cliente"
+        SpeechRecognizer.ERROR_NETWORK -> "erro de rede"
+        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "timeout de rede"
+        SpeechRecognizer.ERROR_NO_MATCH -> "não entendi, repita"
+        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "reconhecedor ocupado"
+        SpeechRecognizer.ERROR_SERVER -> "erro no servidor de voz"
+        else -> "erro de voz ($code)"
     }
 
     private fun stopSpeech() {

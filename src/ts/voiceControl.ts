@@ -202,7 +202,7 @@ function vcApply(cmd: VoiceCommand): void {
 // Palavra-chave de ativação. O reconhecedor é pt-BR, então "life counter" (inglês)
 // costuma sair mastigado — por isso "contador" (PT) é o gatilho confiável, com
 // "life counter" e variantes como alternativa. Desarma com "tchau"/"fechar"/"parar".
-const VC_WAKE = /(life|laife|laif|laifi|lifi|live|leite)\s*(counter|conter|caunter|kaunter|county|conta)|\bcontador\b/;
+const VC_WAKE = /(life|laife|laif|laifi|lifi|live|leite)\s*(counter|conter|caunter|kaunter|county|conta)|contad/;
 const VC_BYE = /\b(tchau|chau|xau|adeus|fechar|fecha|parar|para|encerra|desativa)\b/;
 
 function vcHandleTranscript(raw: string, final: boolean): void {
@@ -253,6 +253,8 @@ export function setupVoiceControl(): void {
     document.getElementById('voice-btn')?.addEventListener('click', () => vcToggle());
     document.getElementById('voice-btn-left')?.addEventListener('click', () => vcToggle());
     (window as any).__lcVoiceResult = (txt: string, final?: boolean) => vcHandleTranscript(txt, final !== false);
+    // Diagnóstico: a ponte nativa manda status/erros do reconhecedor pra aparecer no overlay.
+    (window as any).__lcVoiceStatus = (msg: string) => { if (!vcArmed) vcSetHeard(msg); };
 }
 
 export function vcToggle(): void {
@@ -290,6 +292,8 @@ function vcStart(): void {
         if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
             vcSetHeard('Microfone bloqueado. Permita o acesso.');
             vcStop();
+        } else if (e.error !== 'no-speech') {
+            vcSetHeard(`voz: ${e.error}`);
         }
     };
     try { vcRec.start(); } catch { /* ignore */ }
