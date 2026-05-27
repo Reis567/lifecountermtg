@@ -8,6 +8,8 @@ import { gameState } from './state.js';
 // ----- Estado -----
 let vcActive = false; // microfone ligado
 let vcArmed = false; // comandos ativos (depois de "life counter")
+let vcLastCmdKey = ''; // dedup: último comando aplicado
+let vcLastCmdAt = 0;
 let vcRec: any = null; // SpeechRecognition (web)
 let vcOverlay: HTMLDivElement | null = null;
 
@@ -216,8 +218,25 @@ function vcHandleTranscript(raw: string, final: boolean): void {
     if (!vcArmed) return; // modo ambiente: só age depois de ouvir "life counter"
 
     const cmd = vcParse(raw);
-    if (cmd) vcApply(cmd);
-    else vcSetHeard(`"${raw}" — não entendi`);
+    if (!cmd) {
+        vcSetHeard(`"${raw}" — não entendi`);
+        return;
+    }
+
+    // Dedup: o reconhecedor às vezes entrega o mesmo final 2x (causava aplicar em dobro).
+    const key = vcCmdKey(cmd);
+    const now = Date.now();
+    if (key === vcLastCmdKey && now - vcLastCmdAt < 1500) return;
+    vcLastCmdKey = key;
+    vcLastCmdAt = now;
+
+    vcApply(cmd);
+}
+
+function vcCmdKey(cmd: VoiceCommand): string {
+    if (cmd.commander) return `c:${cmd.commander.targetId}:${cmd.commander.sourceId}:${cmd.commander.amount}`;
+    if (cmd.setValue !== undefined) return `s:${cmd.playerId}:${cmd.setValue}`;
+    return `d:${cmd.playerId}:${cmd.delta}`;
 }
 
 // ===== UI =====
