@@ -199,10 +199,11 @@ function vcApply(cmd: VoiceCommand): void {
     try { navigator.vibrate?.(40); } catch { /* ignore */ }
 }
 
-// Palavra-chave de ativação: "life counter" arma; "tchau life counter" desarma.
-// As variantes cobrem a pronúncia mastigada pelo reconhecedor pt-BR.
-const VC_WAKE = /(life|laife|live|laif|laifi|lifi)\s*(counter|county|conter|kaunter)/;
-const VC_BYE = /\b(tchau|chau|xau|adeus)\b/;
+// Palavra-chave de ativação. O reconhecedor é pt-BR, então "life counter" (inglês)
+// costuma sair mastigado — por isso "contador" (PT) é o gatilho confiável, com
+// "life counter" e variantes como alternativa. Desarma com "tchau"/"fechar"/"parar".
+const VC_WAKE = /(life|laife|laif|laifi|lifi|live|leite)\s*(counter|conter|caunter|kaunter|county|conta)|\bcontador\b/;
+const VC_BYE = /\b(tchau|chau|xau|adeus|fechar|fecha|parar|para|encerra|desativa)\b/;
 
 function vcHandleTranscript(raw: string, final: boolean): void {
     vcSetHeard(raw);
@@ -322,7 +323,7 @@ function vcArm(): void {
     if (vcArmed) return;
     vcArmed = true;
     vcBtnClass(true, true);
-    vcSetTitle('Comandos ATIVOS — ex.: "fulano menos 3" · diga "tchau life counter" para sair');
+    vcSetTitle('Comandos ATIVOS — ex.: "fulano menos 3" · diga "tchau contador" para sair');
     vcToast('🎙️ Comandos de voz ativados', true);
     try { navigator.vibrate?.(60); } catch { /* ignore */ }
 }
@@ -330,7 +331,7 @@ function vcArm(): void {
 function vcDisarm(): void {
     vcArmed = false;
     vcBtnClass(true, false);
-    vcSetTitle('Diga "life counter" para ativar os comandos');
+    vcSetTitle('Diga "contador" (ou "life counter") para ativar');
     vcToast('🎙️ Comandos pausados', false);
     try { navigator.vibrate?.(30); } catch { /* ignore */ }
 }
@@ -342,7 +343,7 @@ function vcShowOverlay(): void {
     el.innerHTML = `
         <div class="voice-mic">🎙️</div>
         <div class="voice-text">
-            <div class="voice-title" id="voice-title">Diga "life counter" para ativar os comandos</div>
+            <div class="voice-title" id="voice-title">Diga "contador" (ou "life counter") para ativar</div>
             <div class="voice-heard" id="voice-heard"></div>
         </div>
         <button class="voice-stop" id="voice-stop-btn" type="button">Parar</button>
