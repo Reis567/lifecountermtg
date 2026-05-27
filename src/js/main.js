@@ -1,9 +1,11 @@
 // ===== Main Entry Point =====
 import { initUI } from './ui.js';
+import { maybeShowAndroidPromo } from './androidPromo.js';
 // Initialize the application when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     console.log('MTG Life Counter initialized');
     initUI();
+    maybeShowAndroidPromo();
 });
 // Handle visibility change to pause/resume timer sounds
 document.addEventListener('visibilitychange', () => {
@@ -16,13 +18,15 @@ document.addEventListener('visibilitychange', () => {
         console.log('Tab visible - resuming');
     }
 });
-// Register service worker for PWA (instalável + offline). Caminho relativo para
-// funcionar em subpastas (ex.: GitHub Pages). Falha silenciosa no WebView (file://).
+// O service worker foi DESATIVADO: o cache cache-first travava o app (não dava
+// pra clicar em nada após uma atualização). Aqui removemos qualquer SW antigo e
+// limpamos os caches, destravando quem ficou preso. O sw.js virou auto-destrutivo.
 if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch((err) => {
-            console.warn('Service worker não registrado:', err);
-        });
-    });
+    navigator.serviceWorker.getRegistrations()
+        .then((regs) => regs.forEach((r) => r.unregister()))
+        .catch(() => { });
+}
+if (typeof caches !== 'undefined' && caches.keys) {
+    caches.keys().then((keys) => keys.forEach((k) => caches.delete(k))).catch(() => { });
 }
 //# sourceMappingURL=main.js.map

@@ -5977,3 +5977,43 @@ select {
 .fp-btn-primary {
     background: var(--accent-primary);
 }
+
+/* ===== Promo do APK Android ===== */
+.apk-promo-content {
+    max-width: 360px;
+    padding: 1.5rem 1.25rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.apk-promo-emoji {
+    font-size: 2.5rem;
+}
+
+.apk-promo-content h2 {
+    font-size: 1.15rem;
+    font-weight: 800;
+}
+
+.apk-promo-content p {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.apk-promo-download {
+    display: inline-block;
+    width: 100%;
+    text-align: center;
+    text-decoration: none;
+    margin-top: 0.3rem;
+}
+
+.apk-promo-dismiss {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    padding: 0.4rem;
+}
