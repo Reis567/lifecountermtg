@@ -4,7 +4,8 @@
 // (window.LCVoice + window.__lcVoiceResult) porque o WebView não tem Web Speech.
 import { gameState } from './state.js';
 // ----- Estado -----
-let vcActive = false;
+let vcActive = false; // microfone ligado
+let vcArmed = false; // comandos ativos (depois de "life counter")
 let vcRec = null; // SpeechRecognition (web)
 let vcOverlay = null;
 // ----- Detecção de suporte -----
@@ -188,10 +189,25 @@ function vcApply(cmd) {
     }
     catch { /* ignore */ }
 }
+// Palavra-chave de ativação: "life counter" arma; "tchau life counter" desarma.
+// As variantes cobrem a pronúncia mastigada pelo reconhecedor pt-BR.
+const VC_WAKE = /(life|laife|live|laif|laifi|lifi)\s*(counter|county|conter|kaunter)/;
+const VC_BYE = /\b(tchau|chau|xau|adeus)\b/;
 function vcHandleTranscript(raw, final) {
     vcSetHeard(raw);
     if (!final)
         return;
+    const n = vcNorm(raw);
+    // Palavra-chave tem prioridade sobre comandos.
+    if (VC_WAKE.test(n)) {
+        if (VC_BYE.test(n))
+            vcDisarm();
+        else
+            vcArm();
+        return;
+    }
+    if (!vcArmed)
+        return; // modo ambiente: só age depois de ouvir "life counter"
     const cmd = vcParse(raw);
     if (cmd)
         vcApply(cmd);
@@ -223,8 +239,9 @@ function vcStart() {
     if (vcActive)
         return;
     vcActive = true;
+    vcArmed = false;
     vcShowOverlay();
-    vcMarkButtons(true);
+    vcBtnClass(true, false);
     const native = vcNativeBridge();
     if (native) {
         try {
@@ -269,7 +286,8 @@ function vcStart() {
 }
 function vcStop() {
     vcActive = false;
-    vcMarkButtons(false);
+    vcArmed = false;
+    vcBtnClass(false, false);
     const native = vcNativeBridge();
     if (native) {
         try {
@@ -286,10 +304,41 @@ function vcStop() {
     }
     vcHideOverlay();
 }
-function vcMarkButtons(on) {
+function vcBtnClass(listening, armed) {
     ['voice-btn', 'voice-btn-left'].forEach((id) => {
-        document.getElementById(id)?.classList.toggle('voice-listening', on);
+        const b = document.getElementById(id);
+        if (!b)
+            return;
+        b.classList.toggle('voice-listening', listening && !armed);
+        b.classList.toggle('voice-armed', armed);
     });
+}
+function vcSetTitle(text) {
+    const el = document.getElementById('voice-title');
+    if (el)
+        el.textContent = text;
+}
+function vcArm() {
+    if (vcArmed)
+        return;
+    vcArmed = true;
+    vcBtnClass(true, true);
+    vcSetTitle('Comandos ATIVOS — ex.: "fulano menos 3" · diga "tchau life counter" para sair');
+    vcToast('🎙️ Comandos de voz ativados', true);
+    try {
+        navigator.vibrate?.(60);
+    }
+    catch { /* ignore */ }
+}
+function vcDisarm() {
+    vcArmed = false;
+    vcBtnClass(true, false);
+    vcSetTitle('Diga "life counter" para ativar os comandos');
+    vcToast('🎙️ Comandos pausados', false);
+    try {
+        navigator.vibrate?.(30);
+    }
+    catch { /* ignore */ }
 }
 function vcShowOverlay() {
     if (vcOverlay)
@@ -299,7 +348,7 @@ function vcShowOverlay() {
     el.innerHTML = `
         <div class="voice-mic">🎙️</div>
         <div class="voice-text">
-            <div class="voice-title">Ouvindo… ex.: "fulano menos 3" • "fulano 5 de comandante do beltrano"</div>
+            <div class="voice-title" id="voice-title">Diga "life counter" para ativar os comandos</div>
             <div class="voice-heard" id="voice-heard"></div>
         </div>
         <button class="voice-stop" id="voice-stop-btn" type="button">Parar</button>
