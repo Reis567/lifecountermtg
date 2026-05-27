@@ -6021,7 +6021,7 @@ select {
 }
 
 /* ===== Comando de voz ===== */
-.header-btn.voice-listening {
+.voice-listening {
     color: #fff;
     background: var(--danger);
     animation: voicePulse 1.1s ease-in-out infinite;
@@ -6032,7 +6032,7 @@ select {
     50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
 }
 
-.header-btn.voice-armed {
+.voice-armed {
     color: #fff;
     background: var(--success);
     animation: voicePulseGreen 1.1s ease-in-out infinite;
@@ -6142,4 +6142,53 @@ select {
 .apk-home-btn:hover {
     border-color: var(--accent-primary);
     color: var(--accent-primary);
+}
+
+/* ===== Modal Ferramentas ===== */
+.tools-modal-content {
+    max-width: 420px;
+}
+
+.tools-body {
+    padding: 0.5rem 1.25rem 1.25rem;
+}
+
+.tools-section-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin: 0.9rem 0 0.5rem;
+}
+
+.tools-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+}
+
+.tool-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.9rem 0.5rem;
+    background: var(--bg-tertiary);
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 0.82rem;
+    text-align: center;
+    transition: all var(--transition-fast);
+}
+
+.tool-item:hover {
+    background: var(--border-color);
+}
+
+.tool-ic {
+    font-size: 1.7rem;
+    line-height: 1;
 }

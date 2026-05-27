@@ -749,14 +749,35 @@ function setupGameScreenListeners() {
     $('close-history-btn')?.addEventListener('click', () => {
         $('history-panel').classList.remove('active');
     });
-    // Dice roller button
-    $('dice-roller-btn')?.addEventListener('click', () => {
+    // Botão Ferramentas (menu agrupado) — header e sidebar
+    $('tools-btn')?.addEventListener('click', () => openModal($('tools-modal')));
+    $('tools-btn-left')?.addEventListener('click', () => openModal($('tools-modal')));
+    // Entradas do modal Ferramentas
+    $('open-dice')?.addEventListener('click', () => {
+        closeModal($('tools-modal'));
         openModal($('dice-roller-modal'));
     });
-    // Card scanner button (identificar carta por foto)
-    $('card-scan-btn')?.addEventListener('click', () => openCardScanner());
-    // Finger picker (quem começa pelos dedos)
-    $('finger-picker-btn')?.addEventListener('click', () => openFingerPicker());
+    $('open-history')?.addEventListener('click', () => {
+        closeModal($('tools-modal'));
+        renderHistory();
+        $('history-panel').classList.add('active');
+    });
+    $('open-cardscan')?.addEventListener('click', () => {
+        closeModal($('tools-modal'));
+        openCardScanner();
+    });
+    $('open-fingerpicker')?.addEventListener('click', () => {
+        closeModal($('tools-modal'));
+        openFingerPicker();
+    });
+    $('open-randomstarter')?.addEventListener('click', () => {
+        if (isButtonDebounced('open-randomstarter'))
+            return;
+        closeModal($('tools-modal'));
+        startRandomStarterAnimation();
+    });
+    // Voz: o voiceControl liga o toggle no #voice-btn; aqui só fechamos o modal.
+    $('voice-btn')?.addEventListener('click', () => closeModal($('tools-modal')));
     // Share result button
     $('share-result-btn')?.addEventListener('click', openShareModal);
     // Share modal buttons
