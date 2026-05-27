@@ -1,12 +1,13 @@
 // ===== Main Entry Point =====
 
 import { initUI } from './ui.js';
-import { maybeShowAndroidPromo } from './androidPromo.js';
+import { maybeShowAndroidPromo, setupApkDownloadButton } from './androidPromo.js';
 
 // Initialize the application when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     console.log('MTG Life Counter initialized');
     initUI();
+    setupApkDownloadButton();
     maybeShowAndroidPromo();
 });
 

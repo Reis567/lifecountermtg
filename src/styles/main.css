@@ -6110,3 +6110,25 @@ select {
 .voice-toast-ok {
     border-left: 4px solid var(--success);
 }
+
+/* Botão de download do APK na home */
+.apk-home-btn {
+    display: block;
+    width: 100%;
+    margin-top: 0.75rem;
+    padding: 0.7rem 1rem;
+    text-align: center;
+    text-decoration: none;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all var(--transition-fast);
+}
+
+.apk-home-btn:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}

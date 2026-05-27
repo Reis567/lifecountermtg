@@ -48,4 +48,17 @@ export function maybeShowAndroidPromo() {
     overlay.querySelector('.apk-promo-download')?.addEventListener('click', dismiss);
     overlay.querySelector('.apk-promo-dismiss')?.addEventListener('click', dismiss);
 }
+// Botão fixo de download do APK na home (abaixo de "Iniciar Partida").
+// Aparece no navegador (web); fica escondido dentro do próprio APK.
+export function setupApkDownloadButton() {
+    const btn = document.getElementById('apk-download-home');
+    if (!btn)
+        return;
+    if (location.protocol === 'file:') {
+        btn.style.display = 'none';
+        return;
+    }
+    btn.href = APK_URL;
+    btn.style.display = '';
+}
 //# sourceMappingURL=androidPromo.js.map
