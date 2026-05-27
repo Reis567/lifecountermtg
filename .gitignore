@@ -33,7 +33,10 @@ android/app/*.iml
 # PDFs
 *.pdf
 
-# API keys (embedded build config — keep the real key out of git)
+# API keys (chave do Gemini fora do git) — config.js é um <script> clássico opcional
+/config.js
+android/app/src/main/assets/config.js
+# legado (não usados mais)
 src/ts/config.ts
 src/js/config.js
 src/js/config.js.map

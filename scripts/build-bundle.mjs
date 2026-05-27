@@ -4,7 +4,7 @@
 // concatenamos os módulos compilados removendo os `import`/`export`. Rode `tsc`
 // antes (ou use `npm run build:android`, que faz os dois).
 
-import { readFileSync, writeFileSync, copyFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, copyFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -12,7 +12,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 // Ordem importa: dependências de execução em nível de módulo primeiro,
 // main.js por último (registra o DOMContentLoaded que chama initUI).
-const order = ['config', 'aiClient', 'types', 'state', 'audio', 'fingerPicker', 'aiNarrator', 'cardScanner', 'androidPromo', 'ui', 'main'];
+const order = ['aiClient', 'types', 'state', 'audio', 'fingerPicker', 'aiNarrator', 'cardScanner', 'androidPromo', 'ui', 'main'];
 
 const chunks = [];
 for (const name of order) {
@@ -44,3 +44,14 @@ const cssSrc = resolve(root, 'src/styles/main.css');
 const cssDst = resolve(root, 'android/app/src/main/assets/src/styles/main.css');
 copyFileSync(cssSrc, cssDst);
 console.log(`main.css copiado -> ${cssDst}`);
+
+// Copia a chave (config.js) para os assets do Android, se existir. Sem ela o app
+// roda, mas a IA fica desligada. (config.js é gitignored.)
+const cfgSrc = resolve(root, 'config.js');
+const cfgDst = resolve(root, 'android/app/src/main/assets/config.js');
+if (existsSync(cfgSrc)) {
+    copyFileSync(cfgSrc, cfgDst);
+    console.log(`config.js copiado -> ${cfgDst}`);
+} else {
+    console.warn('AVISO: config.js não encontrado — IA ficará desligada no APK.');
+}

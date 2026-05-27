@@ -1,8 +1,18 @@
 // ===== Cliente Gemini compartilhado =====
 // Helper único usado pelo scanner de cartas, juiz de regras, explicador de
-// interação, tradução ao vivo e narrador com persona.
+// interação e narrador com persona.
+//
+// A chave NÃO é importada como módulo (um import que dá 404 derruba o app
+// inteiro). Ela vem de um <script> clássico opcional (config.js) que define
+// window.LIFECOUNTER_GEMINI_KEY. Se faltar, a IA fica desligada e o app funciona.
 
-import { GEMINI_API_KEY, GEMINI_MODEL } from './config.js';
+function cfgKey(): string {
+    return (typeof window !== 'undefined' && (window as any).LIFECOUNTER_GEMINI_KEY) || '';
+}
+
+function cfgModel(): string {
+    return (typeof window !== 'undefined' && (window as any).LIFECOUNTER_GEMINI_MODEL) || 'gemini-2.5-flash';
+}
 
 export type GeminiPart =
     | { text: string }
@@ -19,7 +29,8 @@ export interface GeminiOptions {
 }
 
 export function isGeminiConfigured(): boolean {
-    return !!GEMINI_API_KEY && GEMINI_API_KEY !== 'COLE_SUA_CHAVE_GEMINI_AQUI';
+    const k = cfgKey();
+    return !!k && k !== 'COLE_SUA_CHAVE_GEMINI_AQUI';
 }
 
 // Parte de imagem JPEG (base64 sem o prefixo data:).
@@ -29,11 +40,11 @@ export function jpegPart(base64: string): GeminiPart {
 
 export async function geminiGenerate(parts: GeminiPart[], opts: GeminiOptions = {}): Promise<string> {
     if (!isGeminiConfigured()) {
-        throw new Error('Chave do Gemini não configurada. Edite src/ts/config.ts e adicione sua chave.');
+        throw new Error('Chave do Gemini não configurada (config.js).');
     }
 
-    const model = opts.model || GEMINI_MODEL;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`;
+    const model = opts.model || cfgModel();
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(cfgKey())}`;
 
     const generationConfig: Record<string, unknown> = {
         temperature: opts.temperature ?? 0.4,

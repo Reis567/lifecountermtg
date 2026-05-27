@@ -807,6 +807,7 @@ select {
     position: absolute;
     inset: 0;
     background: rgba(0, 0, 0, 0.6);
+    -webkit-backdrop-filter: blur(2px);
     backdrop-filter: blur(2px);
 }
 
@@ -1769,6 +1770,7 @@ select {
     align-items: center;
     justify-content: center;
     padding: 1rem;
+    -webkit-backdrop-filter: blur(4px);
     backdrop-filter: blur(4px);
 }
 

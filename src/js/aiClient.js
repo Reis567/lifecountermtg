@@ -1,9 +1,19 @@
 // ===== Cliente Gemini compartilhado =====
 // Helper único usado pelo scanner de cartas, juiz de regras, explicador de
-// interação, tradução ao vivo e narrador com persona.
-import { GEMINI_API_KEY, GEMINI_MODEL } from './config.js';
+// interação e narrador com persona.
+//
+// A chave NÃO é importada como módulo (um import que dá 404 derruba o app
+// inteiro). Ela vem de um <script> clássico opcional (config.js) que define
+// window.LIFECOUNTER_GEMINI_KEY. Se faltar, a IA fica desligada e o app funciona.
+function cfgKey() {
+    return (typeof window !== 'undefined' && window.LIFECOUNTER_GEMINI_KEY) || '';
+}
+function cfgModel() {
+    return (typeof window !== 'undefined' && window.LIFECOUNTER_GEMINI_MODEL) || 'gemini-2.5-flash';
+}
 export function isGeminiConfigured() {
-    return !!GEMINI_API_KEY && GEMINI_API_KEY !== 'COLE_SUA_CHAVE_GEMINI_AQUI';
+    const k = cfgKey();
+    return !!k && k !== 'COLE_SUA_CHAVE_GEMINI_AQUI';
 }
 // Parte de imagem JPEG (base64 sem o prefixo data:).
 export function jpegPart(base64) {
@@ -11,10 +21,10 @@ export function jpegPart(base64) {
 }
 export async function geminiGenerate(parts, opts = {}) {
     if (!isGeminiConfigured()) {
-        throw new Error('Chave do Gemini não configurada. Edite src/ts/config.ts e adicione sua chave.');
+        throw new Error('Chave do Gemini não configurada (config.js).');
     }
-    const model = opts.model || GEMINI_MODEL;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`;
+    const model = opts.model || cfgModel();
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(cfgKey())}`;
     const generationConfig = {
         temperature: opts.temperature ?? 0.4,
         // Desliga (ou limita) o thinking do Gemini 2.5 para a resposta não ser
