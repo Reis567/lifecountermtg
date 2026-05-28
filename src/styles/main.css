@@ -1769,7 +1769,9 @@ select {
     z-index: 100;
     align-items: center;
     justify-content: center;
-    padding: 1rem;
+    padding: 0.6rem;
+    padding-top: max(0.6rem, env(safe-area-inset-top, 0));
+    padding-bottom: max(0.6rem, env(safe-area-inset-bottom, 0));
     -webkit-backdrop-filter: blur(4px);
     backdrop-filter: blur(4px);
 }
@@ -1783,10 +1785,30 @@ select {
     border-radius: var(--border-radius-lg);
     width: 100%;
     max-width: 500px;
-    max-height: 90vh;
+    /* dvh evita o "salto" da barra do navegador no iOS; vh é o fallback. */
+    max-height: 92dvh;
+    max-height: min(92dvh, 92vh);
     overflow-y: auto;
     overflow-x: hidden;
+    overscroll-behavior: contain;
     animation: modalSlideIn 200ms ease;
+}
+
+/* Celular deitado (altura pequena): aproveita o espaço todo, encosta no topo. */
+@media (max-height: 520px) {
+    .modal {
+        padding: 0.35rem;
+        align-items: flex-start;
+    }
+    .modal-content {
+        max-height: calc(100dvh - 0.7rem);
+    }
+    .modal-header {
+        padding: 0.45rem 0.85rem;
+    }
+    .modal-header h2 {
+        font-size: 0.9rem;
+    }
 }
 
 .settings-modal-content,
@@ -6200,4 +6222,33 @@ select {
 .tool-ic {
     font-size: 1.7rem;
     line-height: 1;
+}
+
+/* ===== Abas do modal Configurações ===== */
+.settings-tabs-nav {
+    display: flex;
+    gap: 0.3rem;
+    background: var(--bg-tertiary);
+    padding: 0.25rem;
+    border-radius: var(--border-radius);
+    margin: 0 1rem 0.75rem;
+    position: sticky;
+    top: 0;
+    z-index: 4;
+}
+
+.settings-tab {
+    flex: 1;
+    padding: 0.55rem 0.4rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-radius: var(--border-radius-sm);
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+}
+
+.settings-tab.active {
+    background: var(--accent-primary);
+    color: #fff;
 }

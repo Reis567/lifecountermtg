@@ -719,6 +719,9 @@ export function initUI(): void {
     // Initialize card scanner modal
     setupCardScanner();
 
+    // Agrupa as seções do modal Configurações em abas (Som/Visual/Jogo).
+    setupSettingsTabs();
+
     // Initialize voice control (comando de vida por voz)
     setupVoiceControl({
         randomStarter: () => startRandomStarterAnimation(),
@@ -995,6 +998,63 @@ function setupGameScreenListeners(): void {
     });
 
     $('share-result-btn-right')?.addEventListener('click', openShareModal);
+}
+
+// Agrupa as seções do modal Configurações em abas (Som / Visual / Jogo).
+// Não toca no HTML — classifica cada .settings-group pelo texto do <h3> e
+// mostra/esconde via JS. Idempotente.
+function setupSettingsTabs(): void {
+    const list = document.querySelector('.settings-modal-content .settings-list') as HTMLElement | null;
+    if (!list || list.dataset.tabified === '1') return;
+    list.dataset.tabified = '1';
+
+    const tabFor = (h3text: string): string => {
+        const t = h3text.toLowerCase();
+        if (/audio|som/.test(t)) return 'som';
+        if (/visual|tema|gif/.test(t)) return 'visual';
+        return 'jogo'; // comandante, layout, timer, sorteio, modo
+    };
+
+    const groups = Array.from(list.querySelectorAll<HTMLElement>('.settings-group'));
+    if (groups.length === 0) return;
+    groups.forEach((g) => {
+        const h3 = g.querySelector('h3');
+        g.dataset.tab = h3 ? tabFor(h3.textContent || '') : 'jogo';
+    });
+
+    // Cria a barra de abas e insere antes do primeiro .settings-group.
+    const nav = document.createElement('div');
+    nav.className = 'settings-tabs-nav';
+    const tabs: Array<[string, string]> = [
+        ['som', '🔊 Som'],
+        ['visual', '🎨 Visual'],
+        ['jogo', '🎮 Jogo'],
+    ];
+    tabs.forEach(([key, label], i) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'settings-tab' + (i === 0 ? ' active' : '');
+        btn.dataset.tab = key;
+        btn.textContent = label;
+        nav.appendChild(btn);
+    });
+    groups[0].parentNode?.insertBefore(nav, groups[0]);
+
+    const setTab = (tab: string): void => {
+        nav.querySelectorAll<HTMLElement>('.settings-tab').forEach((b) => {
+            b.classList.toggle('active', b.dataset.tab === tab);
+        });
+        groups.forEach((g) => {
+            g.style.display = g.dataset.tab === tab ? '' : 'none';
+        });
+    };
+
+    nav.addEventListener('click', (e) => {
+        const btn = (e.target as HTMLElement).closest('.settings-tab') as HTMLElement | null;
+        if (btn?.dataset.tab) setTab(btn.dataset.tab);
+    });
+
+    setTab('som');
 }
 
 function setupModalListeners(): void {
