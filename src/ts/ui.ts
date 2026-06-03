@@ -7,6 +7,14 @@ import { openFingerPicker } from './fingerPicker.js';
 import { setupVoiceControl, maybeAutoStartVoice } from './voiceControl.js';
 import { narrateElimination, narrateWinner } from './aiNarrator.js';
 import {
+    saveResult,
+    buildAutoResult,
+    buildManualResult,
+    placementsFromOrder,
+    aggregate,
+    type RankingPeriod,
+} from './ranking.js';
+import {
     GameState,
     Player,
     GameEvent,
@@ -738,6 +746,7 @@ export function initUI(): void {
             ambientMusic.setTrack(t as AmbientMusicTrack);
             ambientMusic.toggle(t !== 'none');
         },
+        ranking: () => openRankingModal(),
     });
 }
 
@@ -921,6 +930,10 @@ function setupGameScreenListeners(): void {
         closeModal($('tools-modal'));
         openCardScanner();
     });
+    $('open-ranking')?.addEventListener('click', () => {
+        closeModal($('tools-modal'));
+        openRankingModal();
+    });
     $('open-fingerpicker')?.addEventListener('click', () => {
         closeModal($('tools-modal'));
         openFingerPicker();
@@ -1055,6 +1068,177 @@ function setupSettingsTabs(): void {
     });
 
     setTab('som');
+}
+
+// ===== Ranking =====
+let lastSavedMatchId: string | null = null;
+
+function saveAutoResultIfNeeded(state: GameState): void {
+    if (!state.winner) return;
+    const r = buildAutoResult(state as any);
+    if (!r || r.id === lastSavedMatchId) return;
+    saveResult(r);
+    lastSavedMatchId = r.id;
+}
+
+// Pergunta sobre o pódio antes de resetar/iniciar nova partida sem vencedor.
+function maybeAskPodium(state: GameState, onContinue: () => void): void {
+    if (!state.gameStarted || state.winner || state.players.length < 2) {
+        onContinue();
+        return;
+    }
+    openPodiumModal(
+        state.players.map((p) => ({ id: p.id, name: p.name })),
+        (orderedNames) => {
+            const r = buildManualResult(placementsFromOrder(orderedNames), state as any);
+            saveResult(r);
+            onContinue();
+        },
+        () => onContinue(),
+    );
+}
+
+function openPodiumModal(
+    players: Array<{ id: string; name: string }>,
+    onSave: (orderedNames: string[]) => void,
+    onSkip: () => void,
+): void {
+    const N = players.length;
+    let slots: Array<{ name: string } | null> = Array(N).fill(null);
+    let chips: Array<{ name: string }> = players.map((p) => ({ name: p.name }));
+
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.id = 'podium-modal-dyn';
+    modal.innerHTML = `
+        <div class="modal-content podium-modal-content">
+            <div class="modal-header">
+                <h2>🏆 Quem ganhou?</h2>
+                <button class="modal-close" type="button">&times;</button>
+            </div>
+            <div class="podium-body">
+                <p class="podium-help">Toque no nome do jogador para colocar no próximo lugar. Toque num lugar preenchido para tirar.</p>
+                <div class="podium-slots"></div>
+                <div class="podium-section-label">Jogadores</div>
+                <div class="podium-chips"></div>
+                <div class="podium-actions">
+                    <button class="cs-gallery-btn" id="podium-skip" type="button">Pular (não salvar)</button>
+                    <button class="primary-btn" id="podium-save" type="button" disabled>Salvar pódio</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    const slotsEl = modal.querySelector('.podium-slots') as HTMLElement;
+    const chipsEl = modal.querySelector('.podium-chips') as HTMLElement;
+    const saveBtn = modal.querySelector('#podium-save') as HTMLButtonElement;
+
+    const close = (): void => modal.remove();
+    const medalFor = (place: number): string => place === 1 ? '🥇' : place === 2 ? '🥈' : place === 3 ? '🥉' : `${place}º`;
+
+    const render = (): void => {
+        slotsEl.innerHTML = slots.map((s, i) => `
+            <div class="podium-slot ${s ? 'filled' : ''}" data-idx="${i}">
+                <span class="podium-place">${medalFor(i + 1)}</span>
+                <span class="podium-name">${s ? s.name : '—'}</span>
+            </div>
+        `).join('');
+        chipsEl.innerHTML = chips.map((c) => `<button class="podium-chip" type="button" data-name="${c.name.replace(/"/g, '&quot;')}">${c.name}</button>`).join('');
+        const allFilled = slots.every((s) => s !== null);
+        saveBtn.disabled = !allFilled;
+    };
+
+    slotsEl.addEventListener('click', (e) => {
+        const slot = (e.target as HTMLElement).closest('.podium-slot') as HTMLElement | null;
+        if (!slot) return;
+        const idx = parseInt(slot.dataset.idx || '-1', 10);
+        if (idx < 0 || !slots[idx]) return;
+        chips.push({ name: slots[idx]!.name });
+        slots[idx] = null;
+        render();
+    });
+    chipsEl.addEventListener('click', (e) => {
+        const chip = (e.target as HTMLElement).closest('.podium-chip') as HTMLElement | null;
+        if (!chip) return;
+        const name = chip.dataset.name || '';
+        const firstEmpty = slots.findIndex((s) => s === null);
+        if (firstEmpty < 0) return;
+        slots[firstEmpty] = { name };
+        chips = chips.filter((c) => c.name !== name);
+        render();
+    });
+    modal.querySelector('.modal-close')?.addEventListener('click', () => { close(); onSkip(); });
+    modal.querySelector('#podium-skip')?.addEventListener('click', () => { close(); onSkip(); });
+    modal.querySelector('#podium-save')?.addEventListener('click', () => {
+        const ordered = slots.filter((s): s is { name: string } => s !== null).map((s) => s.name);
+        close();
+        onSave(ordered);
+    });
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) { close(); onSkip(); }
+    });
+
+    render();
+}
+
+function openRankingModal(): void {
+    let period: RankingPeriod = 'today';
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.id = 'ranking-modal-dyn';
+    modal.innerHTML = `
+        <div class="modal-content ranking-modal-content">
+            <div class="modal-header">
+                <h2>🏆 Ranking</h2>
+                <button class="modal-close" type="button">&times;</button>
+            </div>
+            <div class="ranking-body">
+                <div class="ranking-tabs">
+                    <button class="ranking-tab active" data-p="today">Hoje</button>
+                    <button class="ranking-tab" data-p="month">Mês</button>
+                    <button class="ranking-tab" data-p="all">Geral</button>
+                </div>
+                <div class="ranking-table" id="ranking-table"></div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    const tableEl = modal.querySelector('#ranking-table') as HTMLElement;
+    const close = (): void => modal.remove();
+    const medalFor = (place: number): string => place === 1 ? '🥇' : place === 2 ? '🥈' : place === 3 ? '🥉' : `${place}º`;
+
+    const render = (): void => {
+        const rows = aggregate(period);
+        if (rows.length === 0) {
+            tableEl.innerHTML = '<div class="ranking-empty">Nenhuma partida registrada ainda.</div>';
+            return;
+        }
+        const head = `<div class="ranking-row ranking-head"><span></span><span>Jogador</span><span>Pts</span><span>V</span><span>P</span></div>`;
+        const body = rows.map((r, i) => `
+            <div class="ranking-row">
+                <span class="ranking-place">${medalFor(i + 1)}</span>
+                <span class="ranking-name">${r.name}</span>
+                <span class="ranking-pts">${r.points}</span>
+                <span class="ranking-wins">${r.wins}</span>
+                <span class="ranking-matches">${r.matches}</span>
+            </div>
+        `).join('');
+        tableEl.innerHTML = head + body;
+    };
+
+    modal.querySelector('.ranking-tabs')?.addEventListener('click', (e) => {
+        const btn = (e.target as HTMLElement).closest('.ranking-tab') as HTMLElement | null;
+        if (!btn?.dataset.p) return;
+        period = btn.dataset.p as RankingPeriod;
+        modal.querySelectorAll<HTMLElement>('.ranking-tab').forEach((b) => b.classList.toggle('active', b.dataset.p === period));
+        render();
+    });
+    modal.querySelector('.modal-close')?.addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+
+    render();
 }
 
 function setupModalListeners(): void {
@@ -1265,32 +1449,31 @@ function setupSettingsListeners(): void {
         closeViadoOverlay();
     });
 
-    // Reset and new game buttons
+    // Reset and new game buttons (com prompt de pódio se não houve vencedor)
     $('reset-game-btn')?.addEventListener('click', () => {
-        if (confirm('Tem certeza que deseja resetar a partida?')) {
-            // Check if any player has commander deaths
-            const state = gameState.getState();
-            const hasCommanderDeaths = state.players.some(p => p.commanderDeaths > 0);
-
-            let resetDeaths = false;
-            if (hasCommanderDeaths) {
-                resetDeaths = confirm('Deseja também zerar as mortes do comandante (Commander Tax)?');
-            }
-
+        if (!confirm('Tem certeza que deseja resetar a partida?')) return;
+        const state = gameState.getState();
+        const hasCommanderDeaths = state.players.some(p => p.commanderDeaths > 0);
+        let resetDeaths = false;
+        if (hasCommanderDeaths) {
+            resetDeaths = confirm('Deseja também zerar as mortes do comandante (Commander Tax)?');
+        }
+        maybeAskPodium(state, () => {
             gameState.resetGame(resetDeaths);
             hideShareButtons();
             clearAllDamageShadows();
             closeAllModals();
-        }
+        });
     });
 
     $('new-game-btn')?.addEventListener('click', () => {
-        if (confirm('Tem certeza que deseja iniciar uma nova partida?')) {
+        if (!confirm('Tem certeza que deseja iniciar uma nova partida?')) return;
+        maybeAskPodium(gameState.getState(), () => {
             gameState.newGame();
             hideShareButtons();
             clearAllDamageShadows();
             closeAllModals();
-        }
+        });
     });
 }
 
@@ -1763,6 +1946,9 @@ function renderGame(state: GameState): void {
             eliminatedPlayersShown.delete(player.id);
         }
     });
+
+    // Salva o resultado da partida (1x) no ranking quando há vencedor.
+    saveAutoResultIfNeeded(state);
 
     // Check for winner - show share buttons and winner animation
     if (state.winner) {

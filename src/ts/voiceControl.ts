@@ -25,7 +25,7 @@ interface VoiceCommand {
     theme?: string;
     music?: string;
     dice?: string;
-    action?: 'randomStarter' | 'viado' | 'undo' | 'nextTurn';
+    action?: 'randomStarter' | 'viado' | 'undo' | 'nextTurn' | 'ranking';
     massLife?: number;
 }
 
@@ -38,6 +38,7 @@ export interface VoiceActions {
     dice?: (d: string) => void;
     theme?: (t: string) => void;
     music?: (t: string) => void;
+    ranking?: () => void;
 }
 let vcActions: VoiceActions = {};
 
@@ -219,6 +220,7 @@ function vcParseGlobal(text: string): VoiceCommand | null {
         return { action: 'nextTurn' };
     }
     if (/\bdesfaz|desfazer\b/.test(text)) return { action: 'undo' };
+    if (/\branking\b|\bplacar\b/.test(text)) return { action: 'ranking' };
     if (/\btodos\b|todo mundo|\bgeral\b|mesa toda/.test(text)) {
         const sign = /menos|perde|tira|dano|leva/.test(text) ? -1 : (/mais|ganha|cura|sobe/.test(text) ? 1 : 0);
         const m = text.match(/\d+/);
@@ -311,6 +313,7 @@ function vcApply(cmd: VoiceCommand): void {
         else if (cmd.action === 'viado') { vcActions.viado?.(); vcToast('🏳️‍🌈 Sorteando o viado', true); }
         else if (cmd.action === 'undo') { vcActions.undo?.(); vcToast('↩️ Desfeito', true); }
         else if (cmd.action === 'nextTurn') { vcActions.nextTurn?.(); vcToast('▶️ Próximo turno', true); }
+        else if (cmd.action === 'ranking') { vcActions.ranking?.(); vcToast('🏆 Ranking', true); }
         return;
     }
     if (cmd.theme) { vcActions.theme?.(cmd.theme); vcToast('🎨 Tema alterado', true); return; }

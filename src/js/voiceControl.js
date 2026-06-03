@@ -198,6 +198,8 @@ function vcParseGlobal(text) {
     }
     if (/\bdesfaz|desfazer\b/.test(text))
         return { action: 'undo' };
+    if (/\branking\b|\bplacar\b/.test(text))
+        return { action: 'ranking' };
     if (/\btodos\b|todo mundo|\bgeral\b|mesa toda/.test(text)) {
         const sign = /menos|perde|tira|dano|leva/.test(text) ? -1 : (/mais|ganha|cura|sobe/.test(text) ? 1 : 0);
         const m = text.match(/\d+/);
@@ -302,6 +304,10 @@ function vcApply(cmd) {
         else if (cmd.action === 'nextTurn') {
             vcActions.nextTurn?.();
             vcToast('▶️ Próximo turno', true);
+        }
+        else if (cmd.action === 'ranking') {
+            vcActions.ranking?.();
+            vcToast('🏆 Ranking', true);
         }
         return;
     }
