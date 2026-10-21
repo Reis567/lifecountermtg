@@ -1,4 +1,4 @@
-from datetime import datetime, timezone as dt_tz
+from datetime import datetime, timedelta, timezone as dt_tz
 
 from django.utils import timezone
 from rest_framework import serializers
@@ -98,6 +98,18 @@ class MatchSerializer(serializers.ModelSerializer):
         places = sorted(p['place'] for p in placements)
         if places != list(range(1, len(places) + 1)):
             raise serializers.ValidationError({'placements': 'As colocações precisam ser 1..N sem repetição.'})
+        # Trava anti-lixo: só entra no ranking partida com PERFIL em todos os
+        # jogadores (dados de antes da base única não têm) e recente.
+        if any(p.get('profile') is None for p in placements):
+            raise serializers.ValidationError({'placements': 'Todos os jogadores precisam ter perfil para a partida entrar no ranking.'})
+        now = timezone.now()
+        started, ended = attrs['started_at'], attrs['ended_at']
+        if ended - started > timedelta(hours=12):
+            raise serializers.ValidationError({'started_at': 'Partida com mais de 12 h de duração não entra no ranking (provavelmente ficou salva no aparelho).'})
+        if now - ended > timedelta(days=7):
+            raise serializers.ValidationError({'ended_at': 'Partida encerrada há mais de 7 dias não entra no ranking.'})
+        if ended - now > timedelta(hours=1):
+            raise serializers.ValidationError({'ended_at': 'Data de fim no futuro.'})
         if not attrs.get('player_count'):
             attrs['player_count'] = len(placements)
         events = attrs.get('events')

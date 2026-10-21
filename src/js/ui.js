@@ -1192,9 +1192,27 @@ function setupSettingsTabs() {
 // senão pede o pódio) e congela a mesa. Chamado pelo botão "Encerrar partida"
 // (overlay de vitória e Configurações) e, como último recurso, antes de
 // resetar/nova partida quando ainda não foi encerrada.
+// Partida que não pode ir pro ranking: jogadores sem perfil (dados de antes da
+// atualização) ou partida velha demais (ficou salva no celular por dias).
+function matchNotRankable(state) {
+    if (state.players.some((p) => p.profileId === null || p.profileId === undefined)) {
+        return 'Partida sem perfil em todos os jogadores não entra no ranking.';
+    }
+    if (state.gameStartTime && Date.now() - state.gameStartTime > 12 * 60 * 60 * 1000) {
+        return 'Partida antiga (mais de 12 h) não entra no ranking.';
+    }
+    return null;
+}
 function finishMatch(onDone) {
     const state = gameState.getState();
     if (!state.gameStarted || state.matchClosed || state.players.length < 2) {
+        onDone?.();
+        return;
+    }
+    const blocked = matchNotRankable(state);
+    if (blocked) {
+        gameState.closeMatch();
+        showSpecialMoment(`🏁 Partida encerrada. ${blocked}`, 'warning');
         onDone?.();
         return;
     }
@@ -1233,6 +1251,11 @@ function updateEndGameButtons(state) {
 // encerra (salvando) e só então continua.
 function maybeAskPodium(state, onContinue) {
     if (!state.gameStarted || state.matchClosed || state.players.length < 2) {
+        onContinue();
+        return;
+    }
+    if (matchNotRankable(state)) {
+        // Não pergunta pódio nem salva: segue direto pro reset/nova partida.
         onContinue();
         return;
     }

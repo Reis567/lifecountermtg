@@ -84,7 +84,12 @@ class Lote2Tests(TestCase):
         now = timezone.now()
         # temporada mensal: partida no mês passado vencida pelo Reis, e uma neste mês pelo Zé
         last_month = (now.replace(day=15) - timedelta(days=31))
-        self._match('h1', last_month, [self.reis, self.ze])
+        # Partida antiga entra direto no banco (a API rejeita partidas com mais de 7 dias de propósito).
+        from .models import Match, MatchPlacement
+        m = Match.objects.create(client_id='h1', started_at=last_month - timedelta(minutes=30), ended_at=last_month,
+                                 duration_ms=1800000, player_count=2, source='web')
+        MatchPlacement.objects.create(match=m, profile=self.reis, name='Reis', place=1, points=2)
+        MatchPlacement.objects.create(match=m, profile=self.ze, name='Zé', place=2, points=1)
         self._match('h2', now - timedelta(hours=1), [self.ze, self.reis])
         r = self.c.get('/api/seasons/')
         self.assertEqual(r.status_code, 200)

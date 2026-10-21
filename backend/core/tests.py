@@ -2,6 +2,7 @@ import io
 import tempfile
 
 from django.conf import settings
+from django.utils import timezone
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from PIL import Image
@@ -26,13 +27,16 @@ class ApiTests(TestCase):
         self.reis = Profile.objects.create(name='Reis', slug='reis', is_preset=True)
 
     def _post_match(self, client_id='m_1', placements=None, **extra):
+        self.laura = getattr(self, 'laura', None) or Profile.objects.create(name='Laura', slug='laura')
         placements = placements or [
             {'profile_id': self.ze.id, 'name': 'Zé', 'place': 1, 'points': 3},
             {'profile_id': self.reis.id, 'name': 'Reis', 'place': 2, 'points': 2},
-            {'profile_id': None, 'name': 'Visitante', 'place': 3, 'points': 1},
+            {'profile_id': self.laura.id, 'name': 'Laura', 'place': 3, 'points': 1},
         ]
+        from django.utils import timezone as tz
+        ended = int(tz.now().timestamp() * 1000) - 7200000
         body = {
-            'client_id': client_id, 'started_at_ms': 1760000000000, 'ended_at_ms': 1760003600000,
+            'client_id': client_id, 'started_at_ms': ended - 3600000, 'ended_at_ms': ended,
             'duration_ms': 3600000, 'mode': 'standard', 'manual': False, 'source': 'web',
             'events': [{'type': 'life_change', 'amount': -5}], 'placements': placements,
         }
@@ -95,7 +99,18 @@ class ApiTests(TestCase):
         self.assertEqual(r.data['count'], 1)
 
     def test_match_validation(self):
-        r = self._post_match(placements=[{'name': 'A', 'place': 1, 'points': 2}, {'name': 'B', 'place': 1, 'points': 1}])
+        r = self._post_match(placements=[{'profile_id': self.ze.id, 'name': 'A', 'place': 1, 'points': 2}, {'profile_id': self.reis.id, 'name': 'B', 'place': 1, 'points': 1}])
+        self.assertEqual(r.status_code, 400)
+        # sem perfil -> rejeitada (trava contra partidas antigas / dados legados)
+        r = self._post_match(client_id='np', placements=[{'profile_id': self.ze.id, 'name': 'Zé', 'place': 1, 'points': 2}, {'profile_id': None, 'name': 'Visitante', 'place': 2, 'points': 1}])
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('perfil', str(r.data))
+        # partida de 40 dias atrás / 30 h de duração -> rejeitada
+        old = int(timezone.now().timestamp() * 1000) - 40 * 86400000
+        r = self._post_match(client_id='old', started_at_ms=old - 3600000, ended_at_ms=old)
+        self.assertEqual(r.status_code, 400)
+        now_ms = int(timezone.now().timestamp() * 1000)
+        r = self._post_match(client_id='long', started_at_ms=now_ms - 30 * 3600000, ended_at_ms=now_ms)
         self.assertEqual(r.status_code, 400)
         r = self.c.post('/api/matches/', {'client_id': 'x', 'placements': []}, format='json', **KEY)
         self.assertEqual(r.status_code, 400)
@@ -116,13 +131,12 @@ class ApiTests(TestCase):
         self.assertEqual([x['points'] for x in rows[:2]], [4, 4])
         self.assertEqual([x['wins'] for x in rows[:2]], [1, 1])
         self.assertEqual(rows[0]['matches'], 2)
-        # Visitante sem perfil entra pelo nome
-        self.assertEqual(rows[2]['name'], 'Visitante')
+        self.assertEqual(rows[2]['name'], 'Laura')
         self.assertEqual(r.data['total_matches'], 2)
 
-        # período "hoje" não inclui partida de 2025
+        # período "hoje" inclui as partidas (foram há 2 h)
         r = self.c.get('/api/ranking/?period=today')
-        self.assertEqual(r.data['rows'], [])
+        self.assertEqual(len(r.data['rows']), 3)
 
     def test_match_delete(self):
         r = self._post_match()

@@ -280,6 +280,11 @@ class GameStateManager {
                 if (!parsed.undoStack) parsed.undoStack = [];
                 if (parsed.matchClosed === undefined) parsed.matchClosed = false;
                 if (!parsed.mechanics) parsed.mechanics = createDefaultMechanics();
+                // Partida salva antes da base única (jogadores sem perfil) ou velha demais
+                // (mais de 12 h): fica "encerrada" para nunca entrar no ranking por engano.
+                const legacyPlayers = Array.isArray(parsed.players) && parsed.players.some((p: any) => p.profileId === null || p.profileId === undefined);
+                const tooOld = parsed.gameStartTime && Date.now() - parsed.gameStartTime > 12 * 60 * 60 * 1000;
+                if (parsed.gameStarted && (legacyPlayers || tooOld)) parsed.matchClosed = true;
                 if (!parsed.gameMode) parsed.gameMode = 'standard';
                 if (parsed.randomStarterInProgress === undefined) parsed.randomStarterInProgress = false;
                 if (parsed.viadoPlayerId === undefined) parsed.viadoPlayerId = null;
