@@ -52,6 +52,33 @@ export function narrateWinner(playerName) {
     }
     void speakPersona(persona, `Situação: "${playerName}" VENCEU a partida de Magic. Faça a narração épica da vitória.`);
 }
+// Vitória escandalosa: em vez de UMA frase, pede uma metralhadora de gritos para
+// cobrir os 8 segundos de escândalo. Retorna [] se a IA estiver desligada — nesse
+// caso o victory.ts usa o repertório fixo dele.
+export async function narrateWinnerEscandaloso(playerName) {
+    const persona = getPersona();
+    if (persona === 'classic' || !isGeminiConfigured())
+        return [];
+    const prompt = [
+        PERSONA_STYLE[persona],
+        `Situação: "${playerName}" VENCEU a partida de Magic e o aplicativo está fazendo um escândalo de 8 segundos: sirene, confete, flash e vibração.`,
+        'Narre a vitória GRITANDO, no auge do exagero, como se fosse o gol da final.',
+        'Responda com 5 frases curtas (máx ~12 palavras cada), UMA POR LINHA.',
+        'Sem numeração, sem emojis, sem aspas, sem asteriscos.',
+    ].join('\n');
+    try {
+        const text = await geminiText(prompt, { temperature: 1, maxOutputTokens: 300 });
+        return text
+            .split('\n')
+            .map(line => line.replace(/^[\s\-*\d.)]+/, '').replace(/["*_#]/g, '').trim())
+            .filter(Boolean)
+            .slice(0, 6);
+    }
+    catch (e) {
+        console.warn('aiNarrator escandalosa error:', e);
+        return [];
+    }
+}
 export function narrateStarter(playerName) {
     if (!narratorOn())
         return;

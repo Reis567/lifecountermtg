@@ -11,8 +11,9 @@ android {
         applicationId = "com.lifecounter.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        // Mantenha em sincronia com src/ts/updater.ts (APP_VERSION_CODE/NAME) e deploy.ps1.
+        versionCode = 12
+        versionName = "2.1.1"
     }
 
     buildTypes {
@@ -37,4 +38,6 @@ dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("androidx.webkit:webkit:1.9.0")
+    // Notificações em segundo plano (consulta o servidor periodicamente, sem Firebase).
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
 }

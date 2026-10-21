@@ -5,6 +5,7 @@ export interface Player {
     name: string;
     color: string;
     avatar: string | null;
+    profileId: number | null; // Perfil da mesa (servidor) — obrigatório pra iniciar partida
     background: string | null; // Background image/GIF
     backgroundType: 'none' | 'image' | 'gif';
     emoji: string | null; // Personal emoji/icon
@@ -74,6 +75,7 @@ export interface GameSettings {
     gifPaused: boolean;
     gifFpsReduced: boolean;
     easterEggsEnabled: boolean;
+    escandalosaEnabled: boolean; // Vitória escandalosa (sirene + flash + vibração + narrador gritando)
     animatedBgEnabled: boolean;
     animatedBgStyle: AnimatedBgStyle;
     fontStyle: FontStyle;
@@ -83,8 +85,10 @@ export interface GameSettings {
     narratorEnabled: boolean;
     narratorVoice: string;
     narratorSpeed: number;
+    narratorVolume: number; // 0-100 (separado dos efeitos e da música)
     narratorPersona: NarratorPersona;
     soundPack: SoundPack;
+    silentMode: boolean; // um toque: corta efeitos, música, narrador e sirene
 }
 
 export type NarratorPersona = 'classic' | 'futebol' | 'galvao' | 'novela' | 'caze';
@@ -108,11 +112,38 @@ export interface GameState {
     gameStartTime: number | null;
     gameStarted: boolean;
     winner: string | null;
+    matchClosed: boolean; // partida encerrada explicitamente (resultado já salvo no ranking)
     history: GameEvent[];
     undoStack: UndoAction[];
     gameMode: GameMode;
     randomStarterInProgress: boolean;
     viadoPlayerId: string | null; // ID do jogador sorteado como "viado"
+    mechanics: TableMechanics; // Day/Night, Planechase, Archenemy
+}
+
+// Mecânicas de mesa opcionais (ver mechanics.ts)
+export interface TableMechanics {
+    dayNight: 'none' | 'day' | 'night';
+    planeDeck: string[]; // ids dos planos ainda no deck (topo = último)
+    planeDiscard: string[];
+    currentPlane: string | null;
+    phenomenonActive: string | null;
+    schemeDeck: string[];
+    schemeDiscard: string[];
+    currentScheme: string | null;
+    ongoingSchemes: string[];
+    archenemyPlayerId: string | null;
+}
+
+// Undo por SNAPSHOT: cada ação guarda uma cópia do estado da mesa antes dela.
+export interface UndoSnapshot {
+    players: Player[];
+    teams: Team[];
+    winner: string | null;
+    viadoPlayerId: string | null;
+    activePlayerIndex: number;
+    currentTurn: number;
+    historyLength: number;
 }
 
 export interface UndoAction {
@@ -120,8 +151,9 @@ export interface UndoAction {
     timestamp: number;
     type: string;
     playerId: string;
-    previousState: Partial<Player>;
     description: string;
+    snapshot?: UndoSnapshot;
+    previousState?: Partial<Player>; // legado (saves antigos)
 }
 
 export interface GameEvent {
@@ -130,26 +162,39 @@ export interface GameEvent {
     type: EventType;
     playerId: string;
     details: EventDetails;
+    turn?: number; // turno em que aconteceu
+    playerName?: string; // nome na hora (o histórico sobrevive a trocas de nome)
 }
 
 export type EventType =
     | 'life_change'
     | 'commander_damage'
     | 'counter_change'
+    | 'custom_counter'
+    | 'commander_death'
     | 'player_eliminated'
+    | 'revive'
     | 'player_win'
     | 'turn_change'
     | 'monarch_change'
+    | 'monarch_removed'
     | 'random_starter'
+    | 'day_night'
+    | 'plane'
+    | 'scheme'
+    | 'game_end'
     | 'undo';
 
 export interface EventDetails {
     amount?: number;
     fromPlayerId?: string;
+    fromPlayerName?: string;
     counterType?: string;
+    counterName?: string;
     previousValue?: number;
     newValue?: number;
     message?: string;
+    source?: 'tap' | 'hold' | 'voice' | 'shortcut' | 'commander' | 'modal' | 'auto';
 }
 
 export interface TablePreset {

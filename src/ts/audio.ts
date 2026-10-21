@@ -25,6 +25,7 @@ class AudioManager {
     // Sound files mapping (sound name -> file path)
     private readonly soundFiles: Record<string, string> = {
         damage: 'dano.mp3',
+        heal: 'ze.mp3',               // som de vida ganha
         viado: 'viado.mp3',           // "eu não nasci gay a culpa é do meu pai"
         fluminense: 'fluminense.mp3', // Hino do Fluminense (easter egg)
         monark: 'monark.mp3',         // Monark "acorda cara" (easter egg)
@@ -44,6 +45,25 @@ class AudioManager {
             audio.preload = 'auto';
             this.sounds.set(name, audio);
         }
+    }
+
+    // Força o carregamento dos mp3 (e acorda o AudioContext) no início da
+    // partida — dentro de um gesto do usuário o WebView deixa, e o primeiro
+    // "dano" sai sem atraso.
+    private preloaded = false;
+    preload(): void {
+        if (this.preloaded) return;
+        this.preloaded = true;
+        this.sounds.forEach((audio) => { try { audio.load(); } catch { /* ignore */ } });
+        this.getAudioContext();
+    }
+
+    // Chave do som personalizado: por PERFIL quando o jogador tem um (sobrevive a
+    // "Nova partida"), senão pelo id do jogador na mesa.
+    private soundKey(playerId: string, soundType: string): string {
+        const p = gameState.getState().players.find(pl => pl.id === playerId);
+        if (p && p.profileId !== null && p.profileId !== undefined) return `prof${p.profileId}-${soundType}`;
+        return `${playerId}-${soundType}`;
     }
 
     setSoundPack(pack: SoundPackType): void {
@@ -116,7 +136,7 @@ class AudioManager {
     // Play a sound effect
     play(soundName: string, playerId?: string, winnerName?: string): void {
         const state = gameState.getState();
-        if (!state.settings.soundEnabled) return;
+        if (!state.settings.soundEnabled || state.settings.silentMode) return;
 
         // Throttle rapid plays of the same sound
         if (!this.canPlaySound(soundName)) return;
@@ -153,9 +173,9 @@ class AudioManager {
             }
         }
 
-        // Try custom sound first
-        const customKey = playerId ? `${playerId}-${soundName}` : soundName;
-        const customSound = this.customSounds.get(customKey);
+        // Try custom sound first (por perfil, com fallback pro id do jogador)
+        const customKey = playerId ? this.soundKey(playerId, soundName) : soundName;
+        const customSound = this.customSounds.get(customKey) || (playerId ? this.customSounds.get(`${playerId}-${soundName}`) : undefined);
 
         if (customSound) {
             this.playBase64Audio(customSound, volume);
@@ -514,7 +534,7 @@ class AudioManager {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => {
-                const key = `${playerId}-${soundType}`;
+                const key = this.soundKey(playerId, soundType);
                 this.customSounds.set(key, reader.result as string);
                 this.saveCustomSounds();
                 resolve();
@@ -526,14 +546,27 @@ class AudioManager {
 
     // Remove custom sound
     removeSound(playerId: string, soundType: string): void {
-        const key = `${playerId}-${soundType}`;
-        this.customSounds.delete(key);
+        this.customSounds.delete(this.soundKey(playerId, soundType));
+        this.customSounds.delete(`${playerId}-${soundType}`);
         this.saveCustomSounds();
     }
 
     // Check if custom sound exists
     hasCustomSound(playerId: string, soundType: string): boolean {
-        return this.customSounds.has(`${playerId}-${soundType}`);
+        return this.customSounds.has(this.soundKey(playerId, soundType)) || this.customSounds.has(`${playerId}-${soundType}`);
+    }
+
+    // Limpa sons órfãos de partidas antigas (ids de jogador que não existem mais
+    // e não são de perfil). Chamado ao iniciar partida.
+    pruneOrphanSounds(): void {
+        const ids = new Set(gameState.getState().players.map(p => p.id));
+        let removed = 0;
+        Array.from(this.customSounds.keys()).forEach((key) => {
+            if (key.startsWith('prof')) return;
+            const pid = key.slice(0, key.lastIndexOf('-'));
+            if (pid && !ids.has(pid)) { this.customSounds.delete(key); removed++; }
+        });
+        if (removed) this.saveCustomSounds();
     }
 }
 
@@ -779,6 +812,7 @@ export const ambientMusic = new AmbientMusicManager();
 class EventNarrator {
     private enabled: boolean = false;
     private speed: number = 1;
+    private volume: number = 0.8;
     private synthesis: SpeechSynthesis | null = null;
     private voice: SpeechSynthesisVoice | null = null;
 
@@ -810,8 +844,13 @@ class EventNarrator {
         this.speed = speed;
     }
 
+    setVolume(volume: number): void {
+        this.volume = Math.max(0, Math.min(1, volume / 100));
+    }
+
     speak(text: string): void {
         if (!this.enabled || !this.synthesis) return;
+        if (gameState.getState().settings.silentMode) return;
 
         // Cancel any ongoing speech
         this.synthesis.cancel();
@@ -822,9 +861,35 @@ class EventNarrator {
         }
         utterance.rate = this.speed;
         utterance.pitch = 1;
-        utterance.volume = 0.8;
+        utterance.volume = this.volume;
 
         this.synthesis.speak(utterance);
+    }
+
+    // Grito da vitória escandalosa: enfileira falas (SEM cancelar a anterior) em
+    // pitch/volume máximos. Ignora o toggle do narrador de propósito — quem manda
+    // aqui é a própria vitória escandalosa, que tem o toggle dela.
+    shout(text: string): void {
+        if (!this.synthesis || !text) return;
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        if (this.voice) {
+            utterance.voice = this.voice;
+        }
+        utterance.rate = Math.min(1.7, this.speed * 1.3);
+        utterance.pitch = 1.6;
+        utterance.volume = 1;
+
+        this.synthesis.speak(utterance);
+    }
+
+    // Há fala em andamento ou na fila?
+    isBusy(): boolean {
+        return !!this.synthesis && (this.synthesis.speaking || this.synthesis.pending);
+    }
+
+    shutUp(): void {
+        this.synthesis?.cancel();
     }
 
     // Announce game events

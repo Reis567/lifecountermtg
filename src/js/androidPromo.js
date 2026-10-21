@@ -2,8 +2,9 @@
 // Quando o app web é aberto no navegador de um Android, sugere baixar o APK
 // (melhor experiência: câmera, sons, tela cheia). Não aparece dentro do próprio
 // app (WebView/file://), nem se já estiver instalado como PWA, nem se dispensado.
-// URL do APK: suba o arquivo numa GitHub Release e ajuste aqui se mudar o nome.
-const APK_URL = 'https://github.com/Reis567/lifecountermtg/releases/latest/download/LifeCounter.apk';
+// URL do APK: o servidor da mesa serve sempre a versão mais nova registrada
+// (AppVersion no backend). Ver deploy.ps1.
+const APK_URL = 'https://lifecounter.mreis.site/api/update/download/';
 const DISMISS_KEY = 'apkPromoDismissed';
 export function maybeShowAndroidPromo() {
     try {

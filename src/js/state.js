@@ -13,7 +13,7 @@ export function generateId() {
     return Math.random().toString(36).substring(2, 11);
 }
 // Cryptographically secure random number between 0 and 1
-function secureRandom() {
+export function secureRandom() {
     if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
         const array = new Uint32Array(1);
         crypto.getRandomValues(array);
@@ -22,7 +22,7 @@ function secureRandom() {
     return Math.random();
 }
 // Secure random integer from 0 to max-1 (unbiased)
-function secureRandomInt(max) {
+export function secureRandomInt(max) {
     if (max <= 0)
         return 0;
     if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
@@ -56,6 +56,7 @@ export function createPlayer(index, startingLife, totalPlayers) {
         name: `Jogador ${index + 1}`,
         color: DEFAULT_PLAYER_COLORS[index % DEFAULT_PLAYER_COLORS.length],
         avatar: null,
+        profileId: null,
         background: null,
         backgroundType: 'none',
         emoji: null,
@@ -142,6 +143,7 @@ export function createDefaultSettings(playerCount = 4) {
         gifPaused: false,
         gifFpsReduced: false,
         easterEggsEnabled: true,
+        escandalosaEnabled: true,
         animatedBgEnabled: false,
         animatedBgStyle: 'none',
         fontStyle: 'default',
@@ -151,6 +153,8 @@ export function createDefaultSettings(playerCount = 4) {
         narratorEnabled: false,
         narratorVoice: 'default',
         narratorSpeed: 1,
+        narratorVolume: 80,
+        silentMode: false,
         narratorPersona: 'classic',
         soundPack: 'default',
     };
@@ -168,11 +172,27 @@ export function createInitialState() {
         gameStartTime: null,
         gameStarted: false,
         winner: null,
+        matchClosed: false,
         history: [],
         undoStack: [],
         gameMode: 'standard',
         randomStarterInProgress: false,
         viadoPlayerId: null,
+        mechanics: createDefaultMechanics(),
+    };
+}
+export function createDefaultMechanics() {
+    return {
+        dayNight: 'none',
+        planeDeck: [],
+        planeDiscard: [],
+        currentPlane: null,
+        phenomenonActive: null,
+        schemeDeck: [],
+        schemeDiscard: [],
+        currentScheme: null,
+        ongoingSchemes: [],
+        archenemyPlayerId: null,
     };
 }
 // State management class
@@ -222,6 +242,10 @@ class GameStateManager {
                 // Ensure new properties exist
                 if (!parsed.undoStack)
                     parsed.undoStack = [];
+                if (parsed.matchClosed === undefined)
+                    parsed.matchClosed = false;
+                if (!parsed.mechanics)
+                    parsed.mechanics = createDefaultMechanics();
                 if (!parsed.gameMode)
                     parsed.gameMode = 'standard';
                 if (parsed.randomStarterInProgress === undefined)
@@ -241,6 +265,8 @@ class GameStateManager {
                     parsed.settings.animationIntensity = 'normal';
                 if (parsed.settings.showCommanderDeaths === undefined)
                     parsed.settings.showCommanderDeaths = true;
+                if (parsed.settings.escandalosaEnabled === undefined)
+                    parsed.settings.escandalosaEnabled = true;
                 if (parsed.settings.animatedBgEnabled === undefined)
                     parsed.settings.animatedBgEnabled = false;
                 if (!parsed.settings.animatedBgStyle)
@@ -259,11 +285,16 @@ class GameStateManager {
                     parsed.settings.narratorVoice = 'default';
                 if (parsed.settings.narratorSpeed === undefined)
                     parsed.settings.narratorSpeed = 1;
+                if (parsed.settings.narratorVolume === undefined)
+                    parsed.settings.narratorVolume = 80;
+                if (parsed.settings.silentMode === undefined)
+                    parsed.settings.silentMode = false;
                 if (!parsed.settings.soundPack)
                     parsed.settings.soundPack = 'default';
                 // Ensure all players have new properties (migration for older saves)
                 parsed.players = parsed.players.map((p) => ({
                     ...p,
+                    profileId: p.profileId ?? null,
                     background: p.background ?? null,
                     backgroundType: p.backgroundType ?? 'none',
                     emoji: p.emoji ?? null,
@@ -284,66 +315,114 @@ class GameStateManager {
     clearSavedState() {
         localStorage.removeItem(this.storageKey);
     }
-    // Add event to history
+    // Add event to history (mais recente primeiro). O log é COMPLETO: a partida
+    // inteira vai pro servidor no fim (histórico, gráfico, conquistas).
     addEvent(type, playerId, details) {
+        const player = this.state.players.find(p => p.id === playerId);
+        if (details.fromPlayerId && !details.fromPlayerName) {
+            details.fromPlayerName = this.state.players.find(p => p.id === details.fromPlayerId)?.name;
+        }
         const event = {
             id: generateId(),
             timestamp: Date.now(),
             type,
             playerId,
             details,
+            turn: this.state.currentTurn,
+            playerName: player?.name,
         };
         this.state.history.unshift(event);
-        if (this.state.history.length > 100) {
-            this.state.history = this.state.history.slice(0, 100);
+        // Trava de segurança só pra não estourar o localStorage (uma partida real fica bem abaixo disso).
+        if (this.state.history.length > 5000) {
+            this.state.history = this.state.history.slice(0, 5000);
         }
     }
-    // ===== Undo System =====
-    addUndoAction(type, playerId, previousState, description) {
+    // ===== Undo System (por snapshot) =====
+    // Antes de cada ação guardamos uma cópia da mesa inteira. Desfazer = voltar
+    // a cópia. Cobre vida, comandante, contadores (inclusive custom), veneno,
+    // monarca, morte/revive — tudo que mexe nos jogadores.
+    addUndoAction(type, playerId, _previousState, description) {
+        const now = Date.now();
         const action = {
             id: generateId(),
-            timestamp: Date.now(),
+            timestamp: now,
             type,
             playerId,
-            previousState,
             description,
+            snapshot: {
+                players: JSON.parse(JSON.stringify(this.state.players)),
+                teams: JSON.parse(JSON.stringify(this.state.teams)),
+                winner: this.state.winner,
+                viadoPlayerId: this.state.viadoPlayerId,
+                activePlayerIndex: this.state.activePlayerIndex,
+                currentTurn: this.state.currentTurn,
+                historyLength: this.state.history.length,
+            },
         };
         this.state.undoStack.push(action);
-        // Keep only last 20 undo actions
-        if (this.state.undoStack.length > 20) {
-            this.state.undoStack = this.state.undoStack.slice(-20);
+        if (this.state.undoStack.length > 30) {
+            this.state.undoStack = this.state.undoStack.slice(-30);
         }
     }
     cleanOldUndoActions() {
         const now = Date.now();
+        const before = this.state.undoStack.length;
         this.state.undoStack = this.state.undoStack.filter(action => now - action.timestamp < this.undoTimeWindow);
+        // Snapshots são pesados: salva o estado sem eles assim que expiram.
+        if (before !== this.state.undoStack.length)
+            this.saveState();
     }
     canUndo() {
         const now = Date.now();
         return this.state.undoStack.some(action => now - action.timestamp < this.undoTimeWindow);
     }
+    lastUndoDescription() {
+        const now = Date.now();
+        for (let i = this.state.undoStack.length - 1; i >= 0; i--) {
+            const a = this.state.undoStack[i];
+            if (now - a.timestamp < this.undoTimeWindow)
+                return a.description;
+        }
+        return null;
+    }
     undo() {
         const now = Date.now();
-        // Find the most recent valid undo action
         for (let i = this.state.undoStack.length - 1; i >= 0; i--) {
             const action = this.state.undoStack[i];
-            if (now - action.timestamp < this.undoTimeWindow) {
-                // Remove this action from stack
-                this.state.undoStack.splice(i, 1);
-                // Apply the previous state
+            if (now - action.timestamp >= this.undoTimeWindow)
+                continue;
+            this.state.undoStack.splice(i, 1);
+            if (action.snapshot) {
+                const s = action.snapshot;
+                // Preserva as fotos/perfis atuais (não fazem parte da jogada).
+                this.state.players = s.players.map(sp => {
+                    const cur = this.state.players.find(p => p.id === sp.id);
+                    return cur ? { ...sp, name: cur.name, avatar: cur.avatar, profileId: cur.profileId, color: cur.color, emoji: cur.emoji, background: cur.background, backgroundType: cur.backgroundType } : sp;
+                });
+                this.state.teams = s.teams;
+                this.state.winner = s.winner;
+                this.state.viadoPlayerId = s.viadoPlayerId;
+                this.state.activePlayerIndex = s.activePlayerIndex;
+                this.state.currentTurn = s.currentTurn;
+                // Remove do log os eventos gerados pela ação desfeita.
+                const extra = this.state.history.length - s.historyLength;
+                if (extra > 0)
+                    this.state.history = this.state.history.slice(extra);
+            }
+            else if (action.previousState) {
+                // Formato antigo (save anterior à versão com snapshot).
                 const player = this.state.players.find(p => p.id === action.playerId);
                 if (player) {
                     Object.assign(player, action.previousState);
-                    // If player was eliminated, check if we should un-eliminate
                     if (action.previousState.life !== undefined && action.previousState.life > 0) {
                         player.isEliminated = false;
                     }
                 }
-                this.addEvent('undo', action.playerId, { message: action.description });
-                this.state.winner = null; // Clear winner on undo
-                this.notify();
-                return action;
+                this.state.winner = null;
             }
+            this.addEvent('undo', action.playerId, { message: action.description });
+            this.notify();
+            return action;
         }
         return null;
     }
@@ -541,12 +620,14 @@ class GameStateManager {
             }
         }
         // Check team elimination
-        if (team.life <= 0) {
+        if (team.life <= 0 && !team.isEliminated) {
             team.isEliminated = true;
             team.playerIds.forEach(pid => {
                 const p = this.state.players.find(pl => pl.id === pid);
-                if (p)
+                if (p && !p.isEliminated) {
                     p.isEliminated = true;
+                    this.addEvent('player_eliminated', pid, { message: `${team.name} eliminado` });
+                }
             });
             // Check for winner
             const aliveTeams = this.state.teams.filter(t => !t.isEliminated);
@@ -625,8 +706,10 @@ class GameStateManager {
         this.state.currentTurn = 1;
         this.state.turnStartTime = Date.now();
         this.state.winner = null;
+        this.state.matchClosed = false;
         this.state.history = [];
         this.state.undoStack = [];
+        this.state.mechanics = { ...createDefaultMechanics(), dayNight: this.state.mechanics?.dayNight === 'none' ? 'none' : 'none' };
         this.notify();
     }
     resetGame(resetCommanderDeaths = false) {
@@ -657,21 +740,41 @@ class GameStateManager {
         this.state.turnStartTime = Date.now();
         this.state.gameStartTime = Date.now(); // Reset game timer
         this.state.winner = null;
+        this.state.matchClosed = false;
         this.state.viadoPlayerId = null; // Clear viado marker
         this.state.history = [];
         this.state.undoStack = [];
+        this.state.mechanics = createDefaultMechanics();
         this.notify();
     }
     newGame() {
         const playerCount = this.state.settings.playerCount;
+        // Mantém quem estava na mesa (perfil, nome, foto, cor): a identidade é
+        // obrigatória pra iniciar, então não faz sentido pedir tudo de novo.
+        const roster = this.state.players.map(p => ({
+            profileId: p.profileId ?? null, name: p.name, avatar: p.avatar, color: p.color, emoji: p.emoji,
+        }));
         this.state = createInitialState();
         this.state.settings.playerCount = playerCount;
         this.state.settings.layout = getDefaultLayout(playerCount);
-        this.state.players = Array.from({ length: playerCount }, (_, i) => createPlayer(i, this.state.settings.startingLife, playerCount));
+        this.state.players = Array.from({ length: playerCount }, (_, i) => {
+            const player = createPlayer(i, this.state.settings.startingLife, playerCount);
+            const prev = roster[i];
+            if (prev && prev.profileId !== null) {
+                player.profileId = prev.profileId;
+                player.name = prev.name;
+                player.avatar = prev.avatar;
+                player.color = prev.color;
+                player.emoji = prev.emoji;
+            }
+            return player;
+        });
         this.notify();
     }
     // ===== Life Actions =====
-    changeLife(playerId, amount) {
+    // source: de onde veio o toque (tap/hold/voice/shortcut); fromPlayerId: quem
+    // causou (quando se sabe, ex.: "A matou B" por voz). Tudo vai pro log.
+    changeLife(playerId, amount, source = 'tap', fromPlayerId) {
         const player = this.state.players.find(p => p.id === playerId);
         if (player && !player.isEliminated) {
             // Save for undo
@@ -682,6 +785,8 @@ class GameStateManager {
                 amount,
                 previousValue: previousLife,
                 newValue: player.life,
+                source,
+                fromPlayerId,
             });
             // Sync team life in Two-Headed Giant mode
             this.syncTeamLife(playerId);
@@ -689,7 +794,7 @@ class GameStateManager {
             this.notify();
         }
     }
-    setLife(playerId, value) {
+    setLife(playerId, value, source = 'modal') {
         const player = this.state.players.find(p => p.id === playerId);
         if (player && !player.isEliminated) {
             this.addUndoAction('life_set', playerId, { life: player.life }, `${player.name}: vida definida para ${value}`);
@@ -699,6 +804,7 @@ class GameStateManager {
                 amount: value - previousLife,
                 previousValue: previousLife,
                 newValue: value,
+                source,
             });
             // Sync team life in Two-Headed Giant mode
             this.syncTeamLife(playerId);
@@ -728,7 +834,9 @@ class GameStateManager {
                 fromPlayerId: sourcePlayerId,
                 previousValue: previousDamage,
                 newValue: newDamage,
+                source: 'commander',
             });
+            this.syncTeamLife(targetPlayerId);
             this.checkEliminationConditions(targetPlayerId);
             this.notify();
         }
@@ -750,7 +858,7 @@ class GameStateManager {
                 newValue,
             });
             if (counterType === 'poison' && newValue >= 10) {
-                this.eliminatePlayer(playerId, 'poison');
+                this.eliminatePlayer(playerId, 'poison', undefined, true);
             }
             this.notify();
         }
@@ -772,7 +880,16 @@ class GameStateManager {
         if (player) {
             const counter = player.counters.custom.find(c => c.id === counterId);
             if (counter) {
+                this.addUndoAction('custom_counter', playerId, {}, `${player.name}: ${counter.name} ${amount > 0 ? '+' : ''}${amount}`);
+                const previousValue = counter.value;
                 counter.value = Math.max(0, counter.value + amount);
+                this.addEvent('custom_counter', playerId, {
+                    amount,
+                    counterType: counter.id,
+                    counterName: counter.name,
+                    previousValue,
+                    newValue: counter.value,
+                });
                 this.notify();
             }
         }
@@ -786,19 +903,25 @@ class GameStateManager {
     }
     // ===== Monarch Actions =====
     setMonarch(playerId) {
+        const target = this.state.players.find(p => p.id === playerId);
+        if (!target || target.isMonarch)
+            return;
+        this.addUndoAction('monarch', playerId, {}, `${target.name} virou o monarca`);
         this.state.players.forEach(player => {
-            const wasMonarch = player.isMonarch;
             player.isMonarch = player.id === playerId;
-            if (player.isMonarch && !wasMonarch) {
-                this.addEvent('monarch_change', playerId, {});
-            }
         });
+        this.addEvent('monarch_change', playerId, {});
         this.notify();
     }
     removeMonarch() {
+        const current = this.state.players.find(p => p.isMonarch);
+        if (!current)
+            return;
+        this.addUndoAction('monarch', current.id, {}, `${current.name} deixou de ser monarca`);
         this.state.players.forEach(player => {
             player.isMonarch = false;
         });
+        this.addEvent('monarch_removed', current.id, {});
         this.notify();
     }
     // ===== Commander Deaths (Tax) Actions =====
@@ -811,7 +934,7 @@ class GameStateManager {
                 commanderDeaths: previousValue,
             }, `${player.name}: Mortes do comandante ${amount > 0 ? '+' : ''}${amount}`);
             player.commanderDeaths = newValue;
-            this.addEvent('counter_change', playerId, {
+            this.addEvent('commander_death', playerId, {
                 amount,
                 counterType: 'commanderDeaths',
                 previousValue,
@@ -941,21 +1064,27 @@ class GameStateManager {
         if (!player || player.isEliminated)
             return;
         if (player.life <= 0) {
-            this.eliminatePlayer(playerId, 'life');
+            this.eliminatePlayer(playerId, 'life', undefined, true);
             return;
         }
         for (const [sourceId, damage] of Object.entries(player.commanderDamage)) {
             if (damage >= COMMANDER_DAMAGE_LETHAL) {
-                this.eliminatePlayer(playerId, 'commander');
+                this.eliminatePlayer(playerId, 'commander', sourceId, true);
                 return;
             }
         }
     }
-    eliminatePlayer(playerId, reason) {
+    // byPlayerId: quem causou a eliminação (dano de comandante / "A matou B"),
+    // vai no evento como fromPlayerId e alimenta o "eliminado por" do ranking.
+    // internal: chamada de dentro de outra ação (changeLife/changeCounter), cujo
+    // snapshot de undo já cobre a eliminação — não cria um passo de undo próprio.
+    eliminatePlayer(playerId, reason, byPlayerId, internal = false) {
         const player = this.state.players.find(p => p.id === playerId);
         if (player && !player.isEliminated) {
+            if (!internal)
+                this.addUndoAction('eliminate', playerId, {}, `${player.name} eliminado`);
             player.isEliminated = true;
-            this.addEvent('player_eliminated', playerId, { message: reason });
+            this.addEvent('player_eliminated', playerId, { message: reason, fromPlayerId: byPlayerId });
             const alivePlayers = this.state.players.filter(p => !p.isEliminated);
             if (alivePlayers.length === 1) {
                 this.declareWinner(alivePlayers[0].id);
@@ -966,6 +1095,7 @@ class GameStateManager {
     revivePlayer(playerId, restoreLife = true) {
         const player = this.state.players.find(p => p.id === playerId);
         if (player && player.isEliminated) {
+            this.addUndoAction('revive', playerId, {}, `${player.name} revivido`);
             player.isEliminated = false;
             if (restoreLife) {
                 // Restore to a safe life total if they died from life loss
@@ -984,13 +1114,32 @@ class GameStateManager {
                 }
             }
             this.state.winner = null;
-            this.addEvent('undo', playerId, { message: `${player.name} foi revivido` });
+            this.addEvent('revive', playerId, { message: `${player.name} voltou ao jogo` });
             this.notify();
         }
     }
     declareWinner(playerId) {
         this.state.winner = playerId;
         this.addEvent('player_win', playerId, {});
+        this.notify();
+    }
+    // Encerramento explícito: o resultado foi salvo no ranking; a mesa fica
+    // "congelada" (sem novo salvamento) até reset/nova partida.
+    closeMatch() {
+        if (this.state.matchClosed)
+            return;
+        this.state.matchClosed = true;
+        const winnerId = this.state.winner || this.state.players.find(p => !p.isEliminated)?.id || this.state.players[0]?.id || '';
+        this.addEvent('game_end', winnerId, { message: 'partida encerrada' });
+        this.notify();
+    }
+    // ===== Mecânicas de mesa (Day/Night, Planechase, Archenemy) =====
+    updateMechanics(patch, event) {
+        Object.assign(this.state.mechanics, patch);
+        if (event) {
+            const pid = event.playerId || this.state.players[this.state.activePlayerIndex]?.id || '';
+            this.addEvent(event.type, pid, event.details || {});
+        }
         this.notify();
     }
     // ===== Settings Actions =====

@@ -94,7 +94,13 @@
                 </div>
 
                 <button id="start-game-btn" class="start-btn">Iniciar Partida</button>
-                <a id="apk-download-home" class="apk-home-btn" href="https://github.com/Reis567/lifecountermtg/releases/latest/download/LifeCounter.apk" style="display:none">📲 Baixar app Android (APK)</a>
+                <div class="setup-footer">
+                    <button type="button" id="open-ranking-home" class="setup-footer-btn">🏆 Ranking &amp; histórico</button>
+                    <button type="button" id="open-profiles-home" class="setup-footer-btn">👥 Perfis</button>
+                    <button type="button" id="open-update-home" class="setup-footer-btn">⬆️ Atualização</button>
+                    <div class="setup-version"><span id="app-version-label"></span><span id="sync-status-label"></span></div>
+                </div>
+                <a id="apk-download-home" class="apk-home-btn" href="https://lifecounter.mreis.site/api/update/download/" style="display:none">📲 Baixar app Android (APK)</a>
             </div>
         </div>
 
@@ -127,6 +133,7 @@
                         <rect x="14" y="14" width="7" height="7" rx="1"></rect>
                     </svg>
                 </button>
+                <button id="silent-btn-left" class="header-btn silent-btn" title="Modo silencioso">🔇</button>
             </div>
 
             <div id="game-header" class="game-header">
@@ -173,6 +180,7 @@
                             <rect x="14" y="14" width="7" height="7" rx="1"></rect>
                         </svg>
                     </button>
+                    <button id="silent-btn" class="header-btn silent-btn" title="Modo silencioso">🔇</button>
                     <button id="share-result-btn" class="header-btn" title="Compartilhar" style="display: none;">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="18" cy="5" r="3"></circle>
@@ -329,6 +337,7 @@
                             <span class="viado-label">🏳️‍🌈 O Viado:</span>
                             <span id="viado-name" class="viado-name"></span>
                         </div>
+                        <button id="end-game-btn" class="tool-btn end-game-btn">🏁 Encerrar partida</button>
                         <div class="settings-action-row">
                             <button id="reset-game-btn" class="danger-btn">Resetar Partida</button>
                             <button id="new-game-btn" class="secondary-btn">Nova Partida</button>
@@ -397,6 +406,10 @@
                             </select>
                         </div>
                         <div class="setting-item">
+                            <label>Volume do Narrador</label>
+                            <input type="range" id="narrator-volume-slider" min="0" max="100" value="80">
+                        </div>
+                        <div class="setting-item">
                             <label>Velocidade</label>
                             <select id="narrator-speed">
                                 <option value="0.7">Lenta</option>
@@ -432,6 +445,12 @@
                             <label>
                                 <input type="checkbox" id="easter-eggs-enabled" checked>
                                 Easter Eggs
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="escandalosa-enabled" checked>
+                                Vitoria Escandalosa (sirene + flash + 8s de grito)
                             </label>
                         </div>
                         <div class="setting-item">
@@ -574,6 +593,7 @@
                     <div class="form-group">
                         <label>Nome</label>
                         <input type="text" id="player-name-input" maxlength="20">
+                        <button type="button" id="change-profile-btn" class="cs-gallery-btn change-profile-btn">👤 Trocar perfil (nome + foto)</button>
                     </div>
 
                     <div class="form-group">
@@ -844,10 +864,19 @@
                             <span class="tool-ic">🔍</span><span>IA &amp; Cartas</span>
                         </button>
                         <button id="open-ranking" class="tool-item">
-                            <span class="tool-ic">🏆</span><span>Ranking</span>
+                            <span class="tool-ic">🏆</span><span>Ranking &amp; histórico</span>
                         </button>
                         <button id="voice-btn" class="tool-item">
                             <span class="tool-ic">🎙️</span><span>Comando de voz</span>
+                        </button>
+                        <button id="open-profiles" class="tool-item">
+                            <span class="tool-ic">👥</span><span>Perfis da mesa</span>
+                        </button>
+                        <button id="open-update" class="tool-item">
+                            <span class="tool-ic">⬆️</span><span>Atualização</span>
+                        </button>
+                        <button id="open-mechanics" class="tool-item">
+                            <span class="tool-ic">🪐</span><span>Dia/Noite · Planechase · Archenemy</span>
                         </button>
                     </div>
                 </div>
@@ -1111,7 +1140,8 @@
                 <h1 class="winner-title">Vitoria!</h1>
                 <p id="winner-name" class="winner-name"></p>
                 <div class="winner-confetti"></div>
-                <button id="close-winner-btn" class="primary-btn">Continuar</button>
+                <button id="end-game-winner-btn" class="primary-btn">🏁 Encerrar partida e salvar no ranking</button>
+                <button id="close-winner-btn" class="cs-gallery-btn winner-continue-btn">Continuar jogando (ainda dá pra desfazer)</button>
             </div>
         </div>
 

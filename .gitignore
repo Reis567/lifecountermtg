@@ -41,6 +41,18 @@ src/ts/config.ts
 src/js/config.js
 src/js/config.js.map
 
+# Segredos do deploy (senha da VPS)
+/deploy.local.ps1
+
+# Backend (Django) — só o código vai pro git
+backend/venv/
+backend/db.sqlite3*
+backend/media/
+backend/staticfiles/
+backend/.env
+__pycache__/
+*.pyc
+
 # Android WebView bundle: artefato gerado que EMBUTE a chave do Gemini.
 # Não versionar (a chave não pode ir pro git). Gere com: npm run build:android
 android/app/src/main/assets/src/js/bundle.js
