@@ -24,6 +24,7 @@ PRESETS = [
     ('Maria', 'maria', 'maria.jpg', '#8b5cf6'),
     ('Cabral', 'cabral', 'cabral.jpg', '#ef4444'),
     ('System', 'system', 'system.jpg', '#22c55e'),
+    ('Leo', 'leo', 'leo.jpg', '#3b82f6'),
 ]
 
 
