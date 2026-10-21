@@ -3263,6 +3263,7 @@ function renderGame(state: GameState): void {
     const grid = $('players-grid');
     updateGridLayout(grid, state);
     renderPlayers(state);
+    fitRotatedCards();
 
     // Update settings controls
     updateSettingsControls(state);
@@ -3368,9 +3369,11 @@ function updateGridLayout(grid: HTMLElement, state: GameState): void {
     }
 
     // Build grid template
+    // minmax(0, 1fr): um card deitado (90°/270°, mais largo que a célula antes de
+    // girar) não pode esticar a coluna/linha e esmagar os vizinhos.
     const maxCols = Math.max(...rows);
-    grid.style.gridTemplateColumns = `repeat(${maxCols}, 1fr)`;
-    grid.style.gridTemplateRows = `repeat(${rows.length}, 1fr)`;
+    grid.style.gridTemplateColumns = `repeat(${maxCols}, minmax(0, 1fr))`;
+    grid.style.gridTemplateRows = `repeat(${rows.length}, minmax(0, 1fr))`;
     grid.style.gridTemplateAreas = areas.map(row => `"${row.join(' ')}"`).join(' ');
 }
 
@@ -3417,6 +3420,7 @@ function renderPlayers(state: GameState): void {
                 bindPlayerCard(fresh, player.id);
                 lastCardSignatures.set(player.id, sig);
                 changed++;
+                fitRotatedCards();
             } else {
                 const lifeEl = card.querySelector('.life-value');
                 if (lifeEl && lifeEl.textContent !== String(player.life)) lifeEl.textContent = String(player.life);
@@ -3428,12 +3432,55 @@ function renderPlayers(state: GameState): void {
     // Caminho completo (lista de jogadores/layout mudou ou primeira vez).
     lastGridSignature = gridSig;
     lastCardSignatures = new Map();
+    const fab = document.getElementById('voice-fab'); // mora dentro do grid; preserva
     grid.innerHTML = state.players.map((player, index) => {
         lastCardSignatures.set(player.id, playerCardSignature(player, index, state));
         return renderPlayerCardHtml(player, index, state);
     }).join('');
+    if (fab) grid.appendChild(fab);
     grid.querySelectorAll<HTMLElement>('.player-card').forEach(card => bindPlayerCard(card, card.dataset.playerId!));
+    fitRotatedCards();
 }
+
+// ===== Rotação 90°/270° sem quebrar o card =====
+// `transform: rotate(90deg)` gira a caixa inteira, mas a célula do grid continua
+// com a proporção original — o card ficava estourando/estreito. Aqui trocamos
+// largura e altura do card pelo tamanho da célula (medido) e centralizamos, de
+// modo que o card girado encaixe exatamente na célula. Rodamos após cada render
+// e quando o grid muda de tamanho.
+let fitRotRaf: number | null = null;
+function fitRotatedCards(): void {
+    if (fitRotRaf !== null) cancelAnimationFrame(fitRotRaf);
+    fitRotRaf = requestAnimationFrame(() => {
+        fitRotRaf = null;
+        const grid = document.getElementById('players-grid');
+        if (!grid) return;
+        grid.querySelectorAll<HTMLElement>('.player-card').forEach((card) => {
+            const rot = Number(card.dataset.rotation || 0);
+            const sideways = rot === 90 || rot === 270;
+            // Reseta pra medir a célula de verdade.
+            card.style.width = '';
+            card.style.height = '';
+            card.style.justifySelf = '';
+            card.style.alignSelf = '';
+            card.classList.toggle('sideways', sideways);
+            if (!sideways) return;
+            const w = card.offsetWidth;
+            const h = card.offsetHeight;
+            if (!w || !h) return;
+            card.style.width = `${h}px`;
+            card.style.height = `${w}px`;
+            card.style.justifySelf = 'center';
+            card.style.alignSelf = 'center';
+            // O card maior que a célula (antes de girar) não pode empurrar o layout.
+            card.style.minWidth = '0';
+            card.style.minHeight = '0';
+            card.style.maxWidth = 'none';
+        });
+    });
+}
+window.addEventListener('resize', () => fitRotatedCards());
+window.addEventListener('orientationchange', () => setTimeout(fitRotatedCards, 150));
 
 function renderPlayerCardHtml(player: Player, index: number, state: GameState): string {
     const { layout } = state.settings;
@@ -3493,11 +3540,11 @@ function renderPlayerCardHtml(player: Player, index: number, state: GameState): 
                         ${team ? `<span class="team-badge team-${teamIndex}" title="${team.name}">🤝</span>` : ''}
                     </div>
                     <div class="player-actions">
-                        <button class="player-action-btn" data-action="taunt" title="Taunt / Provocação">💬</button>
-                        <button class="player-action-btn commander-drag-btn" data-action="commander" title="Dano de Comandante: toque abre, arraste até o alvo aplica">⚔️</button>
-                        <button class="player-action-btn" data-action="counters" title="Contadores">📊</button>
-                        <button class="player-action-btn" data-action="rotate" title="Girar este card">↻</button>
-                        <button class="player-action-btn" data-action="settings" title="Config">⚙️</button>
+                        <button class="player-action-btn" data-action="taunt" title="Taunt / Provocação"><svg class="ic"><use href="#ic-chat"/></svg></button>
+                        <button class="player-action-btn commander-drag-btn" data-action="commander" title="Dano de Comandante: toque abre, arraste até o alvo aplica"><svg class="ic"><use href="#ic-swords"/></svg></button>
+                        <button class="player-action-btn" data-action="counters" title="Contadores"><svg class="ic"><use href="#ic-counters"/></svg></button>
+                        <button class="player-action-btn" data-action="rotate" title="Girar este card"><svg class="ic"><use href="#ic-rotate"/></svg></button>
+                        <button class="player-action-btn" data-action="settings" title="Config"><svg class="ic"><use href="#ic-settings"/></svg></button>
                     </div>
                 </div>
                 <div class="player-life-container">

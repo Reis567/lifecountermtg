@@ -7269,3 +7269,31 @@ body.cmd-dragging .player-card { transition: outline var(--transition-fast); }
 /* ===== Ferramentas: ícones sólidos ===== */
 .tool-ic .ic { width: 26px; height: 26px; color: var(--accent-primary); }
 .tool-item .tool-ic { display: flex; align-items: center; justify-content: center; }
+/* ===== Mesa: ícones sólidos nos cards, microfone fixo no campo, rotação livre ===== */
+.player-action-btn .ic { width: 18px; height: 18px; }
+.silent-btn .ic { width: 20px; height: 20px; }
+.players-grid { position: relative; }
+.voice-fab {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 30;
+    width: 56px;
+    height: 56px;
+    opacity: 0.9;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+.voice-fab .ic { width: 24px; height: 24px; color: var(--text-primary); }
+.voice-fab.voice-fab-listening .ic, .voice-fab.voice-fab-ambient .ic { color: #fff; }
+.voice-fab.voice-fab-holding { transform: translate(-50%, -50%) scale(1.15); box-shadow: 0 0 0 10px rgba(239,68,68,0.25), 0 6px 20px rgba(0,0,0,0.55); }
+/* Nunca por cima de modais, overlays ou painéis. */
+body:has(.modal.active) .voice-fab,
+body:has(.winner-overlay.active) .voice-fab,
+body:has(.history-panel.active) .voice-fab,
+body:has(.live-guest) .voice-fab { display: none !important; }
+/* Card deitado (90°/270°): o JS troca largura/altura pelo tamanho da célula; aqui só a transição. */
+.player-card.sideways { transition: none; }
+.player-card.sideways .life-value { line-height: 1; }

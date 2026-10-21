@@ -714,7 +714,7 @@ function vcHandleTranscript(raw, final) {
         if (!vcArmed)
             return; // modo ambiente: só age depois de ouvir "contador"
     }
-    else {
+    else if (!vcHolding) {
         vcSchedulePushStop(VC_PUSH_SILENCE_MS);
     }
     const cmd = vcParse(raw);
@@ -741,8 +741,9 @@ function vcHandleTranscript(raw, final) {
     else {
         vcApply(cmd);
     }
-    // Push-to-talk: aplicou, dá um tempinho pra emendar outro comando e desliga.
-    if (vcMode === 'push' && vcActive && cmd.action !== 'stopVoice' && cmd.action !== 'help') {
+    // Push-to-talk: aplicou, dá um tempinho pra emendar outro comando e desliga
+    // (se o dedo ainda estiver segurando o botão, continua ouvindo até soltar).
+    if (vcMode === 'push' && vcActive && !vcHolding && cmd.action !== 'stopVoice' && cmd.action !== 'help') {
         vcSchedulePushStop(cmd.query ? VC_PUSH_SILENCE_MS : VC_PUSH_AFTER_CMD_MS);
     }
 }
@@ -859,37 +860,85 @@ export function vcSetGameActive(active) {
     if (!active && vcActive)
         vcStop();
 }
+// Botão de microfone no centro do campo (dentro do grid de jogadores, não por
+// cima de modais). Funciona como áudio do WhatsApp: SEGURA pra falar, solta e
+// ele para (com ~1 s de folga pra pegar a última palavra). Toque rápido liga e
+// fica ouvindo até o próximo toque ou até o comando ser aplicado.
+const VC_TAP_MS = 350;
+const VC_RELEASE_GRACE_MS = 1000;
+let vcHoldStartedAt = 0;
+let vcHolding = false;
 function vcEnsureFab() {
     if (vcFab || !vcSupported())
+        return;
+    const grid = document.getElementById('players-grid');
+    if (!grid)
         return;
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.id = 'voice-fab';
     btn.className = 'voice-fab';
-    btn.title = 'Toque e fale um comando (ex.: "Zé menos 3")';
-    btn.innerHTML = '<span class="voice-fab-ic">🎙️</span>';
+    btn.title = 'Segure e fale um comando (ex.: "Zé menos 3"); toque rápido liga/desliga';
+    btn.innerHTML = '<svg class="ic"><use href="#ic-mic"/></svg>';
     btn.style.display = vcGameActive ? '' : 'none';
-    btn.addEventListener('click', () => {
-        if (vcActive && vcMode === 'push')
-            vcStop();
-        else if (vcActive)
-            vcStop();
-        else
+    btn.setAttribute('aria-label', 'Comando de voz');
+    btn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        try {
+            btn.setPointerCapture(e.pointerId);
+        }
+        catch { /* ignore */ }
+        vcHoldStartedAt = Date.now();
+        vcHolding = true;
+        if (vcPushTimer !== null) {
+            clearTimeout(vcPushTimer);
+            vcPushTimer = null;
+        }
+        if (!vcActive)
             vcStart('push');
+        else if (vcMode === 'ambient') {
+            vcStop();
+            vcStart('push');
+        }
+        btn.classList.add('voice-fab-holding');
     });
-    // Segurar o botão abre a ajuda com os comandos.
-    let pressTimer = null;
-    const cancelPress = () => { if (pressTimer !== null) {
-        clearTimeout(pressTimer);
-        pressTimer = null;
-    } };
-    btn.addEventListener('pointerdown', () => { pressTimer = window.setTimeout(() => { pressTimer = null; vcOpenHelp(); }, 650); });
-    btn.addEventListener('pointerup', cancelPress);
-    btn.addEventListener('pointerleave', cancelPress);
-    btn.addEventListener('pointercancel', cancelPress);
-    document.body.appendChild(btn);
+    const release = (e) => {
+        if (!vcHolding)
+            return;
+        vcHolding = false;
+        btn.classList.remove('voice-fab-holding');
+        try {
+            btn.releasePointerCapture(e.pointerId);
+        }
+        catch { /* ignore */ }
+        const held = Date.now() - vcHoldStartedAt;
+        if (e.type === 'pointercancel') {
+            vcStop();
+            return;
+        }
+        if (held < VC_TAP_MS) {
+            // Toque rápido: se já estava ouvindo antes do toque, desliga; senão fica ouvindo.
+            if (vcTapShouldStop) {
+                vcStop();
+                vcTapShouldStop = false;
+                return;
+            }
+            vcTapShouldStop = true;
+            vcSchedulePushStop(VC_PUSH_SILENCE_MS);
+            return;
+        }
+        // Soltou depois de segurar: folga curta pra chegar o resultado final e para.
+        vcTapShouldStop = false;
+        vcSetTitle('Processando…');
+        vcSchedulePushStop(VC_RELEASE_GRACE_MS);
+    };
+    btn.addEventListener('pointerup', release);
+    btn.addEventListener('pointercancel', release);
+    btn.addEventListener('contextmenu', (e) => e.preventDefault());
+    grid.appendChild(btn);
     vcFab = btn;
 }
+let vcTapShouldStop = false;
 function vcToggleAmbient() {
     if (vcActive && vcMode === 'ambient')
         vcStop();
@@ -924,8 +973,9 @@ function vcStart(mode) {
     vcBtnClass(true, vcArmed);
     vcBeep('on');
     if (mode === 'push') {
-        vcSetTitle('Pode falar…');
-        vcSchedulePushStop(VC_PUSH_SILENCE_MS);
+        vcSetTitle(vcHolding ? 'Segure e fale… solte pra aplicar' : 'Pode falar…');
+        if (!vcHolding)
+            vcSchedulePushStop(VC_PUSH_SILENCE_MS);
         try {
             navigator.vibrate?.(30);
         }
@@ -984,6 +1034,9 @@ function vcStop() {
         vcBeep('off');
     vcActive = false;
     vcArmed = false;
+    vcTapShouldStop = false;
+    vcHolding = false;
+    vcFab?.classList.remove('voice-fab-holding');
     if (vcPushTimer !== null) {
         clearTimeout(vcPushTimer);
         vcPushTimer = null;
@@ -1084,7 +1137,7 @@ const VC_HELP = [
     ['Perguntas', ['"como tá a mesa" · "quanto de vida tem o Zé"', '"quem tá ganhando" · "que turno" · "quanto tempo"']],
     ['Som e visual', ['"tema escuro/vermelho/streamer"', '"música épica/sombria/parar"', '"som desligado" · "narrador ligado"', '"vitória escandalosa desligada"']],
     ['Telas', ['"ranking" · "histórico" · "perfis"', '"configurações" · "ferramentas" · "atualização"']],
-    ['Microfone', ['Toque no 🎙️ no meio da mesa e fale. Ele para sozinho.', 'Segure o 🎙️ pra ver esta ajuda.', 'Mãos livres: Ferramentas › Comando de voz, aí diga "contador" antes de cada comando.']],
+    ['Microfone', ['Segure o botão no meio da mesa, fale e solte (como áudio do WhatsApp).', 'Toque rápido: fica ouvindo até o próximo toque ou até aplicar o comando.', 'Mãos livres: Ferramentas › Comando de voz, aí diga "contador" antes de cada comando.']],
 ];
 function vcOpenHelp() {
     document.getElementById('voice-help-dyn')?.remove();
