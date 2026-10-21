@@ -50,6 +50,8 @@ function toPayload(r) {
             final_life: p.finalLife ?? null,
             eliminated_by: p.eliminatedBy || '',
             commander_deaths: p.commanderDeaths || 0,
+            deck_id: p.deckId ?? null,
+            deck_name: p.deckName || '',
         })),
     };
 }
@@ -121,7 +123,7 @@ export async function aggregateRemote(period) {
         const rows = data.rows.map((r) => ({
             name: r.name, points: r.points, matches: r.matches, wins: r.wins, profileId: r.profile_id, photoUrl: r.photo_url,
         }));
-        return { rows, remote: true, totalMatches: data.total_matches, raw: data.rows, label: data.label, tiebreak: data.tiebreak };
+        return { rows, remote: true, totalMatches: data.total_matches, raw: data.rows, label: data.label, tiebreak: data.tiebreak, mode: data.mode };
     }
     catch (e) {
         console.warn('ranking: servidor indisponível, usando local', e);
@@ -168,6 +170,8 @@ function placementFor(p, idx, N, eliminatedBy) {
         place,
         points: N - place + 1,
         profileId: p?.profileId ?? null,
+        deckId: p?.deckId ?? null,
+        deckName: p?.deckName ?? null,
         finalLife: p?.life ?? null,
         commanderDeaths: p?.commanderDeaths || 0,
         eliminatedBy: eliminatedBy || '',

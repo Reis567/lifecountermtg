@@ -57,7 +57,7 @@ New-Item -ItemType Directory -Force "$stage\site" | Out-Null
 New-Item -ItemType Directory -Force "$stage\backend" | Out-Null
 
 # site: só o que o navegador precisa
-$siteFiles = @('index.html', 'manifest.webmanifest', 'sw.js', 'icon.svg', 'favicon.jfif', 'config.js')
+$siteFiles = @('index.html', 'ranking.html', 'manifest.webmanifest', 'sw.js', 'icon.svg', 'favicon.jfif', 'config.js')
 foreach ($f in $siteFiles) { if (Test-Path "$Root\$f") { Copy-Item "$Root\$f" "$stage\site\" } }
 Get-ChildItem "$Root\*.mp3" | Copy-Item -Destination "$stage\site\"
 New-Item -ItemType Directory -Force "$stage\site\src\js", "$stage\site\src\styles" | Out-Null

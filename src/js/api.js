@@ -116,6 +116,47 @@ export function apiProfileStats(id) {
 export function apiGetSeasonSettings() {
     return apiFetch('/api/settings/season/');
 }
+export function apiElo() {
+    return apiFetch('/api/elo/');
+}
+export function apiSeasons() {
+    return apiFetch('/api/seasons/');
+}
+export function apiCreateDeck(profileId, data) {
+    return apiFetch(`/api/profiles/${profileId}/decks/`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    }, true);
+}
+export function apiDeleteDeck(deckId) {
+    return apiFetch(`/api/decks/${deckId}/`, { method: 'DELETE' }, true);
+}
+export function apiUploadProfileSound(profileId, kind, file, filename) {
+    const fd = new FormData();
+    fd.append('file', file, filename);
+    return apiFetch(`/api/profiles/${profileId}/sounds/${kind}/`, { method: 'PUT', body: fd }, true);
+}
+export function apiDeleteProfileSound(profileId, kind) {
+    return apiFetch(`/api/profiles/${profileId}/sounds/${kind}/`, { method: 'DELETE' }, true);
+}
+// ----- mesa ao vivo -----
+export function apiLiveCreate(allowEdits, state) {
+    return apiFetch('/api/live/', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ allow_edits: allowEdits, state }),
+    }, true);
+}
+export function apiLiveGet(code, version) {
+    return apiFetch(`/api/live/${encodeURIComponent(code)}/${version !== undefined ? `?version=${version}` : ''}`);
+}
+export function apiLivePush(code, hostToken, data) {
+    return apiFetch(`/api/live/${encodeURIComponent(code)}/state/`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-LC-Host': hostToken }, body: JSON.stringify(data),
+    });
+}
+export function apiLiveAction(code, action) {
+    return apiFetch(`/api/live/${encodeURIComponent(code)}/actions/`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-LC-Device': deviceId() }, body: JSON.stringify(action),
+    });
+}
 export function apiSetSeasonSettings(data) {
     return apiFetch('/api/settings/season/', {
         method: 'POST',

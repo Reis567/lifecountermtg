@@ -27,6 +27,9 @@ class AudioManager {
         // partida — dentro de um gesto do usuário o WebView deixa, e o primeiro
         // "dano" sai sem atraso.
         this.preloaded = false;
+        // Registro dos sons por perfil vindos do servidor (profiles.ts chama ao carregar a lista).
+        this.serverSounds = new Map();
+        this.urlAudio = new Map();
         this.sounds = new Map();
         this.customSounds = new Map();
         this.loadCustomSounds();
@@ -167,8 +170,43 @@ class AudioManager {
             this.playBase64Audio(customSound, volume);
             return;
         }
+        // Som do perfil guardado no SERVIDOR (vale em qualquer aparelho).
+        if (playerId && (soundName === 'death' || soundName === 'win' || soundName === 'damage')) {
+            const url = this.serverSoundUrl(playerId, soundName);
+            if (url) {
+                this.playUrl(url, volume);
+                return;
+            }
+        }
         // Play default sound
         this.playDefaultSound(soundName, volume);
+    }
+    setServerSounds(list) {
+        this.serverSounds = new Map();
+        list.forEach((p) => { if (p.sounds && Object.keys(p.sounds).length)
+            this.serverSounds.set(p.id, p.sounds); });
+    }
+    serverSoundUrl(playerId, kind) {
+        const p = gameState.getState().players.find(pl => pl.id === playerId);
+        if (!p || p.profileId === null || p.profileId === undefined)
+            return null;
+        return this.serverSounds.get(p.profileId)?.[kind] || null;
+    }
+    playUrl(url, volume) {
+        try {
+            let audio = this.urlAudio.get(url);
+            if (!audio) {
+                audio = new Audio(url);
+                audio.preload = 'auto';
+                this.urlAudio.set(url, audio);
+            }
+            audio.currentTime = 0;
+            audio.volume = volume;
+            audio.play().catch(e => console.warn('Audio play failed:', e));
+        }
+        catch (e) {
+            console.warn('Failed to play server audio:', e);
+        }
     }
     // Play base64 encoded audio
     playBase64Audio(base64, volume) {

@@ -17,6 +17,8 @@ export interface MatchPlacement {
     place: number;
     points: number;
     profileId?: number | null;
+    deckId?: number | null;
+    deckName?: string | null;
     finalLife?: number | null;
     commanderDeaths?: number;
     eliminatedBy?: string;
@@ -86,6 +88,8 @@ function toPayload(r: MatchResult): MatchPayload {
             final_life: p.finalLife ?? null,
             eliminated_by: p.eliminatedBy || '',
             commander_deaths: p.commanderDeaths || 0,
+            deck_id: p.deckId ?? null,
+            deck_name: p.deckName || '',
         })),
     };
 }
@@ -151,13 +155,13 @@ export function aggregate(period: RankingPeriod, ref: Date = new Date()): Aggreg
 }
 
 // Agregado do SERVIDOR; se falhar, cai no local.
-export async function aggregateRemote(period: RankingPeriod): Promise<{ rows: AggregateRow[]; remote: boolean; totalMatches: number; raw?: RankingRowDTO[]; label?: string | null; tiebreak?: string }> {
+export async function aggregateRemote(period: RankingPeriod): Promise<{ rows: AggregateRow[]; remote: boolean; totalMatches: number; raw?: RankingRowDTO[]; label?: string | null; tiebreak?: string; mode?: string }> {
     try {
         const data = await apiRanking(period);
         const rows: AggregateRow[] = data.rows.map((r) => ({
             name: r.name, points: r.points, matches: r.matches, wins: r.wins, profileId: r.profile_id, photoUrl: r.photo_url,
         }));
-        return { rows, remote: true, totalMatches: data.total_matches, raw: data.rows, label: (data as any).label, tiebreak: (data as any).tiebreak };
+        return { rows, remote: true, totalMatches: data.total_matches, raw: data.rows, label: (data as any).label, tiebreak: (data as any).tiebreak, mode: (data as any).mode };
     } catch (e) {
         console.warn('ranking: servidor indisponível, usando local', e);
         const rows = aggregate(period);
@@ -200,6 +204,8 @@ interface ResultPlayer {
     id: string;
     name: string;
     profileId?: number | null;
+    deckId?: number | null;
+    deckName?: string | null;
     life?: number;
     commanderDeaths?: number;
 }
@@ -220,6 +226,8 @@ function placementFor(p: ResultPlayer | undefined, idx: number, N: number, elimi
         place,
         points: N - place + 1,
         profileId: p?.profileId ?? null,
+        deckId: p?.deckId ?? null,
+        deckName: p?.deckName ?? null,
         finalLife: p?.life ?? null,
         commanderDeaths: p?.commanderDeaths || 0,
         eliminatedBy: eliminatedBy || '',
@@ -289,7 +297,7 @@ export function buildManualResult(
 }
 
 // Atribui pontos a uma ordem de jogadores: posição 1..N.
-export function placementsFromOrder(ordered: Array<{ id: string; name: string; profileId?: number | null; life?: number; commanderDeaths?: number }>): MatchPlacement[] {
+export function placementsFromOrder(ordered: Array<{ id: string; name: string; profileId?: number | null; deckId?: number | null; deckName?: string | null; life?: number; commanderDeaths?: number }>): MatchPlacement[] {
     const N = ordered.length;
     return ordered.map((p, idx) => placementFor(p, idx, N));
 }

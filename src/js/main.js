@@ -1,12 +1,16 @@
 // ===== Main Entry Point =====
 import { initUI } from './ui.js';
 import { maybeShowAndroidPromo, setupApkDownloadButton } from './androidPromo.js';
+import { liveCheckUrl, liveHostResume } from './live.js';
 // Initialize the application when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     console.log('MTG Life Counter initialized');
     initUI();
     setupApkDownloadButton();
-    maybeShowAndroidPromo();
+    // ?mesa=CODIGO: abre direto como convidado da mesa ao vivo (sem promo do APK).
+    if (!liveCheckUrl())
+        maybeShowAndroidPromo();
+    liveHostResume();
 });
 // Handle visibility change to pause/resume timer sounds
 document.addEventListener('visibilitychange', () => {

@@ -3,15 +3,24 @@ from datetime import datetime, timezone as dt_tz
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import AppVersion, Match, MatchPlacement, Profile
+from .models import AppVersion, Deck, Match, MatchPlacement, Profile
+
+
+class DeckSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Deck
+        fields = ['id', 'profile', 'name', 'commander', 'colors', 'image_url', 'scryfall_id', 'active', 'created_at']
+        read_only_fields = ['id', 'created_at']
 
 
 class ProfileSerializer(serializers.ModelSerializer):
     photo_url = serializers.SerializerMethodField()
+    sounds = serializers.SerializerMethodField()
+    decks = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
-        fields = ['id', 'name', 'slug', 'photo_url', 'color', 'aliases', 'is_preset', 'active', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'slug', 'photo_url', 'color', 'aliases', 'is_preset', 'active', 'sounds', 'decks', 'created_at', 'updated_at']
         read_only_fields = ['id', 'slug', 'is_preset', 'created_at', 'updated_at']
 
     def get_photo_url(self, obj):
@@ -21,16 +30,31 @@ class ProfileSerializer(serializers.ModelSerializer):
         url = obj.photo.url
         return request.build_absolute_uri(url) if request else url
 
+    def get_sounds(self, obj):
+        request = self.context.get('request')
+        out = {}
+        for s in obj.sounds.all():
+            if s.file:
+                out[s.kind] = request.build_absolute_uri(s.file.url) if request else s.file.url
+        return out
+
+    def get_decks(self, obj):
+        return DeckSerializer([d for d in obj.decks.all() if d.active], many=True).data
+
 
 class PlacementSerializer(serializers.ModelSerializer):
     profile_id = serializers.PrimaryKeyRelatedField(
         source='profile', queryset=Profile.objects.all(), allow_null=True, required=False
     )
+    deck_id = serializers.PrimaryKeyRelatedField(
+        source='deck', queryset=Deck.objects.all(), allow_null=True, required=False
+    )
     photo_url = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = MatchPlacement
-        fields = ['profile_id', 'name', 'place', 'points', 'final_life', 'eliminated_by', 'commander_deaths', 'photo_url']
+        fields = ['profile_id', 'name', 'place', 'points', 'final_life', 'eliminated_by', 'commander_deaths', 'photo_url',
+                  'deck_id', 'deck_name', 'deck_colors']
 
     def get_photo_url(self, obj):
         if not obj.profile or not obj.profile.photo:
@@ -85,6 +109,14 @@ class MatchSerializer(serializers.ModelSerializer):
         placements = validated.pop('placements')
         match = Match.objects.create(**validated)
         for p in placements:
+            deck = p.get('deck')
+            if deck is not None:
+                p.setdefault('deck_name', deck.name)
+                p.setdefault('deck_colors', deck.colors)
+                if not p.get('deck_name'):
+                    p['deck_name'] = deck.name
+                if not p.get('deck_colors'):
+                    p['deck_colors'] = deck.colors
             MatchPlacement.objects.create(match=match, **p)
         return match
 

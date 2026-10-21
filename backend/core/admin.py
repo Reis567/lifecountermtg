@@ -1,6 +1,21 @@
 from django.contrib import admin
 
-from .models import Achievement, AppSetting, AppVersion, Match, MatchPlacement, Profile
+from .models import Achievement, AppSetting, AppVersion, Deck, LiveTable, Match, MatchPlacement, Profile, ProfileSound
+
+
+@admin.register(Deck)
+class DeckAdmin(admin.ModelAdmin):
+    list_display = ('name', 'profile', 'commander', 'colors', 'active')
+
+
+@admin.register(ProfileSound)
+class ProfileSoundAdmin(admin.ModelAdmin):
+    list_display = ('profile', 'kind', 'updated_at')
+
+
+@admin.register(LiveTable)
+class LiveTableAdmin(admin.ModelAdmin):
+    list_display = ('code', 'host_device', 'allow_edits', 'active', 'version', 'updated_at')
 
 
 @admin.register(AppSetting)

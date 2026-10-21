@@ -37,6 +37,11 @@ import { type ProfileDTO, type MatchDTO } from './api.js';
 import { confirmDialog, confirmDialogFull, alertDialog, requestWakeLock, releaseWakeLock, setupWakeLock } from './dialogs.js';
 import { openMechanicsModal, renderMechanicsBadge } from './mechanics.js';
 import { setupNotifications, onNotification, getMyProfileId, setMyProfileId } from './notifications.js';
+import { buildLifeSeries, lifeChartSvg, drawLifeChart } from './chart.js';
+import { liveHostStart, liveHostStop, liveHostSession, liveHostNotify, liveHostSetAllowEdits, onLiveHostChange, liveJoinUrl, liveGuestOpen } from './live.js';
+import { apiCreateDeck, apiDeleteDeck, apiUploadProfileSound, apiDeleteProfileSound, apiElo, apiSeasons, type DeckDTO, type ScoringMode } from './api.js';
+import { setNarratorContext } from './aiNarrator.js';
+import { promptDialog } from './dialogs.js';
 import {
     GameState,
     Player,
@@ -732,10 +737,14 @@ export function initUI(): void {
     setupSync();
     setupUpdater();
     setupWakeLock();
-    onProfilesChange(() => {
+    onProfilesChange((list) => {
+        audioManager.setServerSounds(list);
         const s = gameState.getState();
         if (!s.gameStarted) renderSetup(s);
     });
+    audioManager.setServerSounds(getProfiles());
+    onLiveHostChange(() => renderLiveBadge());
+    renderLiveBadge();
     void refreshProfiles().then((list) => {
         // Se um perfil mudou de nome/foto no servidor, reflete nos jogadores já escolhidos.
         const s = gameState.getState();
@@ -825,6 +834,55 @@ function setupEventListeners(): void {
 }
 
 function setupSetupScreenListeners(): void {
+    // Stepper de jogadores (2..8)
+    const stepCount = (delta: number): void => {
+        const cur = gameState.getState().settings.playerCount;
+        const next = Math.max(2, Math.min(8, cur + delta));
+        if (next === cur) return;
+        gameState.setPlayerCount(next);
+        renderLayoutPresets();
+    };
+    $('player-count-minus')?.addEventListener('click', () => stepCount(-1));
+    $('player-count-plus')?.addEventListener('click', () => stepCount(1));
+
+    // Modo de jogo (chips no setup; espelha os .mode-btn das Configurações)
+    document.querySelectorAll('.setup-mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const mode = btn.getAttribute('data-mode') as 'standard' | 'planechase' | 'archenemy' | 'two-headed';
+            gameState.setGameMode(mode);
+        });
+    });
+
+    // Personalização visual direto no setup (mesmos settings do modal Configurações)
+    $('setup-font-style')?.addEventListener('change', (e) => {
+        const fontStyle = (e.target as HTMLSelectElement).value as FontStyle;
+        gameState.updateSettings({ fontStyle });
+        applyFontStyle(fontStyle);
+    });
+    $('setup-bg-style')?.addEventListener('change', (e) => {
+        const style = (e.target as HTMLSelectElement).value as AnimatedBgStyle;
+        gameState.updateSettings({ animatedBgStyle: style, animatedBgEnabled: style !== 'none' });
+        animatedBg.setStyle(style);
+        animatedBg.setEnabled(style !== 'none');
+    });
+    $('setup-anim-intensity')?.addEventListener('change', (e) => {
+        const intensity = (e.target as HTMLSelectElement).value as 'subtle' | 'normal' | 'intense';
+        gameState.updateSettings({ animationIntensity: intensity });
+        applyAnimationIntensity(intensity);
+    });
+    $('setup-turn-timer')?.addEventListener('change', (e) => {
+        const secs = parseInt((e.target as HTMLSelectElement).value, 10);
+        gameState.updateSettings({ turnTimerEnabled: secs > 0, ...(secs > 0 ? { turnTimerDuration: secs } : {}) });
+    });
+    $('setup-show-cmd-deaths')?.addEventListener('change', (e) => {
+        gameState.updateSettings({ showCommanderDeaths: (e.target as HTMLInputElement).checked });
+    });
+    $('setup-escandalosa')?.addEventListener('change', (e) => {
+        const on = (e.target as HTMLInputElement).checked;
+        if (!on) stopEscandalosa();
+        gameState.updateSettings({ escandalosaEnabled: on });
+    });
+
     // Player count buttons
     document.querySelectorAll('.count-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -921,7 +979,93 @@ function setupSetupScreenListeners(): void {
             return;
         }
         gameState.startGame();
+        void loadNarratorContext();
+        // Mesa ao vivo (opcional): cria o código e começa a publicar.
+        const share = $('live-share-checkbox') as HTMLInputElement | null;
+        if (share?.checked && !liveHostSession()) {
+            const allow = !!($('live-allow-edits') as HTMLInputElement | null)?.checked;
+            liveHostStart(allow).then((s) => {
+                showSpecialMoment(`📡 Mesa ao vivo: código ${s.code}`, 'success');
+            }).catch((e) => showSpecialMoment(`Mesa ao vivo não subiu: ${e?.message || e}`, 'danger'));
+        }
     });
+
+    // Mesa ao vivo: entrar numa mesa de outra pessoa (convidado).
+    const joinLive = async (): Promise<void> => {
+        const code = await promptDialog('Código da mesa (5 letras/números):', { title: '📡 Entrar numa mesa', placeholder: 'ex.: K7P2X', okText: 'Entrar' });
+        if (code && code.trim()) liveGuestOpen(code.trim());
+    };
+    $('open-live-join')?.addEventListener('click', () => { void joinLive(); });
+    $('live-share-checkbox')?.addEventListener('change', (e) => {
+        const on = (e.target as HTMLInputElement).checked;
+        const opts = $('live-share-options');
+        if (opts) opts.style.display = on ? '' : 'none';
+    });
+}
+
+// Puxa do servidor o contexto (nêmesis, sequência, últimas) de cada jogador
+// com perfil, pro narrador/roast ter base real. Silencioso se offline.
+async function loadNarratorContext(): Promise<void> {
+    const players = gameState.getState().players.filter((p) => p.profileId !== null);
+    const ctx = await Promise.all(players.map(async (p) => {
+        try {
+            const s = await apiProfileStats(p.profileId!);
+            return {
+                name: p.name, wins: s.wins, matches: s.matches, currentStreak: s.current_streak, bestStreak: s.best_streak,
+                nemesis: s.nemesis[0]?.name || null, recentPlaces: s.recent.map((r) => r.place), elo: s.elo, rankSeason: s.rank_season,
+            };
+        } catch {
+            return null;
+        }
+    }));
+    setNarratorContext(ctx.filter((c): c is NonNullable<typeof c> => c !== null));
+}
+
+// ===== Mesa ao vivo (host) =====
+function renderLiveBadge(): void {
+    const s = liveHostSession();
+    let el = document.getElementById('live-badge');
+    if (!s) { el?.remove(); return; }
+    if (!el) {
+        el = document.createElement('button');
+        el.id = 'live-badge';
+        el.className = 'live-badge';
+        el.setAttribute('type', 'button');
+        el.addEventListener('click', () => openLiveHostModal());
+        document.getElementById('game-screen')?.appendChild(el);
+    }
+    el.innerHTML = `📡 <strong>${escapeHtml(s.code)}</strong>${s.allowEdits ? ' · edição liberada' : ''}`;
+}
+
+function openLiveHostModal(): void {
+    const s = liveHostSession();
+    if (!s) return;
+    document.getElementById('live-host-dyn')?.remove();
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.id = 'live-host-dyn';
+    const url = liveJoinUrl(s.code);
+    modal.innerHTML = `
+        <div class="modal-content lc-dialog-content">
+            <div class="lc-dialog-title">📡 Mesa ao vivo</div>
+            <div class="live-code">${escapeHtml(s.code)}</div>
+            <div class="update-muted">Quem quiser acompanhar entra em <strong>Entrar numa mesa</strong> com esse código, ou abre:</div>
+            <div class="live-url">${escapeHtml(url)}</div>
+            <label class="lc-dialog-check"><input type="checkbox" id="live-host-allow" ${s.allowEdits ? 'checked' : ''}> Convidados podem alterar a vida</label>
+            <div class="lc-dialog-actions">
+                <button type="button" class="cs-gallery-btn" id="live-host-copy">Copiar link</button>
+                <button type="button" class="danger-btn" id="live-host-stop">Encerrar mesa ao vivo</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    const close = (): void => modal.remove();
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    modal.querySelector('#live-host-allow')?.addEventListener('change', (e) => { void liveHostSetAllowEdits((e.target as HTMLInputElement).checked); });
+    modal.querySelector('#live-host-copy')?.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(url); showSpecialMoment('Link copiado', 'success'); } catch { showSpecialMoment(url, 'warning'); }
+    });
+    modal.querySelector('#live-host-stop')?.addEventListener('click', async () => { await liveHostStop(); close(); showSpecialMoment('Mesa ao vivo encerrada', 'warning'); });
 }
 
 function setupGameScreenListeners(): void {
@@ -1037,6 +1181,25 @@ function setupGameScreenListeners(): void {
     $('open-mechanics')?.addEventListener('click', () => {
         closeModal($('tools-modal'));
         openMechanicsModal();
+    });
+    $('open-graph')?.addEventListener('click', () => {
+        closeModal($('tools-modal'));
+        openLifeGraphModal();
+    });
+    $('open-live-host')?.addEventListener('click', async () => {
+        closeModal($('tools-modal'));
+        if (liveHostSession()) { openLiveHostModal(); return; }
+        const res = await confirmDialogFull('Criar uma mesa ao vivo? Quem tiver o código vê a vida de todos em tempo real.', {
+            title: '📡 Mesa ao vivo', okText: 'Criar', checkbox: { label: 'Convidados podem alterar a vida' },
+        });
+        if (!res.ok) return;
+        try {
+            const s = await liveHostStart(res.checkbox);
+            openLiveHostModal();
+            showSpecialMoment(`📡 Mesa ao vivo: código ${s.code}`, 'success');
+        } catch (e: any) {
+            showSpecialMoment(`Mesa ao vivo não subiu: ${e?.message || e}`, 'danger');
+        }
     });
     $('open-ranking-home')?.addEventListener('click', () => openRankingModal());
     $('open-profiles-home')?.addEventListener('click', () => openProfilesModal());
@@ -1198,7 +1361,7 @@ function finishMatch(onDone?: () => void): void {
         return;
     }
     openPodiumModal(
-        state.players.map((p) => ({ id: p.id, name: p.name, profileId: p.profileId, life: p.life, commanderDeaths: p.commanderDeaths, avatar: p.avatar, color: p.color })),
+        state.players.map((p) => ({ id: p.id, name: p.name, profileId: p.profileId, deckId: p.deckId ?? null, deckName: p.deckName ?? null, life: p.life, commanderDeaths: p.commanderDeaths, avatar: p.avatar, color: p.color })),
         (ordered) => {
             const r = buildManualResult(placementsFromOrder(ordered), state as any);
             saveResult(r);
@@ -1235,7 +1398,7 @@ function maybeAskPodium(state: GameState, onContinue: () => void): void {
         return;
     }
     openPodiumModal(
-        state.players.map((p) => ({ id: p.id, name: p.name, profileId: p.profileId, life: p.life, commanderDeaths: p.commanderDeaths, avatar: p.avatar, color: p.color })),
+        state.players.map((p) => ({ id: p.id, name: p.name, profileId: p.profileId, deckId: p.deckId ?? null, deckName: p.deckName ?? null, life: p.life, commanderDeaths: p.commanderDeaths, avatar: p.avatar, color: p.color })),
         (ordered) => {
             const r = buildManualResult(placementsFromOrder(ordered), state as any);
             saveResult(r);
@@ -1246,7 +1409,7 @@ function maybeAskPodium(state: GameState, onContinue: () => void): void {
     );
 }
 
-type PodiumPlayer = { id: string; name: string; profileId: number | null; life: number; commanderDeaths: number; avatar: string | null; color: string };
+type PodiumPlayer = { id: string; name: string; profileId: number | null; deckId?: number | null; deckName?: string | null; life: number; commanderDeaths: number; avatar: string | null; color: string };
 
 function openPodiumModal(
     players: PodiumPlayer[],
@@ -1349,7 +1512,7 @@ function fmtDateTime(iso: string): string {
         d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
-type RankingTab = RankingPeriod | 'season' | 'year' | 'history';
+type RankingTab = RankingPeriod | 'season' | 'year' | 'history' | 'elo' | 'seasons';
 
 // Ranking (servidor) + histórico completo de partidas da mesa.
 function openRankingModal(initialTab: RankingTab = 'today'): void {
@@ -1365,16 +1528,19 @@ function openRankingModal(initialTab: RankingTab = 'today'): void {
         <div class="modal-content ranking-modal-content">
             <div class="modal-header">
                 <h2>🏆 Ranking da mesa</h2>
-                <button class="header-btn ranking-cfg-btn" id="ranking-cfg" type="button" title="Temporada e desempate">⚙️</button>
+                <button class="header-btn ranking-cfg-btn" id="ranking-share" type="button" title="Exportar como imagem">📷</button>
+                <button class="header-btn ranking-cfg-btn" id="ranking-cfg" type="button" title="Temporada, pontuação e desempate">⚙️</button>
                 <button class="modal-close" type="button">&times;</button>
             </div>
             <div class="ranking-body">
-                <div class="ranking-tabs">
+                <div class="ranking-tabs ranking-tabs-wrap">
                     <button class="ranking-tab" data-p="today">Hoje</button>
                     <button class="ranking-tab" data-p="month">Mês</button>
                     <button class="ranking-tab" data-p="season">Temporada</button>
                     <button class="ranking-tab" data-p="year">Ano</button>
                     <button class="ranking-tab" data-p="all">Geral</button>
+                    <button class="ranking-tab" data-p="elo">Elo</button>
+                    <button class="ranking-tab" data-p="seasons">Hall</button>
                     <button class="ranking-tab" data-p="history">Histórico</button>
                 </div>
                 <div class="ranking-source" id="ranking-source"></div>
@@ -1417,12 +1583,75 @@ function openRankingModal(initialTab: RankingTab = 'today'): void {
             : `📴 Sem conexão — mostrando só o que está neste aparelho${pending}`;
     };
 
+    // Linhas exibidas na aba atual (pra exportar como imagem).
+    let lastRows: Array<{ name: string; points: number; wins: number; matches: number; photoUrl?: string | null }> = [];
+    let lastTitle = '';
+
+    const renderElo = async (): Promise<void> => {
+        const token = ++renderToken;
+        tableEl.innerHTML = '<div class="ranking-empty">Carregando…</div>';
+        try {
+            const { rows } = await apiElo();
+            if (token !== renderToken) return;
+            setSource(true, ' · Elo (começa em 1000; vencer mesa forte vale mais)');
+            lastTitle = 'Elo';
+            lastRows = rows.map(r => ({ name: r.name, points: r.elo, wins: 0, matches: r.matches, photoUrl: r.photo_url }));
+            if (rows.length === 0) { tableEl.innerHTML = '<div class="ranking-empty">Sem partidas com perfil ainda.</div>'; return; }
+            const head = `<div class="ranking-row ranking-head"><span></span><span>Jogador</span><span>Elo</span><span>P</span><span>±</span></div>`;
+            tableEl.innerHTML = head + rows.map((r, i) => {
+                const h = r.history;
+                const delta = h.length >= 2 ? h[h.length - 1].elo - h[h.length - 2].elo : (h.length === 1 ? h[0].elo - 1000 : 0);
+                const prof = getProfileById(r.profile_id);
+                return `
+                <div class="ranking-row ${i === 0 ? 'ranking-leader' : ''} ranking-clickable" data-profile="${r.profile_id}">
+                    <span class="ranking-place">${medalFor(i + 1)}</span>
+                    <span class="ranking-name">${avatarHtml({ name: r.name, photo_url: r.photo_url, color: prof?.color }, 'lc-avatar lc-avatar-sm')}<span>${escapeHtml(r.name)}</span></span>
+                    <span class="ranking-pts">${r.elo}</span>
+                    <span class="ranking-matches">${r.matches}</span>
+                    <span class="ranking-wins ${delta > 0 ? 'elo-up' : delta < 0 ? 'elo-down' : ''}">${delta > 0 ? '+' : ''}${delta}</span>
+                </div>`;
+            }).join('');
+        } catch (e: any) {
+            if (token !== renderToken) return;
+            setSource(false);
+            tableEl.innerHTML = `<div class="ranking-empty">Sem conexão (${escapeHtml(String(e?.message || e))}).</div>`;
+        }
+    };
+
+    const renderSeasons = async (): Promise<void> => {
+        const token = ++renderToken;
+        tableEl.innerHTML = '<div class="ranking-empty">Carregando…</div>';
+        try {
+            const { seasons } = await apiSeasons();
+            if (token !== renderToken) return;
+            setSource(true, ' · hall da fama');
+            if (seasons.length === 0) { tableEl.innerHTML = '<div class="ranking-empty">Nenhuma temporada ainda.</div>'; return; }
+            tableEl.innerHTML = seasons.map((s) => {
+                const champProf = s.champion ? getProfileById(s.champion.profile_id) : null;
+                return `
+                <div class="hall-season ${s.current ? 'current' : ''}">
+                    <div class="hall-head"><strong>${escapeHtml(s.label)}</strong>${s.current ? ' <span class="hall-tag">em andamento</span>' : ' <span class="hall-tag closed">encerrada</span>'}<span class="update-muted"> · ${s.matches} partida(s)</span></div>
+                    ${s.champion ? `<div class="hall-champ ranking-clickable" data-profile="${s.champion.profile_id ?? ''}">${avatarHtml({ name: s.champion.name, photo_url: s.champion.photo_url, color: champProf?.color }, 'lc-avatar pp-avatar-md')}<div><div class="hall-champ-name">${s.current ? '👑 líder' : '🏆 campeão'}: ${escapeHtml(s.champion.name)}</div><div class="update-muted">${s.champion.points} pts · ${s.champion.wins} vitória(s)</div></div></div>` : ''}
+                    <div class="hall-top">${s.top.slice(1).map((t, i) => `<span class="pp-chip">${medalFor(i + 2)} ${escapeHtml(t.name)} · ${t.points}</span>`).join('')}</div>
+                </div>`;
+            }).join('');
+        } catch (e: any) {
+            if (token !== renderToken) return;
+            setSource(false);
+            tableEl.innerHTML = `<div class="ranking-empty">Sem conexão (${escapeHtml(String(e?.message || e))}).</div>`;
+        }
+    };
+
     const renderRanking = async (): Promise<void> => {
         const token = ++renderToken;
         tableEl.innerHTML = '<div class="ranking-empty">Carregando…</div>';
-        const { rows, remote, totalMatches, label, tiebreak } = await aggregateRemote(tab as RankingPeriod);
+        const { rows, remote, totalMatches, label, tiebreak, mode } = await aggregateRemote(tab as RankingPeriod);
         if (token !== renderToken) return;
-        const tb = tiebreak === 'wins' ? ' · desempate: vitórias' : '';
+        const modeTxt: Record<string, string> = { placement: '', winner_only: ' · só vitória vale', podium: ' · pódio 3/1', elo: ' · por Elo' };
+        const tb = (tiebreak === 'wins' ? ' · desempate: vitórias' : '') + (modeTxt[mode || ''] || '');
+        const tabNames: Record<string, string> = { today: 'Hoje', month: 'Mês', season: label || 'Temporada', year: 'Ano', all: 'Geral' };
+        lastTitle = tabNames[tab] || '';
+        lastRows = rows.map(r => ({ name: r.name, points: r.points, wins: r.wins, matches: r.matches, photoUrl: r.photoUrl ?? getProfileById(r.profileId ?? null)?.photo_url ?? null }));
         setSource(remote, `${label ? ` · ${label}` : ''} · ${totalMatches} partida(s)${tb}`);
         if (rows.length === 0) {
             tableEl.innerHTML = '<div class="ranking-empty">Nenhuma partida registrada neste período.</div>';
@@ -1481,9 +1710,18 @@ function openRankingModal(initialTab: RankingTab = 'today'): void {
     const render = (): void => {
         modal.querySelectorAll<HTMLElement>('.ranking-tab').forEach((b) => b.classList.toggle('active', b.dataset.p === tab));
         filtersEl.style.display = tab === 'history' ? '' : 'none';
+        const shareBtn = modal.querySelector('#ranking-share') as HTMLElement | null;
+        if (shareBtn) shareBtn.style.display = (tab === 'history' || tab === 'seasons') ? 'none' : '';
         if (tab === 'history') void renderHistory();
+        else if (tab === 'elo') void renderElo();
+        else if (tab === 'seasons') void renderSeasons();
         else void renderRanking();
     };
+
+    modal.querySelector('#ranking-share')?.addEventListener('click', () => {
+        if (!lastRows.length) { showSpecialMoment('Nada pra exportar nesta aba.', 'warning'); return; }
+        void exportRankingImage(lastTitle, lastRows);
+    });
 
     tableEl.addEventListener('click', async (e) => {
         const target = e.target as HTMLElement;
@@ -1525,7 +1763,90 @@ function openRankingModal(initialTab: RankingTab = 'today'): void {
     void flushSyncQueue().finally(render);
 }
 
-// Configuração de temporada (duração, âncora) e desempate — vale pra todo mundo.
+// Exporta o ranking como imagem (canvas) e abre o modal de compartilhar.
+async function exportRankingImage(title: string, rows: Array<{ name: string; points: number; wins: number; matches: number; photoUrl?: string | null }>): Promise<void> {
+    const canvas = $('share-canvas') as HTMLCanvasElement;
+    const ctx = canvas.getContext('2d')!;
+    const rowH = 54;
+    const n = Math.min(rows.length, 12);
+    canvas.width = 600;
+    canvas.height = 150 + n * rowH + 40;
+    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grad.addColorStop(0, '#1a1a2e');
+    grad.addColorStop(1, '#16213e');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 28px "Segoe UI", Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🏆 Ranking da mesa', canvas.width / 2, 50);
+    ctx.font = '15px "Segoe UI", Arial, sans-serif';
+    ctx.fillStyle = '#9aa';
+    ctx.fillText(`${title} · ${new Date().toLocaleDateString('pt-BR')}`, canvas.width / 2, 78);
+    ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+    ctx.fillStyle = '#777';
+    ctx.textAlign = 'right';
+    ctx.fillText('PTS', 470, 112);
+    ctx.fillText('V', 520, 112);
+    ctx.fillText('P', 565, 112);
+
+    const loadImg = (url: string): Promise<HTMLImageElement | null> => new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = url;
+    });
+    const imgs = await Promise.all(rows.slice(0, n).map(r => r.photoUrl ? loadImg(r.photoUrl) : Promise.resolve(null)));
+
+    rows.slice(0, n).forEach((r, i) => {
+        const y = 125 + i * rowH;
+        ctx.fillStyle = i === 0 ? 'rgba(245,197,66,0.14)' : 'rgba(255,255,255,0.06)';
+        ctx.beginPath();
+        ctx.roundRect(30, y, 540, rowH - 8, 10);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 18px "Segoe UI", Arial, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}º`, 44, y + 30);
+        const img = imgs[i];
+        const ax = 92, ay = y + (rowH - 8) / 2, ar = 17;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(ax, ay, ar, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+        if (img) {
+            try { ctx.drawImage(img, ax - ar, ay - ar, ar * 2, ar * 2); } catch { /* tainted */ }
+        } else {
+            ctx.fillStyle = '#6366f1';
+            ctx.fillRect(ax - ar, ay - ar, ar * 2, ar * 2);
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(r.name.charAt(0).toUpperCase(), ax, ay + 5);
+        }
+        ctx.restore();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 17px "Segoe UI", Arial, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(truncateText(r.name, ctx, 300), 120, y + 30);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#f5c542';
+        ctx.fillText(String(r.points), 470, y + 30);
+        ctx.fillStyle = '#ccc';
+        ctx.font = '15px "Segoe UI", Arial, sans-serif';
+        ctx.fillText(String(r.wins), 520, y + 30);
+        ctx.fillText(String(r.matches), 565, y + 30);
+    });
+    ctx.fillStyle = '#555';
+    ctx.font = '12px "Segoe UI", Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('LifeCounter · lifecounter.mreis.site/ranking', canvas.width / 2, canvas.height - 14);
+    openModal($('share-modal'));
+}
+
+// Configuração de temporada (duração, âncora), pontuação e desempate — vale pra todo mundo.
 function openSeasonSettings(current: SeasonSettingsDTO | null, onSaved: (cfg: SeasonSettingsDTO) => void): void {
     document.getElementById('season-cfg-dyn')?.remove();
     const modal = document.createElement('div');
@@ -1546,6 +1867,14 @@ function openSeasonSettings(current: SeasonSettingsDTO | null, onSaved: (cfg: Se
                 </label>
                 <label>Início da contagem (âncora)
                     <input type="date" id="season-start" value="${escapeHtml(start)}">
+                </label>
+                <label>Pontuação
+                    <select id="season-scoring">
+                        <option value="placement" ${(current?.scoring_mode ?? 'placement') === 'placement' ? 'selected' : ''}>Por colocação (1º = N pts … último = 1)</option>
+                        <option value="winner_only" ${current?.scoring_mode === 'winner_only' ? 'selected' : ''}>Só vitória vale (1 ponto)</option>
+                        <option value="podium" ${current?.scoring_mode === 'podium' ? 'selected' : ''}>Pódio: 1º = 3, 2º = 1</option>
+                        <option value="elo" ${current?.scoring_mode === 'elo' ? 'selected' : ''}>Elo (nota por força da mesa)</option>
+                    </select>
                 </label>
                 <label>Desempate
                     <select id="season-tiebreak">
@@ -1573,6 +1902,7 @@ function openSeasonSettings(current: SeasonSettingsDTO | null, onSaved: (cfg: Se
                 season_months: Number((modal.querySelector('#season-months') as HTMLSelectElement).value),
                 season_start: (modal.querySelector('#season-start') as HTMLInputElement).value,
                 tiebreak: (modal.querySelector('#season-tiebreak') as HTMLSelectElement).value as 'points' | 'wins',
+                scoring_mode: (modal.querySelector('#season-scoring') as HTMLSelectElement).value as ScoringMode,
             });
             close();
             onSaved(cfg);
@@ -1615,16 +1945,24 @@ function openProfilePage(profileId: number): void {
             <div class="pp-hero">
                 ${avatarHtml({ name: p.name, photo_url: p.photo_url, color: p.color }, 'lc-avatar pp-avatar')}
                 <div class="pp-hero-info">
-                    <div class="pp-name">${escapeHtml(p.name)}</div>
-                    <div class="pp-ranks">${s.rank_season ? `${medalFor(s.rank_season)} na temporada` : 'sem partidas na temporada'} · ${s.rank_all ? `${medalFor(s.rank_all)} geral` : ''}</div>
+                    <div class="pp-name">${escapeHtml(p.name)} ${(s.trophies || []).map(() => '🏆').join('')}</div>
+                    <div class="pp-ranks">${s.rank_season ? `${medalFor(s.rank_season)} na temporada` : 'sem partidas na temporada'} · ${s.rank_all ? `${medalFor(s.rank_all)} geral` : ''} · Elo <strong>${s.elo}</strong></div>
+                    ${(s.trophies || []).length ? `<div class="pp-trophies">${s.trophies.map(t => `<span class="pp-chip gold">🏆 ${escapeHtml(t.label)}</span>`).join('')}</div>` : ''}
                     ${p.aliases?.length ? `<div class="pp-aliases">🎙️ ${p.aliases.map(escapeHtml).join(' · ')}</div>` : ''}
                 </div>
             </div>
             <div class="pp-stats">
                 ${stat('pontos', s.points)}${stat('partidas', s.matches)}${stat('vitórias', s.wins)}${stat('% vitórias', `${s.win_rate}%`)}
                 ${stat('pódios', s.podiums)}${stat('lanternas', s.last_places)}${stat('colocação média', s.avg_place ?? '—')}${stat('duração média', fmtDuration(s.avg_duration_ms))}
-                ${stat('sequência atual', `${s.current_streak}🔥`)}${stat('melhor sequência', s.best_streak)}
+                ${stat('sequência atual', `${s.current_streak}🔥`)}${stat('melhor sequência', s.best_streak)}${stat('Elo', s.elo)}${stat('troféus', (s.trophies || []).length)}
             </div>
+            ${(s.elo_history || []).length >= 2 ? `<div class="pp-section"><div class="podium-section-label">Evolução do Elo</div>${eloSparkline(s.elo_history)}</div>` : ''}
+            ${(s.deck_stats || []).length ? `
+            <div class="pp-section">
+                <div class="podium-section-label">Decks / comandantes</div>
+                <div class="pp-decks">${s.deck_stats.map(d => `<div class="pp-deck"><span class="deck-item-colors">${colorsHtml(d.colors)}</span><span class="pp-deck-name">${escapeHtml(d.name)}</span><span class="update-muted">${d.wins}/${d.matches} · ${d.win_rate}%</span></div>`).join('')}</div>
+                ${(s.color_stats || []).length ? `<div class="pp-list">${s.color_stats.map(c => `<span class="pp-chip">${colorsHtml(c.color)} ${c.win_rate}% <small>(${c.matches})</small></span>`).join('')}</div>` : ''}
+            </div>` : ''}
             ${s.nemesis.length || s.victims.length ? `
             <div class="pp-section">
                 ${s.nemesis.length ? `<div class="podium-section-label">Nêmesis (quem mais te venceu)</div><div class="pp-list">${s.nemesis.map(n => `<span class="pp-chip">${escapeHtml(n.name)} <b>${n.times}×</b></span>`).join('')}</div>` : ''}
@@ -1643,6 +1981,18 @@ function openProfilePage(profileId: number): void {
     }).catch((e) => {
         body.innerHTML = `<div class="ranking-empty">Sem conexão com o servidor (${escapeHtml(String(e?.message || e))}).</div>`;
     });
+}
+
+// Mini-gráfico (SVG) da evolução do Elo.
+function eloSparkline(history: Array<{ elo: number; at: string }>): string {
+    const W = 480, H = 90, pad = 8;
+    const vals = history.map(h => h.elo);
+    const min = Math.min(...vals, 1000), max = Math.max(...vals, 1000);
+    const px = (i: number): number => pad + (i / Math.max(1, vals.length - 1)) * (W - pad * 2);
+    const py = (v: number): number => pad + (1 - (v - min) / (max - min || 1)) * (H - pad * 2);
+    const d = vals.map((v, i) => `${i === 0 ? 'M' : 'L'}${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(' ');
+    const base = py(1000);
+    return `<svg class="elo-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><line x1="${pad}" y1="${base}" x2="${W - pad}" y2="${base}" stroke="rgba(255,255,255,0.15)" stroke-dasharray="4 4"/><path d="${d}" fill="none" stroke="#f5c542" stroke-width="2.5" stroke-linejoin="round"/><circle cx="${px(vals.length - 1)}" cy="${py(vals[vals.length - 1])}" r="4" fill="#f5c542"/><text x="${W - pad}" y="${py(vals[vals.length - 1]) - 8}" font-size="12" fill="#f5c542" text-anchor="end">${vals[vals.length - 1]}</text><text x="${pad}" y="${H - 2}" font-size="10" fill="#777">${vals.length} partidas · mín ${min} · máx ${max}</text></svg>`;
 }
 
 // Detalhe de uma partida: pódio com vida final, quem eliminou quem, e o log completo.
@@ -1673,6 +2023,15 @@ function openMatchDetail(matchId: number): void {
         const podium = m.placements.slice().sort((a, b) => a.place - b.place);
         const events = (m.events || []) as GameEvent[];
         const nameOf = (id: string): string => events.find(e => e.playerId === id)?.playerName || 'Jogador';
+        // Gráfico: reconstrói os jogadores (id + nome + cor) a partir do log.
+        const ids = Array.from(new Set(events.map(e => e.playerId).filter(Boolean)));
+        const palette = DEFAULT_PLAYER_COLORS;
+        const chartPlayers = ids.map((id, i) => {
+            const pl = podium.find(p => p.name === nameOf(id));
+            const prof = pl ? getProfileById(pl.profile_id ?? null) : null;
+            return { id, name: nameOf(id), color: prof?.color || palette[i % palette.length] };
+        });
+        const chartData = chartPlayers.length ? buildLifeSeries(events, chartPlayers, m.starting_life || 40) : null;
         let lastTurn = -1;
         const log = events.map((ev) => {
             const sep = ev.turn !== undefined && ev.turn !== lastTurn ? `<div class="history-turn-sep">Turno ${ev.turn}</div>` : '';
@@ -1688,10 +2047,11 @@ function openMatchDetail(matchId: number): void {
                         <span class="md-medal">${medalFor(p.place)}</span>
                         ${avatarHtml({ name: p.name, photo_url: p.photo_url ?? prof?.photo_url ?? null, color: prof?.color }, 'lc-avatar lc-avatar-sm')}
                         <span class="md-name">${escapeHtml(p.name)}</span>
-                        <span class="update-muted">${p.points} pts${p.final_life !== null && p.final_life !== undefined ? ` · ${p.final_life} vida` : ''}${p.eliminated_by ? ` · ☠️ por ${escapeHtml(p.eliminated_by)}` : ''}${p.commander_deaths ? ` · ⚰️ ${p.commander_deaths}` : ''}</span>
+                        <span class="update-muted">${p.points} pts${p.deck_name ? ` · 🃏 ${escapeHtml(p.deck_name)} ${colorsHtml(p.deck_colors || '')}` : ''}${p.final_life !== null && p.final_life !== undefined ? ` · ${p.final_life} vida` : ''}${p.eliminated_by ? ` · ☠️ por ${escapeHtml(p.eliminated_by)}` : ''}${p.commander_deaths ? ` · ⚰️ ${p.commander_deaths}` : ''}</span>
                     </div>`;
                 }).join('')}
             </div>
+            ${chartData && events.length > 1 ? `<div class="podium-section-label">Vida ao longo da partida</div><div class="life-chart-wrap">${lifeChartSvg(chartData, { startingLife: m.starting_life || 40 })}</div>` : ''}
             <div class="podium-section-label">Log da partida (${events.length} eventos)</div>
             <div class="md-log">${log || '<div class="update-muted">Sem log (partida salva por uma versão antiga).</div>'}</div>
         `;
@@ -2336,6 +2696,28 @@ function renderSetup(state: GameState): void {
     document.querySelectorAll('.count-btn').forEach(btn => {
         btn.classList.toggle('active', parseInt(btn.getAttribute('data-count') || '0') === state.settings.playerCount);
     });
+    const countValue = $('player-count-value');
+    if (countValue) countValue.textContent = String(state.settings.playerCount);
+    document.querySelectorAll('.setup-mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-mode') === state.gameMode);
+    });
+    document.querySelectorAll('.theme-swatches .theme-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-theme') === state.settings.theme);
+    });
+    const setSel = (id: string, v: string): void => { const el = document.getElementById(id) as HTMLSelectElement | null; if (el && el.value !== v) el.value = v; };
+    setSel('setup-font-style', state.settings.fontStyle);
+    setSel('setup-bg-style', state.settings.animatedBgEnabled ? state.settings.animatedBgStyle : 'none');
+    setSel('setup-anim-intensity', state.settings.animationIntensity);
+    setSel('setup-turn-timer', state.settings.turnTimerEnabled ? String(state.settings.turnTimerDuration) : '0');
+    const cb = (id: string, v: boolean): void => { const el = document.getElementById(id) as HTMLInputElement | null; if (el) el.checked = v; };
+    cb('setup-show-cmd-deaths', state.settings.showCommanderDeaths);
+    cb('setup-escandalosa', state.settings.escandalosaEnabled !== false);
+    cb('table-mode-checkbox', state.settings.layout.tableMode);
+    const vsum = $('setup-visual-summary');
+    if (vsum) {
+        const themeName = THEMES[state.settings.theme]?.name || state.settings.theme;
+        vsum.textContent = `${state.settings.layout.rows.join('/')} · ${themeName}${state.settings.animatedBgEnabled && state.settings.animatedBgStyle !== 'none' ? ' · fundo ' + state.settings.animatedBgStyle : ''}`;
+    }
 
     // Render layout presets
     renderLayoutPresets();
@@ -2357,6 +2739,7 @@ function renderSetup(state: GameState): void {
                 <button type="button" class="player-setup-name" data-action="pick-profile">
                     ${hasProfile ? escapeHtml(player.name) : `<span class="player-setup-placeholder">Jogador ${index + 1} — escolher perfil</span>`}
                 </button>
+                ${hasProfile ? `<button type="button" class="player-deck-chip ${player.deckId ? 'has-deck' : ''}" data-action="pick-deck" title="Deck / comandante"><svg class="ic"><use href="#ic-deck"/></svg>${player.deckName ? escapeHtml(player.deckName) : 'deck'}</button>` : ''}
                 ${player.tag ? `<span class="player-setup-tag">${escapeHtml(player.tag)}</span>` : ''}
             </div>
             <div class="player-color-dot"
@@ -2375,6 +2758,12 @@ function renderSetup(state: GameState): void {
             openProfilePicker(item.dataset.playerId!);
         });
     });
+    playerList.querySelectorAll('[data-action="pick-deck"]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const item = (e.target as HTMLElement).closest('.player-setup-item') as HTMLElement;
+            openDeckPicker(item.dataset.playerId!);
+        });
+    });
 
     playerList.querySelectorAll('.player-color-dot').forEach(dot => {
         dot.addEventListener('click', (e) => {
@@ -2388,7 +2777,9 @@ function renderSetup(state: GameState): void {
     if (startBtn) {
         const ready = state.players.every((p) => p.profileId !== null);
         startBtn.classList.toggle('start-btn-waiting', !ready);
-        startBtn.textContent = ready ? 'Iniciar Partida' : 'Escolha os perfis para iniciar';
+        const label = startBtn.querySelector('span');
+        if (label) label.textContent = ready ? 'Iniciar partida' : 'Escolha os perfis para iniciar';
+        else startBtn.textContent = ready ? 'Iniciar partida' : 'Escolha os perfis para iniciar';
     }
 }
 
@@ -2459,7 +2850,7 @@ function openProfilePicker(playerId: string): void {
         }).join('');
         grid.innerHTML = cards + `
             <button type="button" class="profile-card profile-card-new" data-new="1">
-                <span class="lc-avatar profile-card-avatar lc-avatar-initials">➕</span>
+                <span class="lc-avatar profile-card-avatar lc-avatar-initials">+</span>
                 <span class="profile-card-name">Novo perfil</span>
             </button>`;
         if (list.length === 0) {
@@ -2537,6 +2928,119 @@ function openProfilePicker(playerId: string): void {
     void refreshProfiles().then(renderGrid);
 }
 
+// ===== Decks / comandantes =====
+
+const MANA_SYMBOL: Record<string, string> = { W: '⚪', U: '🔵', B: '⚫', R: '🔴', G: '🟢' };
+function colorsHtml(colors: string): string {
+    return (colors || '').split('').map(c => MANA_SYMBOL[c] || '').join('') || '◇';
+}
+
+interface ScryfallHit { name: string; colors: string; image: string; id: string; typeLine: string }
+
+async function scryfallSearchCommander(q: string): Promise<ScryfallHit[]> {
+    const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(`${q} is:commander`)}&unique=cards&order=edhrec`;
+    const res = await fetch(url);
+    if (res.status === 404) return [];
+    if (!res.ok) throw new Error(`Scryfall ${res.status}`);
+    const data = await res.json();
+    return (data.data || []).slice(0, 12).map((c: any) => ({
+        name: c.printed_name || c.name,
+        colors: (c.color_identity || []).join(''),
+        image: c.image_uris?.art_crop || c.card_faces?.[0]?.image_uris?.art_crop || '',
+        id: c.id,
+        typeLine: c.type_line || '',
+    }));
+}
+
+// Escolher o deck do jogador no setup (lista do perfil + criar novo via Scryfall).
+function openDeckPicker(playerId: string): void {
+    const player = gameState.getState().players.find(p => p.id === playerId);
+    if (!player || player.profileId === null) return;
+    const prof = getProfileById(player.profileId);
+    document.getElementById('deck-picker-dyn')?.remove();
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.id = 'deck-picker-dyn';
+    document.body.appendChild(modal);
+    const close = (): void => modal.remove();
+
+    const choose = (deck: DeckDTO | null): void => {
+        gameState.updatePlayerSetup(playerId, { deckId: deck?.id ?? null, deckName: deck?.name ?? null });
+        close();
+    };
+
+    const render = (): void => {
+        const decks = (getProfileById(player.profileId)?.decks || []).filter(d => d.active !== false);
+        modal.innerHTML = `
+            <div class="modal-content profile-picker-content">
+                <div class="modal-header">
+                    <h2>🃏 Deck de ${escapeHtml(prof?.name || player.name)}</h2>
+                    <button class="modal-close" type="button">&times;</button>
+                </div>
+                <div class="profile-picker-body">
+                    <div class="deck-list">
+                        ${decks.map(d => `
+                            <button type="button" class="deck-item ${player.deckId === d.id ? 'selected' : ''}" data-id="${d.id}" style="${d.image_url ? `background-image:url('${escapeHtml(d.image_url)}')` : ''}">
+                                <span class="deck-item-colors">${colorsHtml(d.colors)}</span>
+                                <span class="deck-item-name">${escapeHtml(d.name)}</span>
+                                ${d.commander && d.commander !== d.name ? `<span class="deck-item-cmd">${escapeHtml(d.commander)}</span>` : ''}
+                            </button>`).join('')}
+                        ${decks.length === 0 ? '<div class="update-muted">Nenhum deck ainda. Busque o comandante abaixo.</div>' : ''}
+                    </div>
+                    <div class="deck-search">
+                        <input type="text" id="deck-search-input" class="profile-new-name" placeholder="Buscar comandante (Scryfall)…" autocomplete="off">
+                        <div id="deck-search-results" class="deck-results"></div>
+                    </div>
+                    <div class="profile-picker-footer">
+                        <button class="cs-gallery-btn" id="deck-none" type="button">Sem deck nesta partida</button>
+                    </div>
+                </div>
+            </div>`;
+        modal.querySelector('.modal-close')?.addEventListener('click', close);
+        modal.querySelector('#deck-none')?.addEventListener('click', () => choose(null));
+        modal.querySelectorAll<HTMLElement>('.deck-item').forEach(el => el.addEventListener('click', () => {
+            const d = decks.find(x => x.id === Number(el.dataset.id));
+            if (d) choose(d);
+        }));
+        const input = modal.querySelector('#deck-search-input') as HTMLInputElement;
+        const results = modal.querySelector('#deck-search-results') as HTMLElement;
+        let timer: number | null = null;
+        input.addEventListener('input', () => {
+            if (timer !== null) window.clearTimeout(timer);
+            const q = input.value.trim();
+            if (q.length < 3) { results.innerHTML = ''; return; }
+            timer = window.setTimeout(async () => {
+                results.innerHTML = '<div class="update-muted">Buscando…</div>';
+                try {
+                    const hits = await scryfallSearchCommander(q);
+                    results.innerHTML = hits.length ? hits.map((h, i) => `
+                        <button type="button" class="deck-hit" data-i="${i}" style="${h.image ? `background-image:url('${escapeHtml(h.image)}')` : ''}">
+                            <span class="deck-item-colors">${colorsHtml(h.colors)}</span>
+                            <span class="deck-item-name">${escapeHtml(h.name)}</span>
+                        </button>`).join('') : '<div class="update-muted">Nada encontrado.</div>';
+                    results.querySelectorAll<HTMLElement>('.deck-hit').forEach(el => el.addEventListener('click', async () => {
+                        const h = hits[Number(el.dataset.i)];
+                        el.classList.add('busy');
+                        try {
+                            const created = await apiCreateDeck(player.profileId!, { name: h.name, commander: h.name, colors: h.colors, image_url: h.image, scryfall_id: h.id });
+                            await refreshProfiles();
+                            choose(created);
+                        } catch (err: any) {
+                            showSpecialMoment(`Não deu pra salvar o deck: ${err?.message || err}`, 'danger');
+                            el.classList.remove('busy');
+                        }
+                    }));
+                } catch (err: any) {
+                    results.innerHTML = `<div class="update-muted">Scryfall indisponível (${escapeHtml(String(err?.message || err))}).</div>`;
+                }
+            }, 350);
+        });
+        input.focus();
+    };
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    render();
+}
+
 // Gerenciar perfis: editar nome/foto, remover.
 function openProfilesModal(): void {
     document.getElementById('profiles-modal-dyn')?.remove();
@@ -2586,6 +3090,14 @@ function openProfilesModal(): void {
                 <div class="profile-manage-fields">
                     <input type="text" class="profile-manage-name" value="${escapeHtml(p.name)}" maxlength="40" data-role="name">
                     <input type="text" class="profile-manage-aliases" value="${escapeHtml((p.aliases || []).join(', '))}" maxlength="200" placeholder="apelidos p/ voz: Zezinho, Zeca" data-role="aliases">
+                    <div class="profile-manage-sounds">
+                        ${(['death', 'win', 'damage'] as const).map(k => `
+                            <label class="profile-sound-btn ${p.sounds?.[k] ? 'has' : ''}" title="Som de ${k === 'death' ? 'morte' : k === 'win' ? 'vitória' : 'dano'} (servidor)">
+                                <input type="file" accept="audio/*" hidden data-role="sound" data-kind="${k}">
+                                ${k === 'death' ? '💀' : k === 'win' ? '🏆' : '💥'}${p.sounds?.[k] ? ' ✓' : ''}
+                            </label>
+                            ${p.sounds?.[k] ? `<button type="button" class="profile-sound-x" data-role="sound-del" data-kind="${k}" title="Remover som">×</button>` : ''}`).join('')}
+                    </div>
                 </div>
                 <button type="button" class="profile-manage-stats" data-role="stats" title="Perfil completo">📊</button>
                 ${p.is_preset ? '<span class="profile-manage-preset">fixo</span>' : '<button type="button" class="profile-manage-del" data-role="del" title="Remover">🗑️</button>'}
@@ -2610,6 +3122,12 @@ function openProfilesModal(): void {
             } else if (target.dataset.role === 'aliases') {
                 row.classList.add('busy');
                 await updateProfile(id, { aliases: target.value.split(',').map(s => s.trim()).filter(Boolean) });
+            } else if (target.dataset.role === 'sound' && target.files?.[0]) {
+                const f = target.files[0];
+                if (f.size > 3 * 1024 * 1024) { showSpecialMoment('Som maior que 3 MB.', 'danger'); return; }
+                row.classList.add('busy');
+                await apiUploadProfileSound(id, target.dataset.kind as 'death' | 'win' | 'damage', f, f.name);
+                await refreshProfiles();
             }
             render();
         } catch (err: any) {
@@ -2622,6 +3140,18 @@ function openProfilesModal(): void {
         if (statsBtn) {
             const row = statsBtn.closest('.profile-manage-row') as HTMLElement;
             openProfilePage(Number(row.dataset.id));
+            return;
+        }
+        const sndDel = (e.target as HTMLElement).closest('[data-role="sound-del"]') as HTMLElement | null;
+        if (sndDel) {
+            const row = sndDel.closest('.profile-manage-row') as HTMLElement;
+            try {
+                await apiDeleteProfileSound(Number(row.dataset.id), sndDel.dataset.kind as 'death' | 'win' | 'damage');
+                await refreshProfiles();
+                render();
+            } catch (err: any) {
+                showSpecialMoment(`Não deu pra remover: ${err?.message || err}`, 'danger');
+            }
             return;
         }
         const btn = (e.target as HTMLElement).closest('[data-role="del"]') as HTMLElement | null;
@@ -2650,10 +3180,12 @@ function renderLayoutPresets(): void {
 
     const presetsHtml = presets.map(preset => {
         const label = preset.rows.join(' / ');
+        // Miniatura da disposição: uma linha por fileira, uma célula por jogador.
+        const thumb = `<span class="layout-thumb">${preset.rows.map(n => `<span class="layout-thumb-row">${'<span class="layout-thumb-cell"></span>'.repeat(n)}</span>`).join('')}</span>`;
         return `
             <button class="layout-preset-btn ${preset.preset === currentPreset ? 'active' : ''}"
-                    data-preset="${preset.preset}">
-                ${label}
+                    data-preset="${preset.preset}" title="${label}">
+                ${thumb}<span>${label}</span>
             </button>
         `;
     }).join('');
@@ -2720,6 +3252,17 @@ function renderGame(state: GameState): void {
             eliminatedPlayersShown.add(player.id);
             audioManager.play('death', player.id); // "Fon fon fon fooooom"
             narrateElimination(player.name); // narrador/roast (IA) na morte
+            // Animação de kill por comandante: o card do alvo "explode" e o do atacante pulsa.
+            const elimEv = state.history.find(e => e.type === 'player_eliminated' && e.playerId === player.id);
+            if (elimEv?.details?.message === 'commander') {
+                window.setTimeout(() => {
+                    const victim = document.querySelector(`.player-card[data-player-id="${player.id}"]`);
+                    const killer = elimEv.details.fromPlayerId ? document.querySelector(`.player-card[data-player-id="${elimEv.details.fromPlayerId}"]`) : null;
+                    victim?.classList.add('commander-kill-victim');
+                    killer?.classList.add('commander-kill-killer');
+                    window.setTimeout(() => { victim?.classList.remove('commander-kill-victim'); killer?.classList.remove('commander-kill-killer'); }, 1600);
+                }, 30);
+            }
         } else if (!player.isEliminated && eliminatedPlayersShown.has(player.id)) {
             // Player was revived, remove from tracking
             eliminatedPlayersShown.delete(player.id);
@@ -2730,6 +3273,7 @@ function renderGame(state: GameState): void {
     // nunca no instante do último eliminado — um undo ainda pode virar o jogo.
     updateEndGameButtons(state);
     renderMechanicsBadge();
+    liveHostNotify();
 
     // Check for winner - show share buttons and winner animation
     if (state.winner) {
@@ -2819,7 +3363,7 @@ function playerCardSignature(player: Player, index: number, state: GameState): s
     const team = state.gameMode === 'two-headed' ? state.teams.find(t => t.playerIds.includes(player.id)) : null;
     return JSON.stringify([
         index, player.name, player.color, player.avatar, player.emoji, player.tag, player.background, player.backgroundType,
-        player.isEliminated, player.isMonarch, player.id === state.winner, player.rotation,
+        player.isEliminated, player.isMonarch, player.id === state.winner, player.rotation, player.manualRotation || 0, player.life === 1,
         player.counters, player.commanderDeaths, player.commanderDamage,
         index === state.activePlayerIndex, state.viadoPlayerId === player.id, team?.id,
         state.settings.gifPaused, state.settings.showCommanderDeaths, state.settings.layout.tableMode,
@@ -2887,11 +3431,12 @@ function renderPlayerCardHtml(player: Player, index: number, state: GameState): 
             player.isEliminated ? 'eliminated' : '',
             player.id === state.winner ? 'winner' : '',
             player.isMonarch ? 'is-monarch' : '',
+            player.life === 1 && !player.isEliminated ? 'last-life' : '',
             state.settings.gifPaused ? 'gif-paused' : '',
             team ? `team-${teamIndex}` : '',
         ].filter(Boolean).join(' ');
 
-        const rotation = layout.tableMode ? player.rotation : 0;
+        const rotation = (((layout.tableMode ? player.rotation : 0) + (player.manualRotation || 0)) % 360 + 360) % 360;
         const countersHtml = renderPlayerCountersBadges(player);
         const backgroundStyle = player.background ?
             `background-image: url(${player.background});` : '';
@@ -2925,8 +3470,9 @@ function renderPlayerCardHtml(player: Player, index: number, state: GameState): 
                     </div>
                     <div class="player-actions">
                         <button class="player-action-btn" data-action="taunt" title="Taunt / Provocação">💬</button>
-                        <button class="player-action-btn" data-action="commander" title="Dano de Comandante">⚔️</button>
+                        <button class="player-action-btn commander-drag-btn" data-action="commander" title="Dano de Comandante: toque abre, arraste até o alvo aplica">⚔️</button>
                         <button class="player-action-btn" data-action="counters" title="Contadores">📊</button>
+                        <button class="player-action-btn" data-action="rotate" title="Girar este card">↻</button>
                         <button class="player-action-btn" data-action="settings" title="Config">⚙️</button>
                     </div>
                 </div>
@@ -2957,6 +3503,183 @@ function renderPlayerCardHtml(player: Player, index: number, state: GameState): 
     }
 }
 
+// ===== Dano de comandante por arrasto =====
+// Segura o ⚔️ do atacante e arrasta até o card do alvo: aparece um popup
+// rápido com a quantidade. Toque simples continua abrindo o modal completo.
+let cmdDragGhost: HTMLElement | null = null;
+
+function setupCommanderDrag(btn: HTMLElement, sourceId: string): void {
+    let startX = 0, startY = 0, dragging = false, pointerId = -1;
+    let hoverCard: HTMLElement | null = null;
+
+    const setHover = (card: HTMLElement | null): void => {
+        if (hoverCard === card) return;
+        hoverCard?.classList.remove('cmd-drop-target');
+        hoverCard = card;
+        hoverCard?.classList.add('cmd-drop-target');
+    };
+
+    const cardAt = (x: number, y: number): HTMLElement | null => {
+        if (cmdDragGhost) cmdDragGhost.style.display = 'none';
+        const el = document.elementFromPoint(x, y) as HTMLElement | null;
+        if (cmdDragGhost) cmdDragGhost.style.display = '';
+        const card = el?.closest('.player-card') as HTMLElement | null;
+        if (!card || card.dataset.playerId === sourceId) return null;
+        return card;
+    };
+
+    btn.addEventListener('pointerdown', (e) => {
+        startX = e.clientX; startY = e.clientY; dragging = false; pointerId = e.pointerId;
+        try { btn.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    });
+    btn.addEventListener('pointermove', (e) => {
+        if (e.pointerId !== pointerId) return;
+        if (!dragging) {
+            if (Math.hypot(e.clientX - startX, e.clientY - startY) < 12) return;
+            dragging = true;
+            document.body.classList.add('cmd-dragging');
+            const src = gameState.getState().players.find(p => p.id === sourceId);
+            cmdDragGhost = document.createElement('div');
+            cmdDragGhost.className = 'cmd-drag-ghost';
+            cmdDragGhost.style.setProperty('--player-color', src?.color || '#fff');
+            cmdDragGhost.textContent = `⚔️ ${src?.name || ''}`;
+            document.body.appendChild(cmdDragGhost);
+        }
+        if (cmdDragGhost) { cmdDragGhost.style.left = `${e.clientX}px`; cmdDragGhost.style.top = `${e.clientY}px`; }
+        setHover(cardAt(e.clientX, e.clientY));
+    });
+    const end = (e: PointerEvent): void => {
+        if (e.pointerId !== pointerId) return;
+        pointerId = -1;
+        try { btn.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+        if (!dragging) {
+            if (e.type === 'pointerup') openCommanderDamageModal(sourceId);
+            return;
+        }
+        dragging = false;
+        document.body.classList.remove('cmd-dragging');
+        cmdDragGhost?.remove();
+        cmdDragGhost = null;
+        const target = e.type === 'pointerup' ? cardAt(e.clientX, e.clientY) : null;
+        setHover(null);
+        if (target?.dataset.playerId) openCommanderQuickPopup(target.dataset.playerId, sourceId, e.clientX, e.clientY);
+    };
+    btn.addEventListener('pointerup', end);
+    btn.addEventListener('pointercancel', end);
+    btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); }); // o pointerup já tratou
+}
+
+// Popup rápido: quantidade de dano de comandante do atacante no alvo.
+function openCommanderQuickPopup(targetId: string, sourceId: string, x: number, y: number): void {
+    document.getElementById('cmd-quick-pop')?.remove();
+    const s = gameState.getState();
+    const target = s.players.find(p => p.id === targetId);
+    const source = s.players.find(p => p.id === sourceId);
+    if (!target || !source || target.isEliminated) return;
+    let amount = 1;
+    const pop = document.createElement('div');
+    pop.id = 'cmd-quick-pop';
+    pop.className = 'cmd-quick-pop';
+    pop.innerHTML = `
+        <div class="cmd-quick-title">⚔️ <b>${escapeHtml(source.name)}</b> → <b>${escapeHtml(target.name)}</b> <span class="update-muted">(total ${target.commanderDamage[sourceId] || 0}/21)</span></div>
+        <div class="cmd-quick-row">
+            <button type="button" data-d="-1">−</button>
+            <span class="cmd-quick-amount" id="cmd-quick-amount">1</span>
+            <button type="button" data-d="1">+</button>
+            <button type="button" data-d="5">+5</button>
+        </div>
+        <div class="cmd-quick-actions"><button type="button" class="cs-gallery-btn" id="cmd-quick-cancel">Cancelar</button><button type="button" class="primary-btn" id="cmd-quick-ok">Aplicar</button></div>
+    `;
+    document.body.appendChild(pop);
+    const vw = window.innerWidth, vh = window.innerHeight;
+    pop.style.left = `${Math.max(8, Math.min(vw - 260, x - 120))}px`;
+    pop.style.top = `${Math.max(8, Math.min(vh - 150, y - 60))}px`;
+    const amountEl = pop.querySelector('#cmd-quick-amount') as HTMLElement;
+    pop.querySelectorAll<HTMLElement>('[data-d]').forEach(b => b.addEventListener('click', () => {
+        amount = Math.max(1, Math.min(50, amount + Number(b.dataset.d)));
+        amountEl.textContent = String(amount);
+    }));
+    const close = (): void => pop.remove();
+    pop.querySelector('#cmd-quick-cancel')?.addEventListener('click', close);
+    pop.querySelector('#cmd-quick-ok')?.addEventListener('click', () => {
+        gameState.addCommanderDamage(targetId, sourceId, amount);
+        audioManager.play('damage', targetId);
+        createParticles(targetId, 'fire', Math.min(amount * 2, 15));
+        narrator.announceCommanderDamage(target.name, source.name, amount);
+        close();
+    });
+    window.setTimeout(() => document.addEventListener('pointerdown', function onOut(ev) {
+        if (!pop.contains(ev.target as Node)) { close(); document.removeEventListener('pointerdown', onOut); }
+    }), 50);
+}
+
+// Toque longo no número: metade / dobro / definir.
+function openLifeQuickMenu(playerId: string, x: number, y: number): void {
+    document.getElementById('life-quick-pop')?.remove();
+    const p = gameState.getState().players.find(pl => pl.id === playerId);
+    if (!p || p.isEliminated) return;
+    const half = Math.ceil(p.life / 2);
+    const dbl = p.life * 2;
+    const pop = document.createElement('div');
+    pop.id = 'life-quick-pop';
+    pop.className = 'cmd-quick-pop';
+    pop.innerHTML = `
+        <div class="cmd-quick-title"><b>${escapeHtml(p.name)}</b> · ${p.life} de vida</div>
+        <div class="cmd-quick-row life-quick-row">
+            <button type="button" data-set="${half}">½ → ${half}</button>
+            <button type="button" data-set="${dbl}">×2 → ${dbl}</button>
+            <button type="button" data-set="custom">Definir…</button>
+        </div>
+    `;
+    document.body.appendChild(pop);
+    pop.style.left = `${Math.max(8, Math.min(window.innerWidth - 260, x - 120))}px`;
+    pop.style.top = `${Math.max(8, Math.min(window.innerHeight - 120, y - 70))}px`;
+    const close = (): void => pop.remove();
+    pop.querySelectorAll<HTMLElement>('[data-set]').forEach(b => b.addEventListener('click', async () => {
+        close();
+        if (b.dataset.set === 'custom') {
+            const v = await promptDialog(`Nova vida de ${p.name}:`, { type: 'number', value: String(p.life), okText: 'Definir' });
+            const n = v === null ? NaN : parseInt(v, 10);
+            if (!isNaN(n)) gameState.setLife(playerId, n, 'modal');
+            return;
+        }
+        gameState.setLife(playerId, Number(b.dataset.set), 'shortcut');
+        try { navigator.vibrate?.(30); } catch { /* ignore */ }
+    }));
+    window.setTimeout(() => document.addEventListener('pointerdown', function onOut(ev) {
+        if (!pop.contains(ev.target as Node)) { close(); document.removeEventListener('pointerdown', onOut); }
+    }), 50);
+}
+
+// ===== Gráfico de vida (ao vivo) =====
+function openLifeGraphModal(): void {
+    document.getElementById('graph-modal-dyn')?.remove();
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.id = 'graph-modal-dyn';
+    const render = (): void => {
+        const s = gameState.getState();
+        const events = s.history.slice().reverse();
+        const data = buildLifeSeries(events, s.players, s.settings.startingLife);
+        modal.innerHTML = `
+            <div class="modal-content profile-page-content">
+                <div class="modal-header">
+                    <h2>📈 Vida ao longo da partida</h2>
+                    <button class="modal-close" type="button">&times;</button>
+                </div>
+                <div class="profile-page-body">
+                    <div class="life-chart-wrap">${lifeChartSvg(data, { startingLife: s.settings.startingLife })}</div>
+                    <div class="update-muted">Turno ${s.currentTurn} · ${events.length} eventos · atualiza sozinho</div>
+                </div>
+            </div>`;
+        modal.querySelector('.modal-close')?.addEventListener('click', () => { modal.remove(); unsub(); });
+    };
+    modal.addEventListener('click', (e) => { if (e.target === modal) { modal.remove(); unsub(); } });
+    document.body.appendChild(modal);
+    const unsub = gameState.subscribe(() => { if (document.body.contains(modal)) render(); });
+    render();
+}
+
 // Liga os eventos de UM card (chamado no render completo e na troca parcial).
 function bindPlayerCard(card: HTMLElement, playerId: string): void {
     {
@@ -2973,9 +3696,33 @@ function bindPlayerCard(card: HTMLElement, playerId: string): void {
         });
 
         // Action buttons
-        card.querySelector('[data-action="commander"]')?.addEventListener('click', () => {
-            openCommanderDamageModal(playerId);
+        const cmdBtn = card.querySelector('[data-action="commander"]') as HTMLElement | null;
+        if (cmdBtn) setupCommanderDrag(cmdBtn, playerId);
+
+        card.querySelector('[data-action="rotate"]')?.addEventListener('click', () => {
+            const p = gameState.getState().players.find(x => x.id === playerId);
+            if (!p) return;
+            gameState.updatePlayerSetup(playerId, { manualRotation: ((p.manualRotation || 0) + 90) % 360 });
         });
+
+        // Toque longo no número da vida: metade / dobro / definir.
+        const lifeEl = card.querySelector('.life-value') as HTMLElement | null;
+        if (lifeEl) {
+            let lifePress: number | null = null;
+            const cancel = (): void => { if (lifePress !== null) { window.clearTimeout(lifePress); lifePress = null; } };
+            lifeEl.addEventListener('pointerdown', (e) => {
+                cancel();
+                lifePress = window.setTimeout(() => { lifePress = null; openLifeQuickMenu(playerId, e.clientX, e.clientY); }, 550);
+            });
+            ['pointerup', 'pointerleave', 'pointercancel', 'pointermove'].forEach(ev => lifeEl.addEventListener(ev, (e) => {
+                if (ev === 'pointermove') {
+                    const pe = e as PointerEvent;
+                    if (Math.abs(pe.movementX) + Math.abs(pe.movementY) < 4) return;
+                }
+                cancel();
+            }));
+            lifeEl.addEventListener('contextmenu', (e) => { e.preventDefault(); });
+        }
 
         card.querySelector('[data-action="counters"]')?.addEventListener('click', () => {
             openCountersModal(playerId);
@@ -5099,11 +5846,29 @@ function generateShareImage(): void {
         }
     });
 
+    // Gráfico de vida da partida (log em ordem cronológica)
+    const events = state.history.slice().reverse();
+    if (events.length > 1) {
+        canvas.height = 560;
+        // redesenha o fundo pra área nova
+        const grad2 = ctx.createLinearGradient(0, 400, 0, canvas.height);
+        grad2.addColorStop(0, '#16213e');
+        grad2.addColorStop(1, '#16213e');
+        ctx.fillStyle = grad2;
+        ctx.fillRect(0, 395, canvas.width, canvas.height - 395);
+        ctx.fillStyle = '#888';
+        ctx.font = '12px "Segoe UI", Arial, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('Vida ao longo da partida', 30, 405);
+        const data = buildLifeSeries(events, state.players, state.settings.startingLife);
+        drawLifeChart(ctx, data, 20, 412, canvas.width - 40, 118, state.settings.startingLife);
+    }
+
     // Footer
     ctx.fillStyle = '#555';
     ctx.font = '12px "Segoe UI", Arial, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('MTG Life Counter', canvas.width / 2, canvas.height - 20);
+    ctx.fillText('LifeCounter · lifecounter.mreis.site', canvas.width / 2, canvas.height - 8);
 }
 
 function truncateText(text: string, ctx: CanvasRenderingContext2D, maxWidth: number): string {

@@ -14,6 +14,33 @@ const PERSONA_STYLE = {
 function getPersona() {
     return (gameState.getState().settings.narratorPersona ?? 'classic');
 }
+let narratorContext = {}; // chave: nome do jogador (lowercase)
+export function setNarratorContext(list) {
+    narratorContext = {};
+    list.forEach((c) => { narratorContext[c.name.trim().toLowerCase()] = c; });
+}
+function contextLine(playerName) {
+    const c = narratorContext[playerName.trim().toLowerCase()];
+    if (!c || !c.matches)
+        return '';
+    const parts = [`${c.wins} vitória(s) em ${c.matches} partida(s)`];
+    if (c.currentStreak >= 2)
+        parts.push(`vem de ${c.currentStreak} vitórias seguidas`);
+    const lastLosses = c.recentPlaces.findIndex((p) => p === 1);
+    const losses = lastLosses === -1 ? c.recentPlaces.length : lastLosses;
+    if (losses >= 2 && c.currentStreak === 0)
+        parts.push(`perdeu as últimas ${losses}`);
+    if (c.nemesis)
+        parts.push(`o nêmesis dele é ${c.nemesis}`);
+    if (c.rankSeason)
+        parts.push(`${c.rankSeason}º no ranking da temporada`);
+    return `Contexto real de "${playerName}": ${parts.join('; ')}. Use isso na fala se fizer graça, sem inventar números.`;
+}
+function tableContext() {
+    const names = gameState.getState().players.map((p) => p.name);
+    const lines = names.map(contextLine).filter(Boolean);
+    return lines.length ? lines.join('\n') : '';
+}
 function narratorOn() {
     return gameState.getState().settings.narratorEnabled === true;
 }
@@ -40,7 +67,7 @@ export function narrateElimination(playerName) {
         narrator.announceElimination(playerName);
         return;
     }
-    void speakPersona(persona, `Situação: o jogador "${playerName}" acabou de ser ELIMINADO da partida de Magic. Solte uma zoeira/roast curto com ele (brincadeira leve entre amigos).`);
+    void speakPersona(persona, `Situação: o jogador "${playerName}" acabou de ser ELIMINADO da partida de Magic. Solte uma zoeira/roast curto com ele (brincadeira leve entre amigos).\n${contextLine(playerName)}`);
 }
 export function narrateWinner(playerName) {
     if (!narratorOn())
@@ -50,7 +77,7 @@ export function narrateWinner(playerName) {
         narrator.announceWinner(playerName);
         return;
     }
-    void speakPersona(persona, `Situação: "${playerName}" VENCEU a partida de Magic. Faça a narração épica da vitória.`);
+    void speakPersona(persona, `Situação: "${playerName}" VENCEU a partida de Magic. Faça a narração épica da vitória.\n${contextLine(playerName)}\n${tableContext()}`);
 }
 // Vitória escandalosa: em vez de UMA frase, pede uma metralhadora de gritos para
 // cobrir os 8 segundos de escândalo. Retorna [] se a IA estiver desligada — nesse
@@ -62,6 +89,7 @@ export async function narrateWinnerEscandaloso(playerName) {
     const prompt = [
         PERSONA_STYLE[persona],
         `Situação: "${playerName}" VENCEU a partida de Magic e o aplicativo está fazendo um escândalo de 8 segundos: sirene, confete, flash e vibração.`,
+        contextLine(playerName),
         'Narre a vitória GRITANDO, no auge do exagero, como se fosse o gol da final.',
         'Responda com 5 frases curtas (máx ~12 palavras cada), UMA POR LINHA.',
         'Sem numeração, sem emojis, sem aspas, sem asteriscos.',

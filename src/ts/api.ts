@@ -32,6 +32,71 @@ export interface ProfileDTO {
     is_preset: boolean;
     active: boolean;
     aliases?: string[]; // apelidos pro comando de voz
+    sounds?: Partial<Record<'death' | 'win' | 'damage', string>>; // URLs no servidor
+    decks?: DeckDTO[];
+}
+
+export interface DeckDTO {
+    id: number;
+    profile: number;
+    name: string;
+    commander: string;
+    colors: string; // WUBRG
+    image_url: string;
+    scryfall_id: string;
+    active: boolean;
+}
+
+export interface EloRowDTO {
+    rank: number;
+    profile_id: number;
+    name: string;
+    photo_url: string | null;
+    elo: number;
+    matches: number;
+    history: Array<{ match_id: number; at: string; elo: number }>;
+}
+
+export interface SeasonSummaryDTO {
+    label: string;
+    start: string;
+    end: string;
+    current: boolean;
+    matches: number;
+    champion: RankingRowDTO | null;
+    top: RankingRowDTO[];
+}
+
+export interface LiveTableDTO {
+    code: string;
+    allow_edits: boolean;
+    state: LiveState;
+    version: number;
+    active: boolean;
+    updated_at?: string;
+    unchanged?: boolean;
+    host_token?: string;
+}
+
+// Estado publicado da mesa ao vivo (só o que o convidado precisa ver).
+export interface LiveState {
+    players: Array<{ id: string; name: string; life: number; avatar: string | null; color: string; isEliminated: boolean; isMonarch: boolean; poison: number; commanderDamage: Record<string, number> }>;
+    turn: number;
+    activePlayerId: string | null;
+    winner: string | null;
+    startingLife: number;
+    startedAt: number | null;
+    hostName?: string;
+}
+
+export interface LiveActionDTO {
+    id: number;
+    device: string;
+    type: 'life' | 'commander' | 'counter';
+    playerId: string;
+    delta?: number;
+    sourceId?: string;
+    counter?: string;
 }
 
 export interface AchievementDTO {
@@ -61,12 +126,20 @@ export interface ProfileStatsDTO {
     achievements: AchievementDTO[];
     rank_all: number | null;
     rank_season: number | null;
+    elo: number;
+    elo_history: Array<{ match_id: number; at: string; elo: number }>;
+    trophies: Array<{ label: string; start: string; points: number }>;
+    deck_stats: Array<{ deck_id: number | null; name: string; colors: string; matches: number; wins: number; win_rate: number }>;
+    color_stats: Array<{ color: string; matches: number; wins: number; win_rate: number }>;
 }
+
+export type ScoringMode = 'placement' | 'winner_only' | 'podium' | 'elo';
 
 export interface SeasonSettingsDTO {
     season_months: number; // 1, 3, 6, 12
     season_start: string; // YYYY-MM-DD (âncora)
     tiebreak: 'points' | 'wins';
+    scoring_mode: ScoringMode;
     current_season: { start: string; end: string; label: string };
 }
 
@@ -83,6 +156,9 @@ export interface PlacementDTO {
     name: string;
     place: number;
     points: number;
+    deck_id?: number | null;
+    deck_name?: string;
+    deck_colors?: string;
     final_life?: number | null;
     eliminated_by?: string;
     commander_deaths?: number;
@@ -249,7 +325,58 @@ export function apiGetSeasonSettings(): Promise<SeasonSettingsDTO> {
     return apiFetch('/api/settings/season/');
 }
 
-export function apiSetSeasonSettings(data: { season_months?: number; season_start?: string; tiebreak?: 'points' | 'wins' }): Promise<SeasonSettingsDTO> {
+export function apiElo(): Promise<{ rows: EloRowDTO[] }> {
+    return apiFetch('/api/elo/');
+}
+
+export function apiSeasons(): Promise<{ seasons: SeasonSummaryDTO[] }> {
+    return apiFetch('/api/seasons/');
+}
+
+export function apiCreateDeck(profileId: number, data: { name: string; commander?: string; colors?: string; image_url?: string; scryfall_id?: string }): Promise<DeckDTO> {
+    return apiFetch(`/api/profiles/${profileId}/decks/`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    }, true);
+}
+
+export function apiDeleteDeck(deckId: number): Promise<void> {
+    return apiFetch(`/api/decks/${deckId}/`, { method: 'DELETE' }, true);
+}
+
+export function apiUploadProfileSound(profileId: number, kind: 'death' | 'win' | 'damage', file: Blob, filename: string): Promise<ProfileDTO> {
+    const fd = new FormData();
+    fd.append('file', file, filename);
+    return apiFetch(`/api/profiles/${profileId}/sounds/${kind}/`, { method: 'PUT', body: fd }, true);
+}
+
+export function apiDeleteProfileSound(profileId: number, kind: 'death' | 'win' | 'damage'): Promise<void> {
+    return apiFetch(`/api/profiles/${profileId}/sounds/${kind}/`, { method: 'DELETE' }, true);
+}
+
+// ----- mesa ao vivo -----
+export function apiLiveCreate(allowEdits: boolean, state: LiveState): Promise<LiveTableDTO> {
+    return apiFetch('/api/live/', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ allow_edits: allowEdits, state }),
+    }, true);
+}
+
+export function apiLiveGet(code: string, version?: number): Promise<LiveTableDTO> {
+    return apiFetch(`/api/live/${encodeURIComponent(code)}/${version !== undefined ? `?version=${version}` : ''}`);
+}
+
+export function apiLivePush(code: string, hostToken: string, data: { state?: LiveState; allow_edits?: boolean; active?: boolean }): Promise<{ version: number; actions: LiveActionDTO[] }> {
+    return apiFetch(`/api/live/${encodeURIComponent(code)}/state/`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-LC-Host': hostToken }, body: JSON.stringify(data),
+    });
+}
+
+export function apiLiveAction(code: string, action: { type: 'life' | 'commander' | 'counter'; playerId: string; delta: number; sourceId?: string; counter?: string }): Promise<{ ok: boolean }> {
+    return apiFetch(`/api/live/${encodeURIComponent(code)}/actions/`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-LC-Device': deviceId() }, body: JSON.stringify(action),
+    });
+}
+
+export function apiSetSeasonSettings(data: { season_months?: number; season_start?: string; tiebreak?: 'points' | 'wins'; scoring_mode?: ScoringMode }): Promise<SeasonSettingsDTO> {
     return apiFetch('/api/settings/season/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

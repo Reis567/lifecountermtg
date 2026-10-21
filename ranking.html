@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ranking da mesa — LifeCounter</title>
+    <link rel="icon" type="image/jpeg" href="favicon.jfif">
+    <style>
+        :root { --bg: #0f0f14; --card: #1a1a22; --card2: #23232e; --text: #fff; --muted: #8a8a98; --accent: #8b5cf6; --gold: #f5c542; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, sans-serif; padding: 16px; max-width: 640px; margin: 0 auto; }
+        h1 { font-size: 1.6rem; font-weight: 800; background: linear-gradient(135deg, #6366f1, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; }
+        .sub { text-align: center; color: var(--muted); font-size: 0.85rem; margin: 4px 0 14px; }
+        .tabs { display: flex; gap: 4px; background: var(--card); padding: 4px; border-radius: 12px; margin-bottom: 12px; }
+        .tab { flex: 1; padding: 8px 4px; border: none; border-radius: 8px; background: transparent; color: var(--muted); font-weight: 600; font-size: 0.82rem; cursor: pointer; }
+        .tab.active { background: var(--accent); color: #fff; }
+        .meta { text-align: center; color: var(--muted); font-size: 0.75rem; margin-bottom: 10px; }
+        .row { display: grid; grid-template-columns: 36px 1fr 60px 40px 40px; gap: 8px; align-items: center; padding: 10px 12px; background: var(--card); border-radius: 10px; margin-bottom: 6px; }
+        .row.head { background: transparent; color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 4px 12px; }
+        .row.leader { outline: 1px solid var(--gold); }
+        .place { font-weight: 800; }
+        .name { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 600; }
+        .name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: var(--card2); flex-shrink: 0; }
+        .ini { display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 0.8rem; }
+        .num { text-align: right; font-variant-numeric: tabular-nums; }
+        .pts { font-weight: 800; }
+        .empty { text-align: center; color: var(--muted); padding: 24px; }
+        .season { background: var(--card); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+        .season b { color: var(--gold); }
+        .foot { text-align: center; color: var(--muted); font-size: 0.72rem; margin-top: 18px; }
+        .foot a { color: var(--accent); }
+    </style>
+</head>
+<body>
+    <h1>🏆 Ranking da mesa</h1>
+    <div class="sub">LifeCounter · Commander</div>
+    <div class="tabs">
+        <button class="tab active" data-p="today">Hoje</button>
+        <button class="tab" data-p="month">Mês</button>
+        <button class="tab" data-p="season">Temporada</button>
+        <button class="tab" data-p="year">Ano</button>
+        <button class="tab" data-p="all">Geral</button>
+        <button class="tab" data-p="seasons">Hall</button>
+    </div>
+    <div class="meta" id="meta"></div>
+    <div id="table"><div class="empty">Carregando…</div></div>
+    <div class="foot">Página pública, só leitura. Para registrar partidas use o app: <a href="/">lifecounter.mreis.site</a></div>
+    <script>
+        const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const medal = (p) => p === 1 ? '🥇' : p === 2 ? '🥈' : p === 3 ? '🥉' : p + 'º';
+        const ini = (n) => (n || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+        const avatar = (r) => r.photo_url ? `<img class="avatar" src="${esc(r.photo_url)}" alt="">` : `<span class="avatar ini" style="background:#6366f1">${esc(ini(r.name))}</span>`;
+        const modeLabel = { placement: 'pontos por colocação', winner_only: 'só vitória vale', podium: 'pódio 3/1', elo: 'Elo' };
+        let period = 'today';
+        async function load() {
+            const table = document.getElementById('table');
+            const meta = document.getElementById('meta');
+            table.innerHTML = '<div class="empty">Carregando…</div>';
+            try {
+                if (period === 'seasons') {
+                    const d = await (await fetch('/api/seasons/')).json();
+                    meta.textContent = 'Hall da fama — campeão de cada temporada';
+                    table.innerHTML = d.seasons.length ? d.seasons.map(s => `
+                        <div class="season">
+                            <div><b>${esc(s.label)}</b>${s.current ? ' · em andamento' : ''} · ${s.matches} partida(s)</div>
+                            <div class="name" style="margin-top:6px">${s.champion ? avatar(s.champion) + '<span>🏆 ' + esc(s.champion.name) + ' · ' + s.champion.points + ' pts</span>' : '—'}</div>
+                            <div style="color:var(--muted);font-size:.78rem;margin-top:4px">${s.top.slice(1).map((t, i) => medal(i + 2) + ' ' + esc(t.name) + ' (' + t.points + ')').join(' · ')}</div>
+                        </div>`).join('') : '<div class="empty">Nenhuma temporada ainda.</div>';
+                    return;
+                }
+                const d = await (await fetch('/api/ranking/?period=' + period)).json();
+                meta.textContent = `${d.label ? d.label + ' · ' : ''}${d.total_matches} partida(s) · ${modeLabel[d.mode] || d.mode}${d.tiebreak === 'wins' ? ' · desempate por vitórias' : ''}`;
+                if (!d.rows.length) { table.innerHTML = '<div class="empty">Nenhuma partida neste período.</div>'; return; }
+                table.innerHTML = '<div class="row head"><span></span><span>Jogador</span><span class="num">Pts</span><span class="num">V</span><span class="num">P</span></div>' +
+                    d.rows.map((r, i) => `<div class="row ${i === 0 ? 'leader' : ''}"><span class="place">${medal(i + 1)}</span><div class="name">${avatar(r)}<span>${esc(r.name)}</span></div><span class="num pts">${r.points}</span><span class="num">${r.wins}</span><span class="num">${r.matches}</span></div>`).join('');
+            } catch (e) {
+                table.innerHTML = '<div class="empty">Sem conexão com o servidor.</div>';
+            }
+        }
+        document.querySelector('.tabs').addEventListener('click', (e) => {
+            const b = e.target.closest('.tab'); if (!b) return;
+            period = b.dataset.p;
+            document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === b));
+            load();
+        });
+        load();
+    </script>
+</body>
+</html>

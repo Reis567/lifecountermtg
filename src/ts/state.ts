@@ -308,6 +308,9 @@ class GameStateManager {
                 parsed.players = parsed.players.map((p: Player) => ({
                     ...p,
                     profileId: p.profileId ?? null,
+                    deckId: p.deckId ?? null,
+                    deckName: p.deckName ?? null,
+                    manualRotation: p.manualRotation ?? 0,
                     background: p.background ?? null,
                     backgroundType: p.backgroundType ?? 'none' as const,
                     emoji: p.emoji ?? null,
@@ -825,6 +828,7 @@ class GameStateManager {
         // obrigatória pra iniciar, então não faz sentido pedir tudo de novo.
         const roster = this.state.players.map(p => ({
             profileId: p.profileId ?? null, name: p.name, avatar: p.avatar, color: p.color, emoji: p.emoji,
+            deckId: p.deckId ?? null, deckName: p.deckName ?? null,
         }));
         this.state = createInitialState();
         this.state.settings.playerCount = playerCount;
@@ -838,6 +842,8 @@ class GameStateManager {
                 player.avatar = prev.avatar;
                 player.color = prev.color;
                 player.emoji = prev.emoji;
+                player.deckId = prev.deckId;
+                player.deckName = prev.deckName;
             }
             return player;
         });

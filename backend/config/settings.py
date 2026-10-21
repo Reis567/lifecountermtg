@@ -100,7 +100,7 @@ REST_FRAMEWORK = {
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_HEADERS = [
     'accept', 'accept-encoding', 'authorization', 'content-type', 'origin',
-    'user-agent', 'x-csrftoken', 'x-requested-with', 'x-lc-key', 'x-lc-device',
+    'user-agent', 'x-csrftoken', 'x-requested-with', 'x-lc-key', 'x-lc-device', 'x-lc-host',
 ]
 
 LANGUAGE_CODE = 'pt-br'

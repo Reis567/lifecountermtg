@@ -6,6 +6,8 @@ export interface Player {
     color: string;
     avatar: string | null;
     profileId: number | null; // Perfil da mesa (servidor) — obrigatório pra iniciar partida
+    deckId?: number | null; // Deck/comandante escolhido no setup (opcional)
+    deckName?: string | null;
     background: string | null; // Background image/GIF
     backgroundType: 'none' | 'image' | 'gif';
     emoji: string | null; // Personal emoji/icon
@@ -18,6 +20,7 @@ export interface Player {
     commanderDeaths: number; // Number of times commander died (for Commander Tax)
     customSounds: PlayerSounds;
     rotation: number; // Rotation in degrees for table mode
+    manualRotation?: number; // Rotação extra escolhida no card (0/90/180/270), independente do modo mesa
     teamId: string | null; // Team ID for Two-Headed Giant mode
 }
 

@@ -61,6 +61,40 @@ export async function confirmDialog(message: string, opts: ConfirmOptions = {}):
     return (await confirmDialogFull(message, opts)).ok;
 }
 
+// Pergunta um valor (número ou texto). Resolve null se cancelar.
+export function promptDialog(message: string, opts: { title?: string; value?: string; type?: 'number' | 'text'; okText?: string; placeholder?: string } = {}): Promise<string | null> {
+    return new Promise((resolve) => {
+        const modal = document.createElement('div');
+        modal.className = 'modal active lc-dialog';
+        modal.style.zIndex = String(3000 + dlgOpenCount++);
+        modal.innerHTML = `
+            <div class="modal-content lc-dialog-content" role="dialog" aria-modal="true">
+                ${opts.title ? `<div class="lc-dialog-title">${dlgEscape(opts.title)}</div>` : ''}
+                <div class="lc-dialog-message">${dlgEscape(message)}</div>
+                <input class="lc-dialog-input" type="${opts.type || 'text'}" value="${dlgEscape(opts.value || '')}" placeholder="${dlgEscape(opts.placeholder || '')}" ${opts.type === 'number' ? 'inputmode="numeric"' : ''}>
+                <div class="lc-dialog-actions">
+                    <button type="button" class="cs-gallery-btn lc-dialog-cancel">Cancelar</button>
+                    <button type="button" class="primary-btn lc-dialog-ok">${dlgEscape(opts.okText || 'OK')}</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        const input = modal.querySelector('.lc-dialog-input') as HTMLInputElement;
+        const finish = (ok: boolean): void => {
+            const v = input.value;
+            modal.remove();
+            dlgOpenCount = Math.max(0, dlgOpenCount - 1);
+            resolve(ok ? v : null);
+        };
+        modal.querySelector('.lc-dialog-ok')?.addEventListener('click', () => finish(true));
+        modal.querySelector('.lc-dialog-cancel')?.addEventListener('click', () => finish(false));
+        modal.addEventListener('click', (e) => { if (e.target === modal) finish(false); });
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') finish(true); if (e.key === 'Escape') finish(false); });
+        input.focus();
+        input.select();
+    });
+}
+
 export function alertDialog(message: string, title?: string): Promise<void> {
     return new Promise((resolve) => {
         const modal = document.createElement('div');

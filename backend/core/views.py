@@ -13,10 +13,13 @@ from rest_framework.decorators import api_view, parser_classes
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
+import secrets
+
 from . import achievements as ach
+from . import scoring
 from . import seasons
-from .models import Achievement, AppVersion, Match, MatchPlacement, Profile
-from .serializers import AppVersionSerializer, MatchSerializer, ProfileSerializer
+from .models import Achievement, AppVersion, Deck, LiveAction, LiveTable, Match, MatchPlacement, Profile, ProfileSound
+from .serializers import AppVersionSerializer, DeckSerializer, MatchSerializer, ProfileSerializer
 
 
 # ----- helpers --------------------------------------------------------------
@@ -261,12 +264,19 @@ def match_detail(request, pk):
 
 # ----- ranking --------------------------------------------------------------
 
-def _aggregate(request, start=None, end=None, tiebreak='points'):
+def _aggregate(request, start=None, end=None, tiebreak='points', mode=None):
+    """
+    Agregado por perfil. `mode` (scoring) recalcula os pontos de TODO o
+    histórico pelo critério escolhido; 'elo' usa a nota Elo como pontos.
+    """
+    mode = mode or scoring.get_mode()
     qs = MatchPlacement.objects.select_related('profile', 'match')
     if start:
         qs = qs.filter(match__ended_at__gte=start)
     if end:
         qs = qs.filter(match__ended_at__lt=end)
+
+    elo_ratings = scoring.compute_elo(until=end)[0] if mode == 'elo' else {}
 
     rows = {}
     for p in qs:
@@ -283,9 +293,13 @@ def _aggregate(request, start=None, end=None, tiebreak='points'):
                 'name': p.profile.name if p.profile else p.name,
                 'photo_url': _abs(request, p.profile.photo.url) if p.profile and p.profile.photo else None,
                 'points': 0, 'matches': 0, 'wins': 0, 'podiums': 0, 'last_places': 0,
-                'last_played': None,
+                'last_played': None, 'elo': None,
             }
-        row['points'] += p.points
+        if mode == 'elo':
+            row['elo'] = elo_ratings.get(p.profile_id, scoring.ELO_START) if p.profile_id else scoring.ELO_START
+            row['points'] = row['elo']
+        else:
+            row['points'] += scoring.points_for(p.place, p.match.player_count, mode)
         row['matches'] += 1
         if p.place == 1:
             row['wins'] += 1
@@ -318,8 +332,11 @@ def ranking(request):
     period = request.query_params.get('period', 'all')
     cfg = seasons.get_settings()
     tiebreak = request.query_params.get('tiebreak') or cfg['tiebreak']
+    mode = request.query_params.get('mode') or scoring.get_mode()
+    if mode not in scoring.MODES:
+        mode = scoring.get_mode()
     start, end = _period_range(period)
-    result = _aggregate(request, start, end, tiebreak)
+    result = _aggregate(request, start, end, tiebreak, mode)
     mq = Match.objects.all()
     if start:
         mq = mq.filter(ended_at__gte=start)
@@ -334,9 +351,87 @@ def ranking(request):
         'until': end,
         'label': label,
         'tiebreak': tiebreak,
+        'mode': mode,
         'total_matches': mq.count(),
         'rows': result,
     })
+
+
+@api_view(['GET'])
+def elo(request):
+    """Notas Elo atuais + histórico de evolução por perfil."""
+    ratings, history = scoring.compute_elo()
+    profiles = {p.id: p for p in Profile.objects.all()}
+    rows = []
+    for pid, r in ratings.items():
+        p = profiles.get(pid)
+        if not p:
+            continue
+        rows.append({
+            'profile_id': pid, 'name': p.name, 'photo_url': _abs(request, p.photo.url) if p.photo else None,
+            'elo': r, 'matches': len(history.get(pid, [])),
+            'history': [{'match_id': mid, 'at': at, 'elo': e} for mid, at, e in history.get(pid, [])],
+        })
+    rows.sort(key=lambda x: -x['elo'])
+    for i, r in enumerate(rows):
+        r['rank'] = i + 1
+    return Response({'rows': rows})
+
+
+@api_view(['GET'])
+def seasons_list(request):
+    """Hall da fama: temporadas passadas (e a atual) com campeão e top 3."""
+    cfg = seasons.get_settings()
+    mode = scoring.get_mode()
+    first = Match.objects.order_by('ended_at').first()
+    if not first:
+        return Response({'seasons': []})
+    out = []
+    cur_start, cur_end, cur_label = seasons.season_datetimes(cfg=cfg)
+    ref = seasons.season_bounds(ref=timezone.localtime(first.ended_at).date(), cfg=cfg)[0]
+    tz = timezone.get_current_timezone()
+    guard = 0
+    while guard < 400:
+        guard += 1
+        s_start, s_end, label = seasons.season_datetimes(ref=ref, cfg=cfg)
+        if s_start > cur_start:
+            break
+        rows = _aggregate(request, s_start, s_end, cfg['tiebreak'], mode)
+        n = Match.objects.filter(ended_at__gte=s_start, ended_at__lt=s_end).count()
+        if n:
+            out.append({
+                'label': label, 'start': s_start.date().isoformat(), 'end': s_end.date().isoformat(),
+                'current': s_start == cur_start, 'matches': n,
+                'champion': rows[0] if rows else None,
+                'top': rows[:3],
+            })
+        ref = s_end.date()
+    out.reverse()
+    return Response({'seasons': out})
+
+
+def _trophies_for(request, profile_id):
+    """Temporadas FECHADAS em que o perfil terminou em 1º."""
+    data = seasons_list(request._request if hasattr(request, '_request') else request).data if False else None  # noqa
+    cfg = seasons.get_settings()
+    mode = scoring.get_mode()
+    first = Match.objects.order_by('ended_at').first()
+    if not first:
+        return []
+    cur_start, _, _ = seasons.season_datetimes(cfg=cfg)
+    ref = seasons.season_bounds(ref=timezone.localtime(first.ended_at).date(), cfg=cfg)[0]
+    trophies = []
+    guard = 0
+    while guard < 400:
+        guard += 1
+        s_start, s_end, label = seasons.season_datetimes(ref=ref, cfg=cfg)
+        if s_start >= cur_start:
+            break
+        rows = _aggregate(request, s_start, s_end, cfg['tiebreak'], mode)
+        if rows and rows[0]['profile_id'] == profile_id:
+            trophies.append({'label': label, 'start': s_start.date().isoformat(), 'points': rows[0]['points']})
+        ref = s_end.date()
+    return trophies
 
 
 @api_view(['GET'])
@@ -407,7 +502,37 @@ def profile_stats(request, pk):
     cfg = seasons.get_settings()
     s_start, s_end, _ = seasons.season_datetimes(cfg=cfg)
 
+    # Elo + histórico
+    elo_ratings, elo_hist = scoring.compute_elo()
+    elo_now = elo_ratings.get(profile.id, scoring.ELO_START)
+    elo_history = [{'match_id': mid, 'at': at, 'elo': e} for mid, at, e in elo_hist.get(profile.id, [])]
+
+    # Decks: winrate por deck e por cor
+    decks = {}
+    colors = {}
+    for p in placements:
+        key = p.deck_id or (p.deck_name or None)
+        if key:
+            d = decks.setdefault(key, {'deck_id': p.deck_id, 'name': p.deck_name or (p.deck.name if p.deck else ''), 'colors': p.deck_colors, 'matches': 0, 'wins': 0})
+            d['matches'] += 1
+            if p.place == 1:
+                d['wins'] += 1
+        for c in (p.deck_colors or ''):
+            cc = colors.setdefault(c, {'color': c, 'matches': 0, 'wins': 0})
+            cc['matches'] += 1
+            if p.place == 1:
+                cc['wins'] += 1
+    for d in list(decks.values()) + list(colors.values()):
+        d['win_rate'] = round(100.0 * d['wins'] / d['matches'], 1) if d['matches'] else 0.0
+    deck_stats = sorted(decks.values(), key=lambda d: (-d['matches'], -d['wins']))
+    color_stats = sorted(colors.values(), key=lambda d: (-d['matches'], -d['wins']))
+
     return Response({
+        'elo': elo_now,
+        'elo_history': elo_history,
+        'trophies': _trophies_for(request, profile.id),
+        'deck_stats': deck_stats,
+        'color_stats': color_stats,
         'profile': ProfileSerializer(profile, context={'request': request}).data,
         'points': points,
         'matches': matches_n,
@@ -443,14 +568,173 @@ def season_settings(request):
             return err
         try:
             seasons.save_settings(request.data)
+            if 'scoring_mode' in request.data:
+                scoring.set_mode(request.data['scoring_mode'])
         except (ValueError, TypeError) as e:
             return Response({'detail': str(e)}, status=400)
     cfg = seasons.get_settings()
     start, end, label = seasons.season_bounds(cfg=cfg)
     return Response({
         **cfg,
+        'scoring_mode': scoring.get_mode(),
         'current_season': {'start': start.isoformat(), 'end': end.isoformat(), 'label': label},
     })
+
+
+# ----- decks ----------------------------------------------------------------
+
+@api_view(['GET', 'POST'])
+def profile_decks(request, pk):
+    try:
+        profile = Profile.objects.get(pk=pk)
+    except Profile.DoesNotExist:
+        raise Http404
+    if request.method == 'GET':
+        return Response(DeckSerializer(profile.decks.filter(active=True), many=True).data)
+    err = _check_key(request)
+    if err:
+        return err
+    data = {**request.data, 'profile': profile.id}
+    ser = DeckSerializer(data=data)
+    ser.is_valid(raise_exception=True)
+    deck = ser.save(profile=profile)
+    return Response(DeckSerializer(deck).data, status=201)
+
+
+@api_view(['PATCH', 'DELETE'])
+def deck_detail(request, pk):
+    err = _check_key(request)
+    if err:
+        return err
+    try:
+        deck = Deck.objects.get(pk=pk)
+    except Deck.DoesNotExist:
+        raise Http404
+    if request.method == 'DELETE':
+        deck.active = False
+        deck.save(update_fields=['active'])
+        return Response(status=204)
+    ser = DeckSerializer(deck, data=request.data, partial=True)
+    ser.is_valid(raise_exception=True)
+    ser.save()
+    return Response(ser.data)
+
+
+# ----- sons por perfil (servidor) ------------------------------------------
+
+@api_view(['PUT', 'POST', 'DELETE'])
+@parser_classes([MultiPartParser, FormParser])
+def profile_sound(request, pk, kind):
+    err = _check_key(request)
+    if err:
+        return err
+    if kind not in ('death', 'win', 'damage'):
+        return Response({'detail': 'kind inválido'}, status=400)
+    try:
+        profile = Profile.objects.get(pk=pk)
+    except Profile.DoesNotExist:
+        raise Http404
+    if request.method == 'DELETE':
+        ProfileSound.objects.filter(profile=profile, kind=kind).delete()
+        return Response(status=204)
+    f = request.FILES.get('file')
+    if not f:
+        return Response({'file': 'Arquivo obrigatório.'}, status=400)
+    if f.size > 3 * 1024 * 1024:
+        return Response({'file': 'Som maior que 3 MB.'}, status=400)
+    snd, _ = ProfileSound.objects.get_or_create(profile=profile, kind=kind)
+    ext = (f.name.rsplit('.', 1)[-1] if '.' in f.name else 'mp3')[:5]
+    snd.file.save(f'{profile.slug}-{kind}.{ext}', f, save=True)
+    return Response(ProfileSerializer(profile, context={'request': request}).data)
+
+
+# ----- mesa ao vivo ---------------------------------------------------------
+
+def _table_public(table):
+    return {
+        'code': table.code, 'allow_edits': table.allow_edits, 'state': table.state,
+        'version': table.version, 'active': table.active, 'updated_at': table.updated_at,
+    }
+
+
+@api_view(['POST'])
+def live_create(request):
+    err = _check_key(request)
+    if err:
+        return err
+    device = (request.headers.get('X-LC-Device') or '')[:80]
+    allow = str(request.data.get('allow_edits', '')).lower() in ('1', 'true', 'yes')
+    # Reaproveita mesa ativa do mesmo host (reabrir o app não cria outra).
+    LiveTable.objects.filter(host_device=device, active=True).update(active=False)
+    for _ in range(10):
+        code = ''.join(secrets.choice('ABCDEFGHJKLMNPQRSTUVWXYZ23456789') for _ in range(5))
+        if not LiveTable.objects.filter(code=code).exists():
+            break
+    table = LiveTable.objects.create(
+        code=code, host_device=device, host_token=secrets.token_urlsafe(24),
+        allow_edits=allow, state=request.data.get('state') or {}, version=1,
+    )
+    return Response({**_table_public(table), 'host_token': table.host_token}, status=201)
+
+
+@api_view(['GET'])
+def live_get(request, code):
+    try:
+        table = LiveTable.objects.get(code=code.upper())
+    except LiveTable.DoesNotExist:
+        raise Http404
+    try:
+        since_v = int(request.query_params.get('version', '-1'))
+    except ValueError:
+        since_v = -1
+    if since_v == table.version:
+        return Response({'code': table.code, 'version': table.version, 'unchanged': True, 'active': table.active, 'allow_edits': table.allow_edits})
+    return Response(_table_public(table))
+
+
+@api_view(['PUT', 'POST'])
+def live_push(request, code):
+    """Host publica o estado inteiro (exige host_token)."""
+    try:
+        table = LiveTable.objects.get(code=code.upper())
+    except LiveTable.DoesNotExist:
+        raise Http404
+    if request.headers.get('X-LC-Host') != table.host_token:
+        return Response({'detail': 'host_token inválido'}, status=403)
+    state = request.data.get('state')
+    if isinstance(state, dict):
+        table.state = state
+    if 'allow_edits' in request.data:
+        table.allow_edits = str(request.data.get('allow_edits')).lower() in ('1', 'true', 'yes')
+    if 'active' in request.data:
+        table.active = str(request.data.get('active')).lower() in ('1', 'true', 'yes')
+    table.version += 1
+    table.save()
+    # Devolve as ações pendentes dos convidados pro host aplicar.
+    pending = list(table.actions.filter(applied=False).order_by('id')[:50])
+    actions = [{'id': a.id, 'device': a.device, **a.payload} for a in pending]
+    if pending:
+        LiveAction.objects.filter(id__in=[a.id for a in pending]).update(applied=True)
+    return Response({'version': table.version, 'actions': actions})
+
+
+@api_view(['POST'])
+def live_action(request, code):
+    """Convidado pede uma mudança (só se a mesa permitir edições)."""
+    try:
+        table = LiveTable.objects.get(code=code.upper())
+    except LiveTable.DoesNotExist:
+        raise Http404
+    if not table.active:
+        return Response({'detail': 'mesa encerrada'}, status=410)
+    if not table.allow_edits:
+        return Response({'detail': 'o criador da mesa não liberou edições'}, status=403)
+    payload = request.data if isinstance(request.data, dict) else {}
+    kind = payload.get('type')
+    if kind not in ('life', 'commander', 'counter'):
+        return Response({'detail': 'type inválido'}, status=400)
+    LiveAction.objects.create(table=table, device=(request.headers.get('X-LC-Device') or '')[:80], payload=dict(payload))
+    return Response({'ok': True, 'queued': table.actions.filter(applied=False).count()}, status=202)
 
 
 # ----- notifications (o APK consulta em segundo plano) ----------------------

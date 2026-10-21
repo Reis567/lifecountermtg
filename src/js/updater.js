@@ -9,8 +9,8 @@
 //   downloadAndInstall(url, name)  -> progresso via window.__lcUpdateStatus(json)
 import { apiCheckUpdate, isAndroidApp } from './api.js';
 // Mantenha em sincronia com android/app/build.gradle.kts (versionCode/versionName).
-export const APP_VERSION_CODE = 12;
-export const APP_VERSION_NAME = '2.1.1';
+export const APP_VERSION_CODE = 14;
+export const APP_VERSION_NAME = '2.2.1';
 const UPDATE_LAST_CHECK_KEY = 'lc_update_last_check_v1';
 const UPDATE_SKIP_KEY = 'lc_update_skipped_code_v1';
 const UPDATE_AUTO_CHECK_MS = 6 * 60 * 60 * 1000; // 6 h

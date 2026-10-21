@@ -182,8 +182,48 @@ class AudioManager {
             return;
         }
 
+        // Som do perfil guardado no SERVIDOR (vale em qualquer aparelho).
+        if (playerId && (soundName === 'death' || soundName === 'win' || soundName === 'damage')) {
+            const url = this.serverSoundUrl(playerId, soundName);
+            if (url) {
+                this.playUrl(url, volume);
+                return;
+            }
+        }
+
         // Play default sound
         this.playDefaultSound(soundName, volume);
+    }
+
+    // Registro dos sons por perfil vindos do servidor (profiles.ts chama ao carregar a lista).
+    private serverSounds: Map<number, Partial<Record<string, string>>> = new Map();
+    private urlAudio: Map<string, HTMLAudioElement> = new Map();
+
+    setServerSounds(list: Array<{ id: number; sounds?: Partial<Record<string, string>> }>): void {
+        this.serverSounds = new Map();
+        list.forEach((p) => { if (p.sounds && Object.keys(p.sounds).length) this.serverSounds.set(p.id, p.sounds); });
+    }
+
+    private serverSoundUrl(playerId: string, kind: string): string | null {
+        const p = gameState.getState().players.find(pl => pl.id === playerId);
+        if (!p || p.profileId === null || p.profileId === undefined) return null;
+        return this.serverSounds.get(p.profileId)?.[kind] || null;
+    }
+
+    private playUrl(url: string, volume: number): void {
+        try {
+            let audio = this.urlAudio.get(url);
+            if (!audio) {
+                audio = new Audio(url);
+                audio.preload = 'auto';
+                this.urlAudio.set(url, audio);
+            }
+            audio.currentTime = 0;
+            audio.volume = volume;
+            audio.play().catch(e => console.warn('Audio play failed:', e));
+        } catch (e) {
+            console.warn('Failed to play server audio:', e);
+        }
     }
 
     // Play base64 encoded audio

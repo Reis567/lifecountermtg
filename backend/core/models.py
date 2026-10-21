@@ -43,6 +43,74 @@ class Profile(models.Model):
         super().save(*args, **kwargs)
 
 
+class Deck(models.Model):
+    """Deck/comandante de um perfil (escolhido no setup; winrate por deck e por cor)."""
+
+    profile = models.ForeignKey(Profile, related_name='decks', on_delete=models.CASCADE)
+    name = models.CharField('Nome', max_length=60)
+    commander = models.CharField('Comandante', max_length=120, blank=True, default='')
+    colors = models.CharField('Cores (WUBRG)', max_length=5, blank=True, default='')
+    image_url = models.URLField('Imagem (Scryfall)', blank=True, default='')
+    scryfall_id = models.CharField(max_length=60, blank=True, default='')
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return f'{self.name} ({self.profile})'
+
+
+class ProfileSound(models.Model):
+    """Som personalizado (morte/vitória/dano) de um perfil, guardado no servidor."""
+
+    KINDS = [('death', 'Morte'), ('win', 'Vitória'), ('damage', 'Dano')]
+    profile = models.ForeignKey(Profile, related_name='sounds', on_delete=models.CASCADE)
+    kind = models.CharField(max_length=10, choices=KINDS)
+    file = models.FileField(upload_to='sounds/')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('profile', 'kind')]
+
+    def __str__(self):
+        return f'{self.profile} · {self.kind}'
+
+
+class LiveTable(models.Model):
+    """Mesa ao vivo: o host publica o estado; convidados veem (e mudam, se permitido)."""
+
+    code = models.CharField(max_length=8, unique=True)
+    host_device = models.CharField(max_length=80)
+    host_token = models.CharField(max_length=64)
+    allow_edits = models.BooleanField(default=False)
+    state = models.JSONField(default=dict)
+    version = models.IntegerField(default=0)
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return self.code
+
+
+class LiveAction(models.Model):
+    """Ação pedida por um convidado (ex.: -3 no Zé), aplicada pelo host."""
+
+    table = models.ForeignKey(LiveTable, related_name='actions', on_delete=models.CASCADE)
+    device = models.CharField(max_length=80, blank=True, default='')
+    payload = models.JSONField(default=dict)
+    applied = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['id']
+
+
 class Match(models.Model):
     """Uma partida encerrada (com vencedor automático ou pódio manual)."""
 
@@ -82,6 +150,9 @@ class MatchPlacement(models.Model):
     name = models.CharField('Nome (na época)', max_length=40)
     place = models.PositiveSmallIntegerField('Colocação')
     points = models.PositiveSmallIntegerField('Pontos')
+    deck = models.ForeignKey(Deck, related_name='placements', null=True, blank=True, on_delete=models.SET_NULL)
+    deck_name = models.CharField(max_length=60, blank=True, default='')
+    deck_colors = models.CharField(max_length=5, blank=True, default='')
     # Detalhes opcionais do fim da partida pra esse jogador.
     final_life = models.IntegerField('Vida final', null=True, blank=True)
     eliminated_by = models.CharField('Eliminado por', max_length=40, blank=True, default='')
