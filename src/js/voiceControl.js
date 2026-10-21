@@ -1147,7 +1147,7 @@ function vcOpenHelp() {
     modal.innerHTML = `
         <div class="modal-content voice-help-content">
             <div class="modal-header">
-                <h2>🎙️ Comandos de voz</h2>
+                <h2><svg class="ic ic-title"><use href="#ic-mic"/></svg>Comandos de voz</h2>
                 <button class="modal-close" type="button">&times;</button>
             </div>
             <div class="voice-help-body">

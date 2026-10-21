@@ -906,7 +906,7 @@ function openLiveHostModal() {
     const url = liveJoinUrl(s.code);
     modal.innerHTML = `
         <div class="modal-content lc-dialog-content">
-            <div class="lc-dialog-title">📡 Mesa ao vivo</div>
+            <div class="lc-dialog-title"><svg class="ic ic-title"><use href="#ic-live"/></svg>Mesa ao vivo</div>
             <div class="live-code">${escapeHtml(s.code)}</div>
             <div class="update-muted">Quem quiser acompanhar entra em <strong>Entrar numa mesa</strong> com esse código, ou abre:</div>
             <div class="live-url">${escapeHtml(url)}</div>
@@ -1159,16 +1159,16 @@ function setupSettingsTabs() {
     const nav = document.createElement('div');
     nav.className = 'settings-tabs-nav';
     const tabs = [
-        ['som', '🔊 Som'],
-        ['visual', '🎨 Visual'],
-        ['jogo', '🎮 Jogo'],
+        ['som', 'Som', 'ic-speaker'],
+        ['visual', 'Visual', 'ic-palette'],
+        ['jogo', 'Jogo', 'ic-gamepad'],
     ];
-    tabs.forEach(([key, label], i) => {
+    tabs.forEach(([key, label, icon], i) => {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'settings-tab' + (i === 0 ? ' active' : '');
         btn.dataset.tab = key;
-        btn.textContent = label;
+        btn.innerHTML = `<svg class="ic"><use href="#${icon}"/></svg>${label}`;
         nav.appendChild(btn);
     });
     groups[0].parentNode?.insertBefore(nav, groups[0]);
@@ -1237,7 +1237,7 @@ function updateEndGameButtons(state) {
     const closed = state.matchClosed;
     const btn = document.getElementById('end-game-btn');
     if (btn) {
-        btn.textContent = closed ? '🏁 Partida encerrada (salva)' : '🏁 Encerrar partida';
+        btn.innerHTML = `<svg class="ic"><use href="#ic-flag"/></svg>${closed ? 'Partida encerrada (salva)' : 'Encerrar partida'}`;
         btn.disabled = closed;
     }
     const wbtn = document.getElementById('end-game-winner-btn');
@@ -1280,7 +1280,7 @@ function openPodiumModal(players, onSave, onSkip) {
     modal.innerHTML = `
         <div class="modal-content podium-modal-content">
             <div class="modal-header">
-                <h2>🏆 Quem ganhou?</h2>
+                <h2><svg class="ic ic-title"><use href="#ic-trophy"/></svg>Quem ganhou?</h2>
                 <button class="modal-close" type="button">&times;</button>
             </div>
             <div class="podium-body">
@@ -1300,7 +1300,7 @@ function openPodiumModal(players, onSave, onSkip) {
     const chipsEl = modal.querySelector('.podium-chips');
     const saveBtn = modal.querySelector('#podium-save');
     const close = () => modal.remove();
-    const medalFor = (place) => place === 1 ? '🥇' : place === 2 ? '🥈' : place === 3 ? '🥉' : `${place}º`;
+    const medalFor = placeBadge;
     const render = () => {
         slotsEl.innerHTML = slots.map((s, i) => `
             <div class="podium-slot ${s ? 'filled' : ''}" data-idx="${i}">
@@ -1380,13 +1380,13 @@ function openRankingModal(initialTab = 'today') {
     modal.innerHTML = `
         <div class="modal-content ranking-modal-content">
             <div class="modal-header">
-                <h2>🏆 Ranking da mesa</h2>
-                <button class="header-btn ranking-cfg-btn" id="ranking-share" type="button" title="Exportar como imagem">📷</button>
-                <button class="header-btn ranking-cfg-btn" id="ranking-cfg" type="button" title="Temporada, pontuação e desempate">⚙️</button>
+                <h2><svg class="ic ic-title"><use href="#ic-trophy"/></svg>Ranking da mesa</h2>
+                <button class="header-btn ranking-cfg-btn" id="ranking-share" type="button" title="Exportar como imagem"><svg class="ic"><use href="#ic-share"/></svg></button>
+                <button class="header-btn ranking-cfg-btn" id="ranking-cfg" type="button" title="Temporada, pontuação e desempate"><svg class="ic"><use href="#ic-settings"/></svg></button>
                 <button class="modal-close" type="button">&times;</button>
             </div>
             <div class="ranking-body">
-                <div class="ranking-tabs ranking-tabs-wrap">
+                <div class="ranking-tabs ranking-tabs-scroll">
                     <button class="ranking-tab" data-p="today">Hoje</button>
                     <button class="ranking-tab" data-p="month">Mês</button>
                     <button class="ranking-tab" data-p="season">Temporada</button>
@@ -1416,7 +1416,7 @@ function openRankingModal(initialTab = 'today') {
     const sourceEl = modal.querySelector('#ranking-source');
     const filtersEl = modal.querySelector('#history-filters');
     const close = () => modal.remove();
-    const medalFor = (place) => place === 1 ? '🥇' : place === 2 ? '🥈' : place === 3 ? '🥉' : `${place}º`;
+    const medalFor = placeBadge;
     let renderToken = 0;
     const profSel = modal.querySelector('#history-filter-profile');
     getProfiles().forEach((p) => {
@@ -1427,10 +1427,10 @@ function openRankingModal(initialTab = 'today') {
     });
     const setSource = (remote, extra = '') => {
         const st = getSyncStatus();
-        const pending = st.pending > 0 ? ` · ⚠️ ${st.pending} partida(s) ainda não enviada(s)` : '';
+        const pending = st.pending > 0 ? ` · ${st.pending} partida(s) ainda não enviada(s)` : '';
         sourceEl.innerHTML = remote
-            ? `☁️ Base única (servidor)${extra}${pending}`
-            : `📴 Sem conexão — mostrando só o que está neste aparelho${pending}`;
+            ? `Base única (servidor)${extra}${pending}`
+            : `Sem conexão — mostrando só o que está neste aparelho${pending}`;
     };
     // Linhas exibidas na aba atual (pra exportar como imagem).
     let lastRows = [];
@@ -1449,18 +1449,20 @@ function openRankingModal(initialTab = 'today') {
                 tableEl.innerHTML = '<div class="ranking-empty">Sem partidas com perfil ainda.</div>';
                 return;
             }
-            const head = `<div class="ranking-row ranking-head"><span></span><span>Jogador</span><span>Elo</span><span>P</span><span>±</span></div>`;
-            tableEl.innerHTML = head + rows.map((r, i) => {
+            tableEl.innerHTML = rows.map((r, i) => {
                 const h = r.history;
                 const delta = h.length >= 2 ? h[h.length - 1].elo - h[h.length - 2].elo : (h.length === 1 ? h[0].elo - 1000 : 0);
                 const prof = getProfileById(r.profile_id);
                 return `
-                <div class="ranking-row ${i === 0 ? 'ranking-leader' : ''} ranking-clickable" data-profile="${r.profile_id}">
-                    <span class="ranking-place">${medalFor(i + 1)}</span>
-                    <span class="ranking-name">${avatarHtml({ name: r.name, photo_url: r.photo_url, color: prof?.color }, 'lc-avatar lc-avatar-sm')}<span>${escapeHtml(r.name)}</span></span>
-                    <span class="ranking-pts">${r.elo}</span>
-                    <span class="ranking-matches">${r.matches}</span>
-                    <span class="ranking-wins ${delta > 0 ? 'elo-up' : delta < 0 ? 'elo-down' : ''}">${delta > 0 ? '+' : ''}${delta}</span>
+                <div class="rk-row ${i === 0 ? 'leader' : i === 1 ? 'second' : i === 2 ? 'third' : ''} ranking-clickable" data-profile="${r.profile_id}">
+                    <span class="rk-place">${medalFor(i + 1)}</span>
+                    ${avatarHtml({ name: r.name, photo_url: r.photo_url, color: prof?.color }, 'lc-avatar rk-avatar')}
+                    <span class="rk-main">
+                        <span class="rk-name">${escapeHtml(r.name)}</span>
+                        <span class="rk-meta">${r.matches} partida${r.matches === 1 ? '' : 's'} · última: <span class="${delta > 0 ? 'elo-up' : delta < 0 ? 'elo-down' : ''}">${delta > 0 ? '+' : ''}${delta}</span></span>
+                    </span>
+                    <span class="rk-pts"><b>${r.elo}</b><small>Elo</small></span>
+                    <svg class="ic rk-chev"><use href="#ic-chevron"/></svg>
                 </div>`;
             }).join('');
         }
@@ -1488,7 +1490,7 @@ function openRankingModal(initialTab = 'today') {
                 return `
                 <div class="hall-season ${s.current ? 'current' : ''}">
                     <div class="hall-head"><strong>${escapeHtml(s.label)}</strong>${s.current ? ' <span class="hall-tag">em andamento</span>' : ' <span class="hall-tag closed">encerrada</span>'}<span class="update-muted"> · ${s.matches} partida(s)</span></div>
-                    ${s.champion ? `<div class="hall-champ ranking-clickable" data-profile="${s.champion.profile_id ?? ''}">${avatarHtml({ name: s.champion.name, photo_url: s.champion.photo_url, color: champProf?.color }, 'lc-avatar pp-avatar-md')}<div><div class="hall-champ-name">${s.current ? '👑 líder' : '🏆 campeão'}: ${escapeHtml(s.champion.name)}</div><div class="update-muted">${s.champion.points} pts · ${s.champion.wins} vitória(s)</div></div></div>` : ''}
+                    ${s.champion ? `<div class="hall-champ ranking-clickable" data-profile="${s.champion.profile_id ?? ''}">${avatarHtml({ name: s.champion.name, photo_url: s.champion.photo_url, color: champProf?.color }, 'lc-avatar pp-avatar-md')}<div><div class="hall-champ-name"><svg class="ic ic-gold"><use href="#${s.current ? 'ic-crown' : 'ic-trophy'}"/></svg>${s.current ? 'líder' : 'campeão'}: ${escapeHtml(s.champion.name)}</div><div class="update-muted">${s.champion.points} pts · ${s.champion.wins} vitória(s)</div></div></div>` : ''}
                     <div class="hall-top">${s.top.slice(1).map((t, i) => `<span class="pp-chip">${medalFor(i + 2)} ${escapeHtml(t.name)} · ${t.points}</span>`).join('')}</div>
                 </div>`;
             }).join('');
@@ -1516,20 +1518,24 @@ function openRankingModal(initialTab = 'today') {
             tableEl.innerHTML = '<div class="ranking-empty">Nenhuma partida registrada neste período.</div>';
             return;
         }
-        const head = `<div class="ranking-row ranking-head"><span></span><span>Jogador</span><span>Pts</span><span>V</span><span>P</span></div>`;
+        const unit = mode === 'elo' ? 'Elo' : 'pts';
         const body = rows.map((r, i) => {
             const prof = getProfileById(r.profileId ?? null);
             const photo = r.photoUrl ?? prof?.photo_url ?? null;
+            const rate = r.matches ? Math.round(100 * r.wins / r.matches) : 0;
             return `
-            <div class="ranking-row ${i === 0 ? 'ranking-leader' : ''} ${r.profileId ? 'ranking-clickable' : ''}" data-profile="${r.profileId ?? ''}">
-                <span class="ranking-place">${medalFor(i + 1)}</span>
-                <span class="ranking-name">${avatarHtml({ name: r.name, photo_url: photo, color: prof?.color }, 'lc-avatar lc-avatar-sm')}<span>${escapeHtml(r.name)}</span></span>
-                <span class="ranking-pts">${r.points}</span>
-                <span class="ranking-wins">${r.wins}</span>
-                <span class="ranking-matches">${r.matches}</span>
+            <div class="rk-row ${i === 0 ? 'leader' : i === 1 ? 'second' : i === 2 ? 'third' : ''} ${r.profileId ? 'ranking-clickable' : ''}" data-profile="${r.profileId ?? ''}">
+                <span class="rk-place">${medalFor(i + 1)}</span>
+                ${avatarHtml({ name: r.name, photo_url: photo, color: prof?.color }, 'lc-avatar rk-avatar')}
+                <span class="rk-main">
+                    <span class="rk-name">${escapeHtml(r.name)}</span>
+                    <span class="rk-meta">${r.wins} vitória${r.wins === 1 ? '' : 's'} · ${r.matches} partida${r.matches === 1 ? '' : 's'} · ${rate}%</span>
+                </span>
+                <span class="rk-pts"><b>${r.points}</b><small>${unit}</small></span>
+                ${r.profileId ? '<svg class="ic rk-chev"><use href="#ic-chevron"/></svg>' : ''}
             </div>`;
         }).join('');
-        tableEl.innerHTML = head + body + '<div class="ranking-hint">Toque num jogador para ver o perfil completo.</div>';
+        tableEl.innerHTML = body;
     };
     const renderHistory = async () => {
         const token = ++renderToken;
@@ -1554,12 +1560,13 @@ function openRankingModal(initialTab = 'today') {
             <div class="history-match ${m.id > 0 ? 'history-clickable' : ''}" data-id="${m.id}" data-client="${escapeHtml(m.client_id)}">
                 <div class="history-head">
                     <span class="history-date">${fmtDateTime(m.ended_at)}</span>
-                    <span class="history-meta">${m.player_count} jog. · ${fmtDuration(m.duration_ms)}${m.manual ? ' · pódio manual' : ''}${m.source === 'android' ? ' · 📱' : m.source === 'web' ? ' · 🌐' : ''}</span>
-                    ${remote ? '<button type="button" class="history-del" title="Apagar partida">🗑️</button>' : ''}
+                    <span class="history-meta">${m.player_count} jog. · ${fmtDuration(m.duration_ms)}${m.manual ? ' · pódio manual' : ''}${m.source === 'android' ? ' · app' : m.source === 'web' ? ' · site' : ''}</span>
+                    ${remote ? '<button type="button" class="history-del" title="Apagar partida"><svg class="ic"><use href="#ic-trash"/></svg></button>' : ''}
                 </div>
                 <div class="history-winner">
+                    ${placeBadge(1)}
                     ${winner ? avatarHtml({ name: winner.name, photo_url: winner.photo_url ?? winnerProf?.photo_url ?? null, color: winnerProf?.color }, 'lc-avatar lc-avatar-sm') : ''}
-                    <span>🥇 <strong>${escapeHtml(winner?.name || '?')}</strong></span>
+                    <span><strong>${escapeHtml(winner?.name || '?')}</strong></span>
                 </div>
                 <div class="history-others">${others}</div>
             </div>`;
@@ -1728,7 +1735,7 @@ function openSeasonSettings(current, onSaved) {
     const start = current?.season_start ?? '2026-01-01';
     modal.innerHTML = `
         <div class="modal-content lc-dialog-content">
-            <div class="lc-dialog-title">⚙️ Temporada e desempate</div>
+            <div class="lc-dialog-title"><svg class="ic ic-title"><use href="#ic-settings"/></svg>Temporada, pontuação e desempate</div>
             <div class="season-form">
                 <label>Duração da temporada
                     <select id="season-months">
@@ -1796,7 +1803,8 @@ function openProfilePage(profileId) {
     modal.innerHTML = `
         <div class="modal-content profile-page-content">
             <div class="modal-header">
-                <h2>👤 ${escapeHtml(cached?.name || 'Perfil')}</h2>
+                <h2><svg class="ic ic-title"><use href="#ic-users"/></svg>${escapeHtml(cached?.name || 'Perfil')}</h2>
+                <button class="header-btn ranking-cfg-btn" id="pp-edit" type="button" title="Editar perfil"><svg class="ic"><use href="#ic-pencil"/></svg></button>
                 <button class="modal-close" type="button">&times;</button>
             </div>
             <div class="profile-page-body" id="profile-page-body"><div class="ranking-empty">Carregando…</div></div>
@@ -1807,25 +1815,39 @@ function openProfilePage(profileId) {
     modal.querySelector('.modal-close')?.addEventListener('click', close);
     modal.addEventListener('click', (e) => { if (e.target === modal)
         close(); });
+    modal.querySelector('#pp-edit')?.addEventListener('click', () => openProfileEditSheet(profileId, () => {
+        const nm = getProfileById(profileId)?.name;
+        const h2 = modal.querySelector('.modal-header h2');
+        if (nm && h2)
+            h2.innerHTML = `<svg class="ic ic-title"><use href="#ic-users"/></svg>${escapeHtml(nm)}`;
+        void load();
+    }));
     const body = modal.querySelector('#profile-page-body');
-    const medalFor = (place) => place === 1 ? '🥇' : place === 2 ? '🥈' : place === 3 ? '🥉' : `${place}º`;
-    apiProfileStats(profileId).then((s) => {
+    const medalFor = placeBadge;
+    const trophyIc = '<svg class="ic ic-gold"><use href="#ic-trophy"/></svg>';
+    const load = () => apiProfileStats(profileId).then((s) => {
         const p = s.profile;
-        const stat = (label, value) => `<div class="pp-stat"><div class="pp-stat-value">${value}</div><div class="pp-stat-label">${label}</div></div>`;
+        const stat = (label, value, cls = '') => `<div class="pp-stat ${cls}"><div class="pp-stat-value">${value}</div><div class="pp-stat-label">${label}</div></div>`;
         body.innerHTML = `
             <div class="pp-hero">
                 ${avatarHtml({ name: p.name, photo_url: p.photo_url, color: p.color }, 'lc-avatar pp-avatar')}
                 <div class="pp-hero-info">
-                    <div class="pp-name">${escapeHtml(p.name)} ${(s.trophies || []).map(() => '🏆').join('')}</div>
-                    <div class="pp-ranks">${s.rank_season ? `${medalFor(s.rank_season)} na temporada` : 'sem partidas na temporada'} · ${s.rank_all ? `${medalFor(s.rank_all)} geral` : ''} · Elo <strong>${s.elo}</strong></div>
-                    ${(s.trophies || []).length ? `<div class="pp-trophies">${s.trophies.map(t => `<span class="pp-chip gold">🏆 ${escapeHtml(t.label)}</span>`).join('')}</div>` : ''}
-                    ${p.aliases?.length ? `<div class="pp-aliases">🎙️ ${p.aliases.map(escapeHtml).join(' · ')}</div>` : ''}
+                    <div class="pp-name">${escapeHtml(p.name)} ${(s.trophies || []).map(() => trophyIc).join('')}</div>
+                    <div class="pp-ranks">
+                        <span class="pp-rank-chip ${s.rank_season && s.rank_season <= 3 ? 'top' : ''}">${s.rank_season ? `${medalFor(s.rank_season)} temporada` : 'sem partidas na temporada'}</span>
+                        ${s.rank_all ? `<span class="pp-rank-chip ${s.rank_all <= 3 ? 'top' : ''}">${medalFor(s.rank_all)} geral</span>` : ''}
+                        <span class="pp-rank-chip">Elo&nbsp;<strong>${s.elo}</strong></span>
+                    </div>
+                    ${(s.trophies || []).length ? `<div class="pp-trophies">${s.trophies.map(t => `<span class="pp-chip gold">${trophyIc} ${escapeHtml(t.label)}</span>`).join('')}</div>` : ''}
+                    ${p.aliases?.length ? `<div class="pp-aliases"><svg class="ic"><use href="#ic-mic"/></svg> ${p.aliases.map(escapeHtml).join(' · ')}</div>` : ''}
                 </div>
             </div>
+            <div class="pp-stats pp-stats-main">
+                ${stat('pontos', s.points, 'hi')}${stat('vitórias', s.wins, 'hi')}${stat('partidas', s.matches)}${stat('% vitórias', `${s.win_rate}%`)}
+            </div>
             <div class="pp-stats">
-                ${stat('pontos', s.points)}${stat('partidas', s.matches)}${stat('vitórias', s.wins)}${stat('% vitórias', `${s.win_rate}%`)}
                 ${stat('pódios', s.podiums)}${stat('lanternas', s.last_places)}${stat('colocação média', s.avg_place ?? '—')}${stat('duração média', fmtDuration(s.avg_duration_ms))}
-                ${stat('sequência atual', `${s.current_streak}🔥`)}${stat('melhor sequência', s.best_streak)}${stat('Elo', s.elo)}${stat('troféus', (s.trophies || []).length)}
+                ${stat('sequência atual', `${s.current_streak}<svg class="ic ic-flame"><use href="#ic-flame"/></svg>`)}${stat('melhor sequência', s.best_streak)}${stat('Elo', s.elo)}${stat('troféus', (s.trophies || []).length)}
             </div>
             ${(s.elo_history || []).length >= 2 ? `<div class="pp-section"><div class="podium-section-label">Evolução do Elo</div>${eloSparkline(s.elo_history)}</div>` : ''}
             ${(s.deck_stats || []).length ? `
@@ -1852,6 +1874,12 @@ function openProfilePage(profileId) {
     }).catch((e) => {
         body.innerHTML = `<div class="ranking-empty">Sem conexão com o servidor (${escapeHtml(String(e?.message || e))}).</div>`;
     });
+    void load();
+}
+// Colocação como selo sólido (ouro/prata/bronze/neutro) — sem emoji.
+function placeBadge(place) {
+    const cls = place === 1 ? 'pb-1' : place === 2 ? 'pb-2' : place === 3 ? 'pb-3' : '';
+    return `<span class="place-badge ${cls}">${place}º</span>`;
 }
 // Mini-gráfico (SVG) da evolução do Elo.
 function eloSparkline(history) {
@@ -1876,7 +1904,7 @@ function openMatchDetail(matchId) {
     modal.innerHTML = `
         <div class="modal-content profile-page-content">
             <div class="modal-header">
-                <h2>🕐 Partida</h2>
+                <h2><svg class="ic ic-title"><use href="#ic-clock"/></svg>Partida</h2>
                 <button class="modal-close" type="button">&times;</button>
             </div>
             <div class="profile-page-body" id="match-detail-body"><div class="ranking-empty">Carregando…</div></div>
@@ -1888,7 +1916,7 @@ function openMatchDetail(matchId) {
     modal.addEventListener('click', (e) => { if (e.target === modal)
         close(); });
     const body = modal.querySelector('#match-detail-body');
-    const medalFor = (place) => place === 1 ? '🥇' : place === 2 ? '🥈' : place === 3 ? '🥉' : `${place}º`;
+    const medalFor = placeBadge;
     apiGetMatch(matchId).then((m) => {
         const podium = m.placements.slice().sort((a, b) => a.place - b.place);
         const events = (m.events || []);
@@ -1917,7 +1945,7 @@ function openMatchDetail(matchId) {
                         <span class="md-medal">${medalFor(p.place)}</span>
                         ${avatarHtml({ name: p.name, photo_url: p.photo_url ?? prof?.photo_url ?? null, color: prof?.color }, 'lc-avatar lc-avatar-sm')}
                         <span class="md-name">${escapeHtml(p.name)}</span>
-                        <span class="update-muted">${p.points} pts${p.deck_name ? ` · 🃏 ${escapeHtml(p.deck_name)} ${colorsHtml(p.deck_colors || '')}` : ''}${p.final_life !== null && p.final_life !== undefined ? ` · ${p.final_life} vida` : ''}${p.eliminated_by ? ` · ☠️ por ${escapeHtml(p.eliminated_by)}` : ''}${p.commander_deaths ? ` · ⚰️ ${p.commander_deaths}` : ''}</span>
+                        <span class="update-muted">${p.points} pts${p.deck_name ? ` · ${escapeHtml(p.deck_name)} ${colorsHtml(p.deck_colors || '')}` : ''}${p.final_life !== null && p.final_life !== undefined ? ` · ${p.final_life} vida` : ''}${p.eliminated_by ? ` · eliminado por ${escapeHtml(p.eliminated_by)}` : ''}${p.commander_deaths ? ` · ${p.commander_deaths} morte${p.commander_deaths === 1 ? '' : 's'} do comandante` : ''}</span>
                     </div>`;
         }).join('')}
             </div>
@@ -2540,7 +2568,7 @@ function renderSetup(state) {
                 <button type="button" class="player-setup-name" data-action="pick-profile">
                     ${hasProfile ? escapeHtml(player.name) : `<span class="player-setup-placeholder">Jogador ${index + 1} — escolher perfil</span>`}
                 </button>
-                ${hasProfile ? `<button type="button" class="player-deck-chip ${player.deckId ? 'has-deck' : ''}" data-action="pick-deck" title="Deck / comandante"><svg class="ic"><use href="#ic-deck"/></svg>${player.deckName ? escapeHtml(player.deckName) : 'deck'}</button>` : ''}
+                ${hasProfile ? `<button type="button" class="player-deck-chip ${player.deckId ? 'has-deck' : ''}" data-action="pick-deck" title="Deck / comandante"><svg class="ic"><use href="#ic-deck"/></svg>${player.deckName ? escapeHtml(player.deckName) : 'deck'}</button><button type="button" class="player-stats-chip" data-action="view-profile" title="Ver perfil"><svg class="ic"><use href="#ic-trophy"/></svg></button>` : ''}
                 ${player.tag ? `<span class="player-setup-tag">${escapeHtml(player.tag)}</span>` : ''}
             </div>
             <div class="player-color-dot"
@@ -2562,6 +2590,14 @@ function renderSetup(state) {
         btn.addEventListener('click', (e) => {
             const item = e.target.closest('.player-setup-item');
             openDeckPicker(item.dataset.playerId);
+        });
+    });
+    playerList.querySelectorAll('[data-action="view-profile"]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const item = e.target.closest('.player-setup-item');
+            const p = state.players.find(x => x.id === item.dataset.playerId);
+            if (p?.profileId)
+                openProfilePage(p.profileId);
         });
     });
     playerList.querySelectorAll('.player-color-dot').forEach(dot => {
@@ -2599,7 +2635,7 @@ function openProfilePicker(playerId) {
     modal.innerHTML = `
         <div class="modal-content profile-picker-content">
             <div class="modal-header">
-                <h2>👤 Quem é o ${escapeHtml(player.profileId !== null ? player.name : 'jogador')}?</h2>
+                <h2><svg class="ic ic-title"><use href="#ic-users"/></svg>Quem é o ${escapeHtml(player.profileId !== null ? player.name : 'jogador')}?</h2>
                 <button class="modal-close" type="button">&times;</button>
             </div>
             <div class="profile-picker-body">
@@ -2643,6 +2679,7 @@ function openProfilePicker(playerId) {
                     ${avatarHtml(p, 'lc-avatar profile-card-avatar')}
                     <span class="profile-card-name">${escapeHtml(p.name)}</span>
                     ${taken ? '<span class="profile-card-taken">já na mesa</span>' : ''}
+                    <span class="profile-card-info" data-info="${p.id}" title="Ver perfil"><svg class="ic"><use href="#ic-trophy"/></svg></span>
                 </button>`;
         }).join('');
         grid.innerHTML = cards + `
@@ -2665,6 +2702,12 @@ function openProfilePicker(playerId) {
         close();
     };
     grid.addEventListener('click', (e) => {
+        const info = e.target.closest('.profile-card-info');
+        if (info) {
+            e.stopPropagation();
+            openProfilePage(Number(info.dataset.info));
+            return;
+        }
         const card = e.target.closest('.profile-card');
         if (!card)
             return;
@@ -2770,7 +2813,7 @@ function openDeckPicker(playerId) {
         modal.innerHTML = `
             <div class="modal-content profile-picker-content">
                 <div class="modal-header">
-                    <h2>🃏 Deck de ${escapeHtml(prof?.name || player.name)}</h2>
+                    <h2><svg class="ic ic-title"><use href="#ic-deck"/></svg>Deck de ${escapeHtml(prof?.name || player.name)}</h2>
                     <button class="modal-close" type="button">&times;</button>
                 </div>
                 <div class="profile-picker-body">
@@ -2853,15 +2896,17 @@ function openProfilesModal() {
     modal.innerHTML = `
         <div class="modal-content profile-picker-content">
             <div class="modal-header">
-                <h2>👥 Perfis da mesa</h2>
+                <h2><svg class="ic ic-title"><use href="#ic-users"/></svg>Perfis da mesa</h2>
                 <button class="modal-close" type="button">&times;</button>
             </div>
             <div class="profile-picker-body">
-                <p class="podium-help">Toque na foto para trocar. Nome e apelidos (comando de voz) podem ser editados direto. Perfis pré-setados não podem ser removidos.</p>
-                <label class="my-profile-row">Eu neste aparelho (notificações):
-                    <select id="my-profile-select"><option value="">— ninguém —</option></select>
-                </label>
-                <div class="profiles-manage" id="profiles-manage"></div>
+                <div class="my-profile-card">
+                    <svg class="ic"><use href="#ic-bell"/></svg>
+                    <div class="my-profile-text"><b>Eu neste aparelho</b><small>recebe avisos de ranking e conquistas</small></div>
+                    <select id="my-profile-select" class="history-select"><option value="">ninguém</option></select>
+                </div>
+                <div class="profiles-grid" id="profiles-manage"></div>
+                <p class="podium-help">Toque num perfil para ver as estatísticas. O lápis edita nome, foto, apelidos de voz e sons.</p>
             </div>
         </div>
     `;
@@ -2875,48 +2920,121 @@ function openProfilesModal() {
     mySel.addEventListener('change', () => {
         setMyProfileId(mySel.value ? Number(mySel.value) : null);
         showSpecialMoment(mySel.value ? 'Você vai receber avisos de ranking e conquistas deste perfil.' : 'Avisos pessoais desligados.', 'success');
+        render();
     });
+    // Mini estatísticas (geral) por perfil, carregadas uma vez.
+    let stats = {};
     const render = () => {
         const list = getProfiles().filter((p) => p.active !== false);
         const my = getMyProfileId();
-        mySel.innerHTML = '<option value="">— ninguém —</option>' + list.map((p) => `<option value="${p.id}" ${p.id === my ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('');
+        mySel.innerHTML = '<option value="">ninguém</option>' + list.map((p) => `<option value="${p.id}" ${p.id === my ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('');
         if (list.length === 0) {
             listEl.innerHTML = '<div class="ranking-empty">Nenhum perfil (sem conexão com o servidor?).</div>';
             return;
         }
-        listEl.innerHTML = list.map((p) => `
-            <div class="profile-manage-row" data-id="${p.id}">
-                <label class="profile-manage-photo" title="Trocar foto">
-                    <input type="file" accept="image/*" capture="user" hidden data-role="photo">
-                    ${avatarHtml(p, 'lc-avatar profile-manage-avatar')}
-                </label>
-                <div class="profile-manage-fields">
-                    <input type="text" class="profile-manage-name" value="${escapeHtml(p.name)}" maxlength="40" data-role="name">
-                    <input type="text" class="profile-manage-aliases" value="${escapeHtml((p.aliases || []).join(', '))}" maxlength="200" placeholder="apelidos p/ voz: Zezinho, Zeca" data-role="aliases">
-                    <div class="profile-manage-sounds">
-                        ${['death', 'win', 'damage'].map(k => `
-                            <label class="profile-sound-btn ${p.sounds?.[k] ? 'has' : ''}" title="Som de ${k === 'death' ? 'morte' : k === 'win' ? 'vitória' : 'dano'} (servidor)">
-                                <input type="file" accept="audio/*" hidden data-role="sound" data-kind="${k}">
-                                ${k === 'death' ? '💀' : k === 'win' ? '🏆' : '💥'}${p.sounds?.[k] ? ' ✓' : ''}
-                            </label>
-                            ${p.sounds?.[k] ? `<button type="button" class="profile-sound-x" data-role="sound-del" data-kind="${k}" title="Remover som">×</button>` : ''}`).join('')}
-                    </div>
-                </div>
-                <button type="button" class="profile-manage-stats" data-role="stats" title="Perfil completo">📊</button>
-                ${p.is_preset ? '<span class="profile-manage-preset">fixo</span>' : '<button type="button" class="profile-manage-del" data-role="del" title="Remover">🗑️</button>'}
-            </div>
-        `).join('');
+        listEl.innerHTML = list.map((p) => {
+            const s = stats[p.id];
+            const meta = s ? `${s.wins} vit · ${s.matches} part` : 'sem partidas';
+            return `
+            <div class="pg-card ${p.id === my ? 'pg-me' : ''}" data-id="${p.id}" role="button" tabindex="0">
+                ${avatarHtml(p, 'lc-avatar pg-avatar')}
+                ${s && s.place <= 3 ? `<span class="pg-badge pg-place-${s.place}">${s.place}º</span>` : ''}
+                <span class="pg-name">${escapeHtml(p.name)}</span>
+                <span class="pg-meta">${meta}</span>
+                <button type="button" class="pg-edit" data-edit="${p.id}" title="Editar perfil"><svg class="ic"><use href="#ic-pencil"/></svg></button>
+            </div>`;
+        }).join('');
     };
-    listEl.addEventListener('change', async (e) => {
-        const target = e.target;
-        const row = target.closest('.profile-manage-row');
-        if (!row)
+    listEl.addEventListener('click', (e) => {
+        const edit = e.target.closest('[data-edit]');
+        if (edit) {
+            e.stopPropagation();
+            openProfileEditSheet(Number(edit.dataset.edit), render);
             return;
-        const id = Number(row.dataset.id);
+        }
+        const card = e.target.closest('.pg-card');
+        if (card)
+            openProfilePage(Number(card.dataset.id));
+    });
+    render();
+    void refreshProfiles().then(render);
+    void aggregateRemote('all').then(({ rows }) => {
+        rows.forEach((r, i) => { if (r.profileId != null)
+            stats[r.profileId] = { wins: r.wins, matches: r.matches, points: r.points, place: i + 1 }; });
+        if (document.body.contains(modal))
+            render();
+    }).catch(() => { });
+}
+// Folha de edição de um perfil: foto, nome, apelidos (voz), sons e remoção.
+function openProfileEditSheet(profileId, onChange) {
+    document.getElementById('profile-edit-dyn')?.remove();
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.id = 'profile-edit-dyn';
+    modal.style.zIndex = '2070';
+    modal.innerHTML = `
+        <div class="modal-content profile-picker-content">
+            <div class="modal-header">
+                <h2><svg class="ic ic-title"><use href="#ic-pencil"/></svg>Editar perfil</h2>
+                <button class="modal-close" type="button">&times;</button>
+            </div>
+            <div class="profile-picker-body pe-body" id="pe-body"></div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    const close = () => modal.remove();
+    modal.querySelector('.modal-close')?.addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal)
+        close(); });
+    const body = modal.querySelector('#pe-body');
+    const soundLabel = { death: 'Morte', win: 'Vitória', damage: 'Dano' };
+    const soundIcon = { death: 'ic-skull', win: 'ic-trophy', damage: 'ic-bolt' };
+    const render = () => {
+        const p = getProfileById(profileId);
+        if (!p) {
+            body.innerHTML = '<div class="ranking-empty">Perfil não encontrado.</div>';
+            return;
+        }
+        body.innerHTML = `
+            <div class="pe-hero">
+                <label class="pe-photo" title="Trocar foto">
+                    <input type="file" accept="image/*" capture="user" hidden data-role="photo">
+                    ${avatarHtml(p, 'lc-avatar pe-avatar')}
+                    <span class="pe-photo-btn"><svg class="ic"><use href="#ic-camera"/></svg></span>
+                </label>
+                <div class="pe-fields">
+                    <label class="pe-field"><span>Nome</span><input type="text" value="${escapeHtml(p.name)}" maxlength="40" data-role="name"></label>
+                    <label class="pe-field"><span>Apelidos para o comando de voz</span><input type="text" value="${escapeHtml((p.aliases || []).join(', '))}" maxlength="200" placeholder="Zezinho, Zeca" data-role="aliases"></label>
+                </div>
+            </div>
+            <div class="pe-section">
+                <div class="podium-section-label">Sons do perfil (tocam em qualquer aparelho, até 3 MB)</div>
+                <div class="pe-sounds">
+                    ${['death', 'win', 'damage'].map(k => `
+                        <div class="pe-sound ${p.sounds?.[k] ? 'has' : ''}">
+                            <label class="pe-sound-pick">
+                                <input type="file" accept="audio/*" hidden data-role="sound" data-kind="${k}">
+                                <svg class="ic"><use href="#${soundIcon[k]}"/></svg>
+                                <span>${soundLabel[k]}</span>
+                                <small>${p.sounds?.[k] ? 'enviado' : 'escolher'}</small>
+                            </label>
+                            ${p.sounds?.[k] ? `<button type="button" class="pe-sound-x" data-role="sound-del" data-kind="${k}" title="Remover som"><svg class="ic"><use href="#ic-x"/></svg></button>` : ''}
+                        </div>`).join('')}
+                </div>
+            </div>
+            <div class="pe-actions">
+                <button type="button" class="cs-gallery-btn" data-role="stats"><svg class="ic"><use href="#ic-trophy"/></svg> Ver estatísticas</button>
+                ${p.is_preset ? '<span class="profile-manage-preset">perfil fixo da mesa</span>' : '<button type="button" class="cs-gallery-btn pe-del" data-role="del"><svg class="ic"><use href="#ic-trash"/></svg> Remover perfil</button>'}
+            </div>
+        `;
+    };
+    const busy = (on) => { body.classList.toggle('busy', on); };
+    body.addEventListener('change', async (e) => {
+        const target = e.target;
         try {
             if (target.dataset.role === 'photo' && target.files?.[0]) {
-                row.classList.add('busy');
-                await updateProfile(id, { photo: target.files[0] });
+                busy(true);
+                await updateProfile(profileId, { photo: target.files[0] });
             }
             else if (target.dataset.role === 'name') {
                 const name = target.value.trim();
@@ -2924,12 +3042,12 @@ function openProfilesModal() {
                     render();
                     return;
                 }
-                row.classList.add('busy');
-                await updateProfile(id, { name });
+                busy(true);
+                await updateProfile(profileId, { name });
             }
             else if (target.dataset.role === 'aliases') {
-                row.classList.add('busy');
-                await updateProfile(id, { aliases: target.value.split(',').map(s => s.trim()).filter(Boolean) });
+                busy(true);
+                await updateProfile(profileId, { aliases: target.value.split(',').map(s => s.trim()).filter(Boolean) });
             }
             else if (target.dataset.role === 'sound' && target.files?.[0]) {
                 const f = target.files[0];
@@ -2937,55 +3055,61 @@ function openProfilesModal() {
                     showSpecialMoment('Som maior que 3 MB.', 'danger');
                     return;
                 }
-                row.classList.add('busy');
-                await apiUploadProfileSound(id, target.dataset.kind, f, f.name);
+                busy(true);
+                await apiUploadProfileSound(profileId, target.dataset.kind, f, f.name);
                 await refreshProfiles();
             }
+            else {
+                return;
+            }
+            busy(false);
             render();
+            onChange();
         }
         catch (err) {
-            row.classList.remove('busy');
+            busy(false);
             showSpecialMoment(`Não deu pra salvar: ${err?.message || err}`, 'danger');
         }
     });
-    listEl.addEventListener('click', async (e) => {
-        const statsBtn = e.target.closest('[data-role="stats"]');
-        if (statsBtn) {
-            const row = statsBtn.closest('.profile-manage-row');
-            openProfilePage(Number(row.dataset.id));
+    body.addEventListener('click', async (e) => {
+        const el = e.target.closest('[data-role]');
+        if (!el)
+            return;
+        const role = el.dataset.role;
+        if (role === 'stats') {
+            openProfilePage(profileId);
             return;
         }
-        const sndDel = e.target.closest('[data-role="sound-del"]');
-        if (sndDel) {
-            const row = sndDel.closest('.profile-manage-row');
+        if (role === 'sound-del') {
             try {
-                await apiDeleteProfileSound(Number(row.dataset.id), sndDel.dataset.kind);
+                busy(true);
+                await apiDeleteProfileSound(profileId, el.dataset.kind);
                 await refreshProfiles();
+                busy(false);
                 render();
+                onChange();
             }
             catch (err) {
+                busy(false);
                 showSpecialMoment(`Não deu pra remover: ${err?.message || err}`, 'danger');
             }
             return;
         }
-        const btn = e.target.closest('[data-role="del"]');
-        if (!btn)
-            return;
-        const row = btn.closest('.profile-manage-row');
-        const id = Number(row.dataset.id);
-        const p = getProfileById(id);
-        if (!p || !await confirmDialog(`Remover o perfil "${p.name}"? O histórico dele continua guardado.`, { title: 'Remover perfil', okText: 'Remover', danger: true }))
-            return;
-        try {
-            await deleteProfile(id);
-            render();
-        }
-        catch (err) {
-            showSpecialMoment(`Não deu pra remover: ${err?.message || err}`, 'danger');
+        if (role === 'del') {
+            const p = getProfileById(profileId);
+            if (!p || !await confirmDialog(`Remover o perfil "${p.name}"? O histórico dele continua guardado.`, { title: 'Remover perfil', okText: 'Remover', danger: true }))
+                return;
+            try {
+                await deleteProfile(profileId);
+                close();
+                onChange();
+            }
+            catch (err) {
+                showSpecialMoment(`Não deu pra remover: ${err?.message || err}`, 'danger');
+            }
         }
     });
     render();
-    void refreshProfiles().then(render);
 }
 // Render layout presets
 function renderLayoutPresets() {
@@ -3530,7 +3654,7 @@ function openLifeGraphModal() {
         modal.innerHTML = `
             <div class="modal-content profile-page-content">
                 <div class="modal-header">
-                    <h2>📈 Vida ao longo da partida</h2>
+                    <h2><svg class="ic ic-title"><use href="#ic-chart"/></svg>Vida ao longo da partida</h2>
                     <button class="modal-close" type="button">&times;</button>
                 </div>
                 <div class="profile-page-body">
@@ -3566,6 +3690,12 @@ function bindPlayerCard(card, playerId) {
         const cmdBtn = card.querySelector('[data-action="commander"]');
         if (cmdBtn)
             setupCommanderDrag(cmdBtn, playerId);
+        // Toque na foto/nome do card abre o perfil completo (se tiver perfil).
+        card.querySelector('.player-info')?.addEventListener('click', () => {
+            const p = gameState.getState().players.find(x => x.id === playerId);
+            if (p && p.profileId !== null && p.profileId !== undefined)
+                openProfilePage(p.profileId);
+        });
         card.querySelector('[data-action="rotate"]')?.addEventListener('click', () => {
             const p = gameState.getState().players.find(x => x.id === playerId);
             if (!p)

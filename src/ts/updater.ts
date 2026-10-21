@@ -11,8 +11,8 @@
 import { apiCheckUpdate, isAndroidApp, UpdateInfoDTO } from './api.js';
 
 // Mantenha em sincronia com android/app/build.gradle.kts (versionCode/versionName).
-export const APP_VERSION_CODE = 16;
-export const APP_VERSION_NAME = '2.2.3';
+export const APP_VERSION_CODE = 17;
+export const APP_VERSION_NAME = '2.2.4';
 
 const UPDATE_LAST_CHECK_KEY = 'lc_update_last_check_v1';
 const UPDATE_SKIP_KEY = 'lc_update_skipped_code_v1';
@@ -88,7 +88,7 @@ export function openUpdateModal(prefetched?: UpdateInfoDTO | null): void {
     modal.innerHTML = `
         <div class="modal-content update-modal-content">
             <div class="modal-header">
-                <h2>⬆️ Atualização</h2>
+                <h2><svg class="ic ic-title"><use href="#ic-update"/></svg>Atualização</h2>
                 <button class="modal-close" type="button">&times;</button>
             </div>
             <div class="update-body">

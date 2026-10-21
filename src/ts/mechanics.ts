@@ -252,7 +252,7 @@ export function openMechanicsModal(): void {
         modal.innerHTML = `
             <div class="modal-content mech-modal-content">
                 <div class="modal-header">
-                    <h2>🪐 Mecânicas de mesa</h2>
+                    <h2><svg class="ic ic-title"><use href="#ic-planet"/></svg>Mecânicas de mesa</h2>
                     <button class="modal-close" type="button">&times;</button>
                 </div>
                 <div class="mech-body">

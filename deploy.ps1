@@ -115,7 +115,10 @@ if ($Apk) {
     $remoteApk = "apk/LifeCounter-v$name.apk"
     Upload $apkPath "$Remote/backend/media/$remoteApk"
     if (-not $Changelog) { $Changelog = "Versão $name" }
-    $cl = $Changelog.Replace("'", "").Replace('"', '')
+    # plink manda a linha de comando em ANSI: acentos viram surrogates no servidor e o
+    # register_version quebra. Tira acentos e deixa só ASCII no changelog.
+    $cl = $Changelog.Replace("'", "").Replace('"', '').Replace([string][char]0x2026, '...')
+    $cl = ($cl.Normalize([Text.NormalizationForm]::FormD) -replace '\p{Mn}', '') -replace '[^\x20-\x7E]', ''
     Remote "cd $Remote/backend && ../venv/bin/python manage.py register_version $code $name $remoteApk --changelog '$cl'"
     Copy-Item $apkPath "$Root\LifeCounter-v$name.apk" -Force
     Write-Host "APK v$name ($code) publicado: https://lifecounter.mreis.site/api/update/download/" -ForegroundColor Green
