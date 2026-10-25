@@ -8,6 +8,8 @@ export interface Player {
     profileId: number | null; // Perfil da mesa (servidor) — obrigatório pra iniciar partida
     deckId?: number | null; // Deck/comandante escolhido no setup (opcional)
     deckName?: string | null;
+    deckColors?: string | null; // WUBRG (pra mostrar no card)
+    deckImage?: string | null; // arte do comandante (Scryfall art_crop)
     background: string | null; // Background image/GIF
     backgroundType: 'none' | 'image' | 'gif';
     emoji: string | null; // Personal emoji/icon

@@ -495,31 +495,60 @@
                     <button class="modal-close">&times;</button>
                 </div>
                 <div class="settings-list">
-                    <!-- Game Timer -->
-                    <div class="game-timer-display" id="game-timer-display">
-                        <div class="game-timer-icon"><svg class="ic"><use href="#ic-clock"/></svg></div>
-                        <div class="game-timer-info">
-                            <span class="game-timer-label">Tempo de partida</span>
-                            <span class="game-timer-value" id="game-timer-value">00:00:00</span>
+                    <div class="settings-group" data-tab="partida">
+                        <h3><svg class="ic"><use href="#ic-swords"/></svg>Partida</h3>
+                        <div class="game-timer-display" id="game-timer-display">
+                            <div class="game-timer-icon"><svg class="ic"><use href="#ic-clock"/></svg></div>
+                            <div class="game-timer-info">
+                                <span class="game-timer-label">Tempo de partida</span>
+                                <span class="game-timer-value" id="game-timer-value">00:00:00</span>
+                            </div>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="settings-casual">
+                                Partida amistosa (não conta pro ranking)
+                            </label>
+                        </div>
+                        <div class="settings-quick-actions">
+                            <button id="end-game-btn" class="tool-btn end-game-btn"><svg class="ic"><use href="#ic-flag"/></svg>Encerrar partida</button>
+                            <div class="settings-action-row">
+                                <button id="reset-game-btn" class="danger-btn">Resetar partida</button>
+                                <button id="new-game-btn" class="secondary-btn">Nova partida</button>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Quick Actions -->
-                    <div class="settings-quick-actions">
-                        <button id="rules-keywords-btn" class="tool-btn"><svg class="ic"><use href="#ic-book"/></svg>Regras & Keywords</button>
-                        <button id="sortear-viado-btn" class="tool-btn"><svg class="ic"><use href="#ic-dice"/></svg>Sortear o Viado</button>
+                    <div class="settings-group" data-tab="partida">
+                        <h3><svg class="ic"><use href="#ic-shuffle"/></svg>Quem começa?</h3>
+                        <div class="settings-starters">
+                            <button type="button" id="settings-open-randomstarter" class="tool-btn"><svg class="ic"><use href="#ic-shuffle"/></svg>Sorteio</button>
+                            <button type="button" id="settings-open-fingerpicker" class="tool-btn"><svg class="ic"><use href="#ic-touch"/></svg>Pelos dedos</button>
+                            <button type="button" id="settings-open-reflex" class="tool-btn"><svg class="ic"><use href="#ic-bolt"/></svg>Reflexo</button>
+                            <button type="button" id="settings-open-roulette" class="tool-btn"><svg class="ic"><use href="#ic-wheel"/></svg>Roleta</button>
+                            <button type="button" id="settings-open-dicestarter" class="tool-btn"><svg class="ic"><use href="#ic-dice"/></svg>Dado de cada um</button>
+                            <button id="sortear-viado-btn" class="tool-btn"><svg class="ic"><use href="#ic-dice"/></svg>Sortear o Viado</button>
+                        </div>
                         <div id="viado-result" class="viado-result" style="display: none;">
-                            <span class="viado-label">🏳️‍🌈 O Viado:</span>
+                            <span class="viado-label">O Viado:</span>
                             <span id="viado-name" class="viado-name"></span>
                         </div>
-                        <button id="end-game-btn" class="tool-btn end-game-btn"><svg class="ic"><use href="#ic-flag"/></svg>Encerrar partida</button>
-                        <div class="settings-action-row">
-                            <button id="reset-game-btn" class="danger-btn">Resetar Partida</button>
-                            <button id="new-game-btn" class="secondary-btn">Nova Partida</button>
+                    </div>
+
+                    <div class="settings-group" data-tab="partida">
+                        <h3><svg class="ic"><use href="#ic-gamepad"/></svg>Modo de jogo</h3>
+                        <div class="game-mode-selector">
+                            <button class="mode-btn active" data-mode="standard">Livre</button>
+                            <button class="mode-btn" data-mode="two-headed">2 cabeças</button>
+                            <button class="mode-btn" data-mode="planechase">Planechase</button>
+                            <button class="mode-btn" data-mode="archenemy">Archenemy</button>
+                        </div>
+                        <div class="settings-quick-actions settings-quick-actions-sub">
+                            <button id="rules-keywords-btn" class="tool-btn"><svg class="ic"><use href="#ic-book"/></svg>Regras & Keywords</button>
                         </div>
                     </div>
 
-                    <div class="settings-group">
+                    <div class="settings-group" data-tab="som">
                         <h3><svg class="ic"><use href="#ic-speaker"/></svg>Áudio</h3>
                         <div class="setting-item">
                             <label>
@@ -594,7 +623,7 @@
                         </div>
                     </div>
 
-                    <div class="settings-group">
+                    <div class="settings-group" data-tab="visual">
                         <h3><svg class="ic"><use href="#ic-palette"/></svg>Visual</h3>
                         <div class="setting-item">
                             <label>
@@ -658,7 +687,7 @@
                         </div>
                     </div>
 
-                    <div class="settings-group">
+                    <div class="settings-group" data-tab="mesa">
                         <h3><svg class="ic"><use href="#ic-swords"/></svg>Comandante</h3>
                         <div class="setting-item">
                             <label>
@@ -671,7 +700,7 @@
                         </div>
                     </div>
 
-                    <div class="settings-group">
+                    <div class="settings-group" data-tab="visual">
                         <h3><svg class="ic"><use href="#ic-image"/></svg>GIFs</h3>
                         <div class="setting-item">
                             <label>
@@ -687,7 +716,7 @@
                         </div>
                     </div>
 
-                    <div class="settings-group">
+                    <div class="settings-group" data-tab="visual">
                         <h3><svg class="ic"><use href="#ic-palette"/></svg>Tema</h3>
                         <div class="theme-selector-settings">
                             <button class="theme-btn-sm" data-theme="casual">Casual</button>
@@ -704,7 +733,7 @@
                         </div>
                     </div>
 
-                    <div class="settings-group">
+                    <div class="settings-group" data-tab="mesa">
                         <h3><svg class="ic"><use href="#ic-layout"/></svg>Layout</h3>
                         <div id="layout-presets-settings" class="layout-presets-small">
                             <!-- Layout presets will be injected here -->
@@ -717,7 +746,7 @@
                         </div>
                     </div>
 
-                    <div class="settings-group">
+                    <div class="settings-group" data-tab="mesa">
                         <h3><svg class="ic"><use href="#ic-clock"/></svg>Timer por turno</h3>
                         <div class="setting-item">
                             <label>
@@ -731,10 +760,10 @@
                         </div>
                     </div>
 
-                    <div class="settings-group">
+                    <div class="settings-group" data-tab="mesa">
                         <h3><svg class="ic"><use href="#ic-shuffle"/></svg>Sorteio inicial</h3>
                         <div class="setting-item">
-                            <label>Animacao</label>
+                            <label>Animação do sorteio</label>
                             <select id="random-starter-animation">
                                 <option value="highlight">Destaque em sequência</option>
                                 <option value="roulette">Roleta</option>
@@ -743,13 +772,45 @@
                         </div>
                     </div>
 
-                    <div class="settings-group">
-                        <h3><svg class="ic"><use href="#ic-gamepad"/></svg>Modo de jogo</h3>
-                        <div class="game-mode-selector">
-                            <button class="mode-btn active" data-mode="standard">Standard</button>
-                            <button class="mode-btn" data-mode="two-headed">Two-Headed Giant</button>
-                            <button class="mode-btn" data-mode="planechase">Planechase</button>
-                            <button class="mode-btn" data-mode="archenemy">Archenemy</button>
+                    <div class="settings-group" data-tab="visual">
+                        <h3><svg class="ic"><use href="#ic-sliders"/></svg>Cards</h3>
+                        <div class="setting-item setting-item-col">
+                            <label>Tamanho do número da vida</label>
+                            <div class="seg-mini" id="settings-life-size"><button type="button" data-v="small">Pequeno</button><button type="button" data-v="normal" class="active">Normal</button><button type="button" data-v="large">Grande</button></div>
+                        </div>
+                        <div class="setting-item setting-item-col">
+                            <label>Botões dos cards</label>
+                            <div class="seg-mini" id="settings-btn-size"><button type="button" data-v="normal" class="active">Normais</button><button type="button" data-v="large">Grandes</button></div>
+                        </div>
+                        <div class="setting-item setting-item-col">
+                            <label>Estilo do card</label>
+                            <div class="seg-mini" id="settings-card-style"><button type="button" data-v="gradient" class="active">Degradê</button><button type="button" data-v="solid">Sólido</button><button type="button" data-v="minimal">Mínimo</button></div>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="settings-avatars" checked>
+                                Foto do perfil no card
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="settings-dim-elim" checked>
+                                Escurecer o card de quem foi eliminado
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-group" data-tab="mesa">
+                        <h3><svg class="ic"><use href="#ic-touch"/></svg>Toque</h3>
+                        <div class="setting-item setting-item-col">
+                            <label>Toque longo em +/−</label>
+                            <div class="seg-mini" id="settings-hold-step"><button type="button" data-v="5" class="active">±5 / ±10</button><button type="button" data-v="10">±10 / ±20</button></div>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="settings-haptics" checked>
+                                Vibrar a cada mudança de vida
+                            </label>
                         </div>
                     </div>
 
@@ -765,10 +826,20 @@
                     <button class="modal-close">&times;</button>
                 </div>
                 <div class="player-settings-form">
+                    <div class="ps-identity" id="ps-identity">
+                        <div class="ps-identity-avatar" id="ps-identity-avatar"></div>
+                        <div class="ps-identity-main">
+                            <div class="ps-identity-name" id="ps-identity-name"></div>
+                            <div class="ps-identity-deck" id="ps-identity-deck"></div>
+                        </div>
+                    </div>
+                    <div class="ps-identity-actions">
+                        <button type="button" id="change-profile-btn" class="cs-gallery-btn"><svg class="ic"><use href="#ic-users"/></svg>Trocar perfil</button>
+                        <button type="button" id="change-deck-btn" class="cs-gallery-btn"><svg class="ic"><use href="#ic-deck"/></svg>Comandante</button>
+                    </div>
                     <div class="form-group">
-                        <label>Nome</label>
+                        <label>Nome (apelido nesta mesa)</label>
                         <input type="text" id="player-name-input" maxlength="20">
-                        <button type="button" id="change-profile-btn" class="cs-gallery-btn change-profile-btn"><svg class="ic"><use href="#ic-users"/></svg>Trocar perfil (nome + foto)</button>
                     </div>
 
                     <div class="form-group">

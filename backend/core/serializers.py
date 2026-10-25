@@ -50,11 +50,15 @@ class PlacementSerializer(serializers.ModelSerializer):
         source='deck', queryset=Deck.objects.all(), allow_null=True, required=False
     )
     photo_url = serializers.SerializerMethodField(read_only=True)
+    deck_image = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = MatchPlacement
         fields = ['profile_id', 'name', 'place', 'points', 'final_life', 'eliminated_by', 'commander_deaths', 'photo_url',
-                  'deck_id', 'deck_name', 'deck_colors']
+                  'deck_id', 'deck_name', 'deck_colors', 'deck_image']
+
+    def get_deck_image(self, obj):
+        return obj.deck.image_url if obj.deck and obj.deck.image_url else None
 
     def get_photo_url(self, obj):
         if not obj.profile or not obj.profile.photo:

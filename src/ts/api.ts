@@ -178,6 +178,7 @@ export interface PlacementDTO {
     deck_id?: number | null;
     deck_name?: string;
     deck_colors?: string;
+    deck_image?: string | null; // só na leitura (arte do comandante)
     final_life?: number | null;
     eliminated_by?: string;
     commander_deaths?: number;

@@ -1158,24 +1158,29 @@ function setupSettingsTabs() {
         const t = h3text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
         if (/audio|som/.test(t))
             return 'som';
-        if (/visual|tema|gif/.test(t))
+        if (/visual|tema|gif|cards/.test(t))
             return 'visual';
-        return 'jogo'; // comandante, layout, timer, sorteio, modo
+        if (/partida|comeca|modo/.test(t))
+            return 'partida';
+        return 'mesa'; // comandante, layout, timer, sorteio, toque
     };
     const groups = Array.from(list.querySelectorAll('.settings-group'));
     if (groups.length === 0)
         return;
     groups.forEach((g) => {
+        if (g.dataset.tab)
+            return; // já marcado no HTML
         const h3 = g.querySelector('h3');
-        g.dataset.tab = h3 ? tabFor(h3.textContent || '') : 'jogo';
+        g.dataset.tab = h3 ? tabFor(h3.textContent || '') : 'mesa';
     });
     // Cria a barra de abas e insere antes do primeiro .settings-group.
     const nav = document.createElement('div');
     nav.className = 'settings-tabs-nav';
     const tabs = [
+        ['partida', 'Partida', 'ic-swords'],
         ['som', 'Som', 'ic-speaker'],
         ['visual', 'Visual', 'ic-palette'],
-        ['jogo', 'Jogo', 'ic-gamepad'],
+        ['mesa', 'Mesa', 'ic-layout'],
     ];
     tabs.forEach(([key, label, icon], i) => {
         const btn = document.createElement('button');
@@ -1199,7 +1204,39 @@ function setupSettingsTabs() {
         if (btn?.dataset.tab)
             setTab(btn.dataset.tab);
     });
-    setTab('som');
+    setTab('partida');
+    // Controles novos (v2.3.x) dentro das Configurações — espelham os do setup.
+    $('settings-casual')?.addEventListener('change', (e) => gameState.setCasual(e.target.checked));
+    const segListen = (id, apply) => {
+        $(id)?.addEventListener('click', (e) => {
+            const b = e.target.closest('button[data-v]');
+            if (!b)
+                return;
+            apply(b.dataset.v);
+            applyCustomization(gameState.getState().settings);
+        });
+    };
+    segListen('settings-life-size', (v) => gameState.updateSettings({ lifeFontSize: v }));
+    segListen('settings-btn-size', (v) => gameState.updateSettings({ buttonSize: v }));
+    segListen('settings-hold-step', (v) => gameState.updateSettings({ holdStep: Number(v) }));
+    segListen('settings-card-style', (v) => gameState.updateSettings({ cardStyle: v }));
+    const swListen = (id, key) => {
+        $(id)?.addEventListener('change', (e) => {
+            gameState.updateSettings({ [key]: e.target.checked });
+            applyCustomization(gameState.getState().settings);
+        });
+    };
+    swListen('settings-haptics', 'hapticsEnabled');
+    swListen('settings-avatars', 'showAvatarsOnCards');
+    swListen('settings-dim-elim', 'dimEliminated');
+    const starter = (id, fn) => {
+        $(id)?.addEventListener('click', () => { closeModal($('settings-modal')); fn(); });
+    };
+    starter('settings-open-randomstarter', () => startRandomStarterAnimation());
+    starter('settings-open-fingerpicker', () => openFingerPicker());
+    starter('settings-open-reflex', () => openReflexStarter());
+    starter('settings-open-roulette', () => openRouletteStarter());
+    starter('settings-open-dicestarter', () => openDiceStarter());
 }
 // ===== Ranking / encerramento da partida =====
 // Encerramento EXPLÍCITO: salva o resultado (automático se houver vencedor,
@@ -1242,7 +1279,7 @@ function finishMatch(onDone) {
         onDone?.();
         return;
     }
-    openPodiumModal(state.players.map((p) => ({ id: p.id, name: p.name, profileId: p.profileId, deckId: p.deckId ?? null, deckName: p.deckName ?? null, life: p.life, commanderDeaths: p.commanderDeaths, avatar: p.avatar, color: p.color })), (ordered) => {
+    openPodiumModal(state.players.map((p) => ({ id: p.id, name: p.name, profileId: p.profileId, deckId: p.deckId ?? null, deckName: p.deckName ?? null, deckColors: p.deckColors ?? null, life: p.life, commanderDeaths: p.commanderDeaths, avatar: p.avatar, color: p.color })), (ordered) => {
         const r = buildManualResult(placementsFromOrder(ordered), state);
         saveResult(r);
         gameState.closeMatch();
@@ -1280,7 +1317,7 @@ function maybeAskPodium(state, onContinue) {
         finishMatch(onContinue);
         return;
     }
-    openPodiumModal(state.players.map((p) => ({ id: p.id, name: p.name, profileId: p.profileId, deckId: p.deckId ?? null, deckName: p.deckName ?? null, life: p.life, commanderDeaths: p.commanderDeaths, avatar: p.avatar, color: p.color })), (ordered) => {
+    openPodiumModal(state.players.map((p) => ({ id: p.id, name: p.name, profileId: p.profileId, deckId: p.deckId ?? null, deckName: p.deckName ?? null, deckColors: p.deckColors ?? null, life: p.life, commanderDeaths: p.commanderDeaths, avatar: p.avatar, color: p.color })), (ordered) => {
         const r = buildManualResult(placementsFromOrder(ordered), state);
         saveResult(r);
         gameState.closeMatch();
@@ -1582,9 +1619,12 @@ function openRankingModal(initialTab = 'today', mount) {
             const podium = m.placements.slice().sort((a, b) => a.place - b.place);
             const winner = podium[0];
             const winnerProf = getProfileById(winner?.profile_id ?? null);
+            const cmdChip = (p) => p.deck_name
+                ? `<span class="history-cmd" title="Comandante">${p.deck_image ? `<img src="${escapeHtml(p.deck_image)}" alt="">` : ''}${escapeHtml(p.deck_name)}</span>`
+                : '';
             const others = podium.slice(1).map((p) => {
                 const prof = getProfileById(p.profile_id ?? null);
-                return `<span class="history-other" title="${p.place}º">${avatarHtml({ name: p.name, photo_url: p.photo_url ?? prof?.photo_url ?? null, color: prof?.color }, 'lc-avatar lc-avatar-xs')}<span>${p.place}º ${escapeHtml(p.name)}</span></span>`;
+                return `<span class="history-other" title="${p.place}º">${avatarHtml({ name: p.name, photo_url: p.photo_url ?? prof?.photo_url ?? null, color: prof?.color }, 'lc-avatar lc-avatar-xs')}<span>${p.place}º ${escapeHtml(p.name)}</span>${cmdChip(p)}</span>`;
             }).join('');
             return `
             <div class="history-match ${m.id > 0 ? 'history-clickable' : ''}" data-id="${m.id}" data-client="${escapeHtml(m.client_id)}">
@@ -1596,7 +1636,7 @@ function openRankingModal(initialTab = 'today', mount) {
                 <div class="history-winner">
                     ${placeBadge(1)}
                     ${winner ? avatarHtml({ name: winner.name, photo_url: winner.photo_url ?? winnerProf?.photo_url ?? null, color: winnerProf?.color }, 'lc-avatar lc-avatar-sm') : ''}
-                    <span><strong>${escapeHtml(winner?.name || '?')}</strong></span>
+                    <span><strong>${escapeHtml(winner?.name || '?')}</strong>${winner ? cmdChip(winner) : ''}</span>
                 </div>
                 <div class="history-others">${others}</div>
             </div>`;
@@ -2318,6 +2358,14 @@ function setupPlayerSettingsListeners() {
         currentEditingPlayerId = null;
         openProfilePicker(id);
     });
+    $('change-deck-btn')?.addEventListener('click', () => {
+        const id = currentEditingPlayerId;
+        if (!id)
+            return;
+        closeModal($('player-settings-modal'));
+        currentEditingPlayerId = null;
+        openDeckPicker(id);
+    });
     $('avatar-upload-btn')?.addEventListener('click', () => {
         $('avatar-input').click();
     });
@@ -2833,14 +2881,19 @@ function openProfilePicker(playerId) {
         }
     };
     const choose = (p) => {
+        const changed = player.profileId !== p.id;
         gameState.updatePlayerSetup(playerId, {
             profileId: p.id,
             name: p.name,
             avatar: p.photo_url || null,
             emoji: null,
             ...(p.color ? { color: p.color } : {}),
+            // Deck é do perfil: trocou de pessoa, zera o comandante.
+            ...(changed ? { deckId: null, deckName: null, deckColors: null, deckImage: null } : {}),
         });
         close();
+        if (changed && gameState.getState().gameStarted)
+            showSpecialMoment(`${p.name} entrou no lugar de ${player.name}`, 'success');
     };
     grid.addEventListener('click', (e) => {
         const info = e.target.closest('.profile-card-info');
@@ -2913,9 +2966,10 @@ function openProfilePicker(playerId) {
     void refreshProfiles().then(renderGrid);
 }
 // ===== Decks / comandantes =====
-const MANA_SYMBOL = { W: '⚪', U: '🔵', B: '⚫', R: '🔴', G: '🟢' };
+// Identidade de cor como bolinhas sólidas (sem emoji): W U B R G.
 function colorsHtml(colors) {
-    return (colors || '').split('').map(c => MANA_SYMBOL[c] || '').join('') || '◇';
+    const dots = (colors || '').split('').filter(c => 'WUBRG'.includes(c)).map(c => `<span class="mana-dot mana-${c}" title="${c}"></span>`).join('');
+    return `<span class="mana-dots">${dots || '<span class="mana-dot mana-C" title="incolor"></span>'}</span>`;
 }
 async function scryfallSearchCommander(q) {
     const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(`${q} is:commander`)}&unique=cards&order=edhrec`;
@@ -2934,30 +2988,41 @@ async function scryfallSearchCommander(q) {
     }));
 }
 // Escolher o deck do jogador no setup (lista do perfil + criar novo via Scryfall).
+// Escolher o comandante/deck de um jogador (setup OU no meio da partida).
+// Com perfil: lista os decks salvos do perfil + busca no Scryfall (salva o deck
+// no perfil). Sem perfil (amistosa): só busca no Scryfall e guarda no jogador.
 function openDeckPicker(playerId) {
     const player = gameState.getState().players.find(p => p.id === playerId);
-    if (!player || player.profileId === null)
+    if (!player)
         return;
-    const prof = getProfileById(player.profileId);
+    const hasProfile = player.profileId !== null && player.profileId !== undefined;
+    const prof = hasProfile ? getProfileById(player.profileId) : null;
     document.getElementById('deck-picker-dyn')?.remove();
     const modal = document.createElement('div');
     modal.className = 'modal active';
     modal.id = 'deck-picker-dyn';
+    modal.style.zIndex = '2080';
     document.body.appendChild(modal);
     const close = () => modal.remove();
     const choose = (deck) => {
-        gameState.updatePlayerSetup(playerId, { deckId: deck?.id ?? null, deckName: deck?.name ?? null });
+        gameState.updatePlayerSetup(playerId, {
+            deckId: deck?.id ?? null, deckName: deck?.name ?? null,
+            deckColors: deck?.colors ?? null, deckImage: deck?.image_url ?? null,
+        });
+        if (deck && gameState.getState().gameStarted)
+            showSpecialMoment(`${player.name} agora joga de ${deck.name}`, 'success');
         close();
     };
     const render = () => {
-        const decks = (getProfileById(player.profileId)?.decks || []).filter(d => d.active !== false);
+        const decks = hasProfile ? (getProfileById(player.profileId)?.decks || []).filter(d => d.active !== false) : [];
         modal.innerHTML = `
             <div class="modal-content profile-picker-content">
                 <div class="modal-header">
-                    <h2><svg class="ic ic-title"><use href="#ic-deck"/></svg>Deck de ${escapeHtml(prof?.name || player.name)}</h2>
+                    <h2><svg class="ic ic-title"><use href="#ic-deck"/></svg>Comandante de ${escapeHtml(prof?.name || player.name)}</h2>
                     <button class="modal-close" type="button">&times;</button>
                 </div>
                 <div class="profile-picker-body">
+                    ${player.deckName ? `<div class="deck-current">${player.deckImage ? `<img src="${escapeHtml(player.deckImage)}" alt="">` : ''}<div><div class="update-muted">Nesta partida</div><b>${escapeHtml(player.deckName)}</b> ${colorsHtml(player.deckColors || '')}</div></div>` : ''}
                     <div class="deck-list">
                         ${decks.map(d => `
                             <button type="button" class="deck-item ${player.deckId === d.id ? 'selected' : ''}" data-id="${d.id}" style="${d.image_url ? `background-image:url('${escapeHtml(d.image_url)}')` : ''}">
@@ -2965,14 +3030,14 @@ function openDeckPicker(playerId) {
                                 <span class="deck-item-name">${escapeHtml(d.name)}</span>
                                 ${d.commander && d.commander !== d.name ? `<span class="deck-item-cmd">${escapeHtml(d.commander)}</span>` : ''}
                             </button>`).join('')}
-                        ${decks.length === 0 ? '<div class="update-muted">Nenhum deck ainda. Busque o comandante abaixo.</div>' : ''}
+                        ${decks.length === 0 ? `<div class="update-muted">${hasProfile ? 'Nenhum deck salvo ainda. Busque o comandante abaixo (fica salvo no perfil).' : 'Jogador sem perfil: busque o comandante abaixo (vale só nesta partida).'}</div>` : ''}
                     </div>
                     <div class="deck-search">
-                        <input type="text" id="deck-search-input" class="profile-new-name" placeholder="Buscar comandante (Scryfall)…" autocomplete="off">
+                        <input type="text" id="deck-search-input" class="profile-new-name" placeholder="Buscar comandante no Scryfall…" autocomplete="off">
                         <div id="deck-search-results" class="deck-results"></div>
                     </div>
                     <div class="profile-picker-footer">
-                        <button class="cs-gallery-btn" id="deck-none" type="button">Sem deck nesta partida</button>
+                        <button class="cs-gallery-btn" id="deck-none" type="button">Sem comandante nesta partida</button>
                     </div>
                 </div>
             </div>`;
@@ -3005,6 +3070,10 @@ function openDeckPicker(playerId) {
                         </button>`).join('') : '<div class="update-muted">Nada encontrado.</div>';
                     results.querySelectorAll('.deck-hit').forEach(el => el.addEventListener('click', async () => {
                         const h = hits[Number(el.dataset.i)];
+                        if (!hasProfile) {
+                            choose({ id: null, name: h.name, colors: h.colors, image_url: h.image });
+                            return;
+                        }
                         el.classList.add('busy');
                         try {
                             const created = await apiCreateDeck(player.profileId, { name: h.name, commander: h.name, colors: h.colors, image_url: h.image, scryfall_id: h.id });
@@ -3012,8 +3081,9 @@ function openDeckPicker(playerId) {
                             choose(created);
                         }
                         catch (err) {
-                            showSpecialMoment(`Não deu pra salvar o deck: ${err?.message || err}`, 'danger');
-                            el.classList.remove('busy');
+                            // Sem servidor: usa só nesta partida.
+                            showSpecialMoment(`Não deu pra salvar no perfil (${err?.message || err}); vale só nesta partida.`, 'warning');
+                            choose({ id: null, name: h.name, colors: h.colors, image_url: h.image });
                         }
                     }));
                 }
@@ -3481,6 +3551,7 @@ function playerCardSignature(player, index, state) {
     const team = state.gameMode === 'two-headed' ? state.teams.find(t => t.playerIds.includes(player.id)) : null;
     return JSON.stringify([
         index, player.name, player.color, player.avatar, player.emoji, player.tag, player.background, player.backgroundType,
+        player.deckName, player.deckImage, player.deckColors,
         player.isEliminated, player.isMonarch, player.id === state.winner, player.rotation, player.manualRotation || 0, player.life === 1,
         player.counters, player.commanderDeaths, player.commanderDamage,
         index === state.activePlayerIndex, state.viadoPlayerId === player.id, team?.id,
@@ -3623,9 +3694,9 @@ function renderPlayerCardHtml(player, index, state) {
                         ${player.tag ? `<span class="player-tag">${escapeHtml(player.tag)}</span>` : ''}
                     </div>
                     <div class="player-status-badges">
-                        ${player.isMonarch ? '<span class="monarch-badge-inline" title="Monarca">👑</span>' : ''}
+                        ${player.isMonarch ? '<span class="monarch-badge-inline" title="Monarca"><svg class="ic ic-gold"><use href="#ic-crown"/></svg></span>' : ''}
                         ${state.viadoPlayerId === player.id ? '<span class="viado-badge" title="Viado">🏳️‍🌈</span>' : ''}
-                        ${team ? `<span class="team-badge team-${teamIndex}" title="${team.name}">🤝</span>` : ''}
+                        ${team ? `<span class="team-badge team-${teamIndex}" title="${team.name}">T${teamIndex}</span>` : ''}
                     </div>
                     <div class="player-actions">
                         <button class="player-action-btn" data-action="taunt" title="Taunt / Provocação"><svg class="ic"><use href="#ic-chat"/></svg></button>
@@ -3635,6 +3706,11 @@ function renderPlayerCardHtml(player, index, state) {
                         <button class="player-action-btn" data-action="settings" title="Config"><svg class="ic"><use href="#ic-settings"/></svg></button>
                     </div>
                 </div>
+                <button type="button" class="player-commander ${player.deckName ? 'has-deck' : ''}" data-action="pick-deck" title="Comandante desta partida (toque pra trocar)">
+                    ${player.deckImage ? `<img class="player-commander-art" src="${escapeHtml(player.deckImage)}" alt="">` : '<svg class="ic"><use href="#ic-deck"/></svg>'}
+                    <span class="player-commander-name">${player.deckName ? escapeHtml(player.deckName) : 'comandante?'}</span>
+                    ${player.deckColors ? colorsHtml(player.deckColors) : ''}
+                </button>
                 <div class="player-life-container">
                     <button class="life-control minus" data-action="life" data-amount="-1">−</button>
                     <div class="life-display">
@@ -3896,6 +3972,7 @@ function bindPlayerCard(card, playerId) {
                 return;
             gameState.updatePlayerSetup(playerId, { manualRotation: ((p.manualRotation || 0) + 90) % 360 });
         });
+        card.querySelector('[data-action="pick-deck"]')?.addEventListener('click', (e) => { e.stopPropagation(); openDeckPicker(playerId); });
         // Toque longo no número da vida: metade / dobro / definir.
         const lifeEl = card.querySelector('.life-value');
         if (lifeEl) {
@@ -4084,6 +4161,23 @@ function updateSettingsControls(state) {
         if (b)
             b.classList.toggle('silent-on', !!state.settings.silentMode);
     });
+    // v2.3.x: amistosa + personalização dentro das Configurações
+    const cbx = (id, v) => { const el = document.getElementById(id); if (el)
+        el.checked = v; };
+    cbx('settings-casual', !!state.casual);
+    cbx('settings-haptics', state.settings.hapticsEnabled !== false);
+    cbx('settings-avatars', state.settings.showAvatarsOnCards !== false);
+    cbx('settings-dim-elim', state.settings.dimEliminated !== false);
+    const segS = (id, v) => {
+        document.querySelectorAll(`#${id} button[data-v]`).forEach((b) => b.classList.toggle('active', b.dataset.v === v));
+    };
+    segS('settings-life-size', state.settings.lifeFontSize || 'normal');
+    segS('settings-btn-size', state.settings.buttonSize || 'normal');
+    segS('settings-hold-step', String(state.settings.holdStep || 5));
+    segS('settings-card-style', state.settings.cardStyle || 'gradient');
+    const casualCb = document.getElementById('settings-casual');
+    if (casualCb)
+        casualCb.disabled = !!state.matchClosed;
     $('narrator-enabled').checked = state.settings.narratorEnabled;
     $('narrator-speed').value = state.settings.narratorSpeed.toString();
     const personaSel = $('narrator-persona');
@@ -4686,6 +4780,19 @@ function openPlayerSettings(playerId) {
     if (!player)
         return;
     $('player-name-input').value = player.name;
+    // Bloco de identidade: perfil + comandante desta partida (troca pelos botões).
+    const prof = getProfileById(player.profileId ?? null);
+    const idAv = $('ps-identity-avatar');
+    if (idAv)
+        idAv.innerHTML = avatarHtml({ name: player.name, photo_url: prof?.photo_url ?? player.avatar, color: player.color }, 'lc-avatar ps-avatar');
+    const idName = $('ps-identity-name');
+    if (idName)
+        idName.innerHTML = `${escapeHtml(player.name)} ${prof ? '' : '<span class="update-muted">(sem perfil)</span>'}`;
+    const idDeck = $('ps-identity-deck');
+    if (idDeck)
+        idDeck.innerHTML = player.deckName
+            ? `${player.deckImage ? `<img src="${escapeHtml(player.deckImage)}" alt="">` : ''}<span>${escapeHtml(player.deckName)}</span> ${colorsHtml(player.deckColors || '')}`
+            : '<span class="update-muted">Sem comandante marcado</span>';
     // Select current color
     document.querySelectorAll('.color-option').forEach(btn => {
         const color = btn.getAttribute('data-color');

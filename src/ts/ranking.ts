@@ -19,6 +19,7 @@ export interface MatchPlacement {
     profileId?: number | null;
     deckId?: number | null;
     deckName?: string | null;
+    deckColors?: string | null;
     finalLife?: number | null;
     commanderDeaths?: number;
     eliminatedBy?: string;
@@ -90,6 +91,7 @@ function toPayload(r: MatchResult): MatchPayload {
             commander_deaths: p.commanderDeaths || 0,
             deck_id: p.deckId ?? null,
             deck_name: p.deckName || '',
+            deck_colors: p.deckColors || '',
         })),
     };
 }
@@ -206,6 +208,7 @@ interface ResultPlayer {
     profileId?: number | null;
     deckId?: number | null;
     deckName?: string | null;
+    deckColors?: string | null;
     life?: number;
     commanderDeaths?: number;
 }
@@ -228,6 +231,7 @@ function placementFor(p: ResultPlayer | undefined, idx: number, N: number, elimi
         profileId: p?.profileId ?? null,
         deckId: p?.deckId ?? null,
         deckName: p?.deckName ?? null,
+        deckColors: p?.deckColors ?? null,
         finalLife: p?.life ?? null,
         commanderDeaths: p?.commanderDeaths || 0,
         eliminatedBy: eliminatedBy || '',
@@ -297,7 +301,7 @@ export function buildManualResult(
 }
 
 // Atribui pontos a uma ordem de jogadores: posição 1..N.
-export function placementsFromOrder(ordered: Array<{ id: string; name: string; profileId?: number | null; deckId?: number | null; deckName?: string | null; life?: number; commanderDeaths?: number }>): MatchPlacement[] {
+export function placementsFromOrder(ordered: Array<{ id: string; name: string; profileId?: number | null; deckId?: number | null; deckName?: string | null; deckColors?: string | null; life?: number; commanderDeaths?: number }>): MatchPlacement[] {
     const N = ordered.length;
     return ordered.map((p, idx) => placementFor(p, idx, N));
 }

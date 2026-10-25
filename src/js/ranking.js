@@ -52,6 +52,7 @@ function toPayload(r) {
             commander_deaths: p.commanderDeaths || 0,
             deck_id: p.deckId ?? null,
             deck_name: p.deckName || '',
+            deck_colors: p.deckColors || '',
         })),
     };
 }
@@ -172,6 +173,7 @@ function placementFor(p, idx, N, eliminatedBy) {
         profileId: p?.profileId ?? null,
         deckId: p?.deckId ?? null,
         deckName: p?.deckName ?? null,
+        deckColors: p?.deckColors ?? null,
         finalLife: p?.life ?? null,
         commanderDeaths: p?.commanderDeaths || 0,
         eliminatedBy: eliminatedBy || '',

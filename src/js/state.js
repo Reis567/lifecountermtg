@@ -327,6 +327,8 @@ class GameStateManager {
                     profileId: p.profileId ?? null,
                     deckId: p.deckId ?? null,
                     deckName: p.deckName ?? null,
+                    deckColors: p.deckColors ?? null,
+                    deckImage: p.deckImage ?? null,
                     manualRotation: p.manualRotation ?? 0,
                     background: p.background ?? null,
                     backgroundType: p.backgroundType ?? 'none',
@@ -791,7 +793,7 @@ class GameStateManager {
         // obrigatória pra iniciar, então não faz sentido pedir tudo de novo.
         const roster = this.state.players.map(p => ({
             profileId: p.profileId ?? null, name: p.name, avatar: p.avatar, color: p.color, emoji: p.emoji,
-            deckId: p.deckId ?? null, deckName: p.deckName ?? null,
+            deckId: p.deckId ?? null, deckName: p.deckName ?? null, deckColors: p.deckColors ?? null, deckImage: p.deckImage ?? null,
         }));
         // Preferências (tema, som, personalização) continuam as mesmas; só a mesa zera.
         const settings = this.state.settings;
@@ -808,6 +810,8 @@ class GameStateManager {
                 player.emoji = prev.emoji;
                 player.deckId = prev.deckId;
                 player.deckName = prev.deckName;
+                player.deckColors = prev.deckColors;
+                player.deckImage = prev.deckImage;
             }
             return player;
         });
