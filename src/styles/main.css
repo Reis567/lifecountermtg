@@ -7738,6 +7738,178 @@ body[data-card-style="minimal"] .player-card { background: var(--bg-secondary); 
 .st-reflex-big { font-size: clamp(2.5rem, 12vw, 5rem); font-weight: 900; letter-spacing: 0.05em; text-align: center; }
 .st-tap { position: fixed; width: 110px; height: 110px; border-radius: 50%; transform: translate(-50%, -50%); border: 5px solid #fff; box-shadow: 0 0 30px 8px rgba(255,255,255,0.35); animation: fpWinner 0.9s ease-in-out infinite; pointer-events: none; }
 
+/* =====================================================================
+   v2.3.2 — mesa repaginada: cards ocupam a tela toda, microfone recortado
+   entre eles, botões no rodapé, comandante no cabeçalho, paisagem em 1º lugar
+   ===================================================================== */
+.players-grid { gap: 0.3rem; padding: 0.3rem; }
+.game-header { padding: 0.3rem 0.5rem; min-height: 46px; }
+.header-btn { width: 36px; height: 36px; }
+.header-actions { gap: 0.35rem; }
+.turn-indicator { cursor: pointer; padding: 0.15rem 0.6rem; border-radius: var(--border-radius-sm); }
+.turn-indicator:active { background: var(--bg-tertiary); }
+/* Microfone: no centro, por cima; os cards ao redor ganham o recorte via máscara (JS). */
+.voice-fab { width: 52px; height: 52px; opacity: 1; background: var(--bg-secondary); border: 2px solid var(--border-color); box-shadow: 0 4px 16px rgba(0,0,0,0.55); z-index: 30; }
+.voice-fab .ic { width: 22px; height: 22px; }
+/* Cabeçalho do card: foto + nome + comandante (2 linhas) + engrenagem */
+.player-header { padding: 0.3rem 0.45rem; gap: 0.3rem; min-height: 42px; align-items: center; }
+.player-info { flex: 1; min-width: 0; gap: 0.4rem; overflow: visible; }
+.player-id-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; flex: 1; }
+.player-name-row { display: flex; align-items: center; gap: 0.25rem; min-width: 0; }
+.player-name { font-size: 0.82rem; max-width: none; }
+.player-status-badges { margin-left: 0; }
+.player-commander { background: transparent; border: 0; padding: 0; min-height: 0; width: auto; font-size: 0.64rem; color: rgba(255,255,255,0.72); gap: 0.25rem; }
+.player-commander.has-deck { color: rgba(255,255,255,0.9); }
+.player-commander-art { width: 14px; height: 14px; border-width: 1px; }
+.player-commander .ic { width: 11px; height: 11px; }
+.player-commander .mana-dot { width: 7px; height: 7px; }
+.player-settings-btn { width: 30px; height: 30px; flex-shrink: 0; background: rgba(0,0,0,0.3); }
+.player-settings-btn .ic { width: 16px; height: 16px; }
+/* Rodapé: contadores à esquerda, ações à direita */
+.player-footer { display: flex; align-items: center; justify-content: space-between; gap: 0.3rem; padding: 0.25rem 0.4rem; min-height: 38px; flex-wrap: nowrap; }
+.player-footer-counters { display: flex; flex-wrap: wrap; gap: 0.25rem; min-width: 0; flex: 1; align-items: center; }
+.player-footer .player-actions { gap: 0.25rem; flex-shrink: 0; }
+.player-footer .player-action-btn { width: 30px; height: 30px; background: rgba(255,255,255,0.08); }
+.player-footer .player-action-btn .ic { width: 16px; height: 16px; }
+.pass-turn-btn { width: auto !important; padding: 0 0.55rem 0 0.4rem; gap: 0.25rem; background: var(--accent-primary) !important; color: #fff; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
+.pass-turn-btn .ic { width: 13px; height: 13px; }
+.turn-swipe-trail { position: fixed; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: var(--accent-primary); opacity: 0.8; pointer-events: none; z-index: 400; animation: swipeTrail 0.45s ease-out forwards; }
+@keyframes swipeTrail { to { transform: scale(5); opacity: 0; } }
+/* Mesas cheias: tudo um pouco menor */
+.players-grid[data-players="5"] .player-action-btn, .players-grid[data-players="6"] .player-action-btn, .players-grid[data-players="7"] .player-action-btn, .players-grid[data-players="8"] .player-action-btn { width: 26px; height: 26px; }
+.players-grid[data-players="5"] .player-footer, .players-grid[data-players="6"] .player-footer, .players-grid[data-players="7"] .player-footer, .players-grid[data-players="8"] .player-footer { min-height: 32px; padding: 0.15rem 0.3rem; }
+.players-grid[data-players="5"] .player-header, .players-grid[data-players="6"] .player-header, .players-grid[data-players="7"] .player-header, .players-grid[data-players="8"] .player-header { min-height: 36px; padding: 0.2rem 0.35rem; }
+.players-grid[data-players="5"] .player-name, .players-grid[data-players="6"] .player-name, .players-grid[data-players="7"] .player-name, .players-grid[data-players="8"] .player-name { font-size: 0.72rem; }
+.players-grid[data-players="7"] .player-commander, .players-grid[data-players="8"] .player-commander { display: none; }
+/* Card deitado: o cabeçalho do card fica num lado; ações no rodapé do outro. */
+.player-card.sideways .player-commander { font-size: 0.78rem; padding: 0; min-height: 0; }
+.player-card.sideways .player-commander-art { width: 20px; height: 20px; }
+.player-card.sideways .player-settings-btn { width: 38px; height: 38px; }
+
+/* ----- Paisagem (celular deitado no meio da mesa) ----- */
+@media (orientation: landscape) and (max-height: 520px) {
+    .players-grid { gap: 0.25rem; padding: 0.25rem; }
+    .player-header { min-height: 34px; padding: 0.15rem 0.4rem; }
+    .player-footer { min-height: 30px; padding: 0.1rem 0.3rem; }
+    .player-footer .player-action-btn, .player-settings-btn { width: 28px; height: 28px; }
+    .players-grid[data-players="2"] .life-value { font-size: clamp(3rem, 30vh, 9rem); }
+    .players-grid[data-players="3"] .life-value, .players-grid[data-players="4"] .life-value { font-size: clamp(2.2rem, 16vh, 6rem); }
+    .players-grid[data-players="5"] .life-value, .players-grid[data-players="6"] .life-value { font-size: clamp(1.8rem, 13vh, 4.5rem); }
+    .players-grid[data-players="7"] .life-value, .players-grid[data-players="8"] .life-value { font-size: clamp(1.6rem, 11vh, 4rem); }
+    .players-grid[data-players="5"] .player-commander, .players-grid[data-players="6"] .player-commander { display: none; }
+    .life-label { display: none; }
+    .life-control { font-size: 1.4rem; }
+    /* Home: abas viram uma coluna à esquerda; Jogadores e Partida lado a lado */
+    .home-tabs { top: 0; bottom: 0; right: auto; width: 64px; border-top: 0; border-right: 1px solid var(--border-color); padding-bottom: 0; padding-left: env(safe-area-inset-left, 0px); box-shadow: none; }
+    .home-tabs-inner { flex-direction: column; height: 100%; justify-content: flex-start; padding-top: 0.4rem; }
+    .home-tab { height: 60px; flex: 0 0 60px; }
+    .home-tab.active::before { top: 10px; bottom: 10px; left: 0; right: auto; width: 3px; height: auto; border-radius: 0 3px 3px 0; }
+    .home-pane { margin-left: calc(64px + env(safe-area-inset-left, 0px)); }
+    #setup-screen .setup-container { max-width: none; padding: 0.5rem 0.9rem 0.9rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0 0.7rem; align-items: start; }
+    .setup-top, .setup-sync, .setup-collapsible, #setup-screen .start-btn, .join-live-btn, .apk-home-btn { grid-column: 1 / -1; }
+    .setup-top { margin-bottom: 0.2rem; }
+    .setup-brand-name { font-size: 1.05rem; }
+    #setup-screen .start-btn { bottom: 0.5rem; margin-top: 0.5rem; padding: 0.7rem 1rem; }
+    .home-pane-inner { max-width: none; padding: 0.5rem 0.9rem 1rem; }
+    .inline-view .ranking-tabs { top: 0; }
+    .rk-podium { max-width: 520px; margin-left: auto; margin-right: auto; }
+    .profiles-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+    .pp-stats { grid-template-columns: repeat(6, 1fr); }
+    .pp-stats-3 { grid-template-columns: repeat(6, 1fr); }
+    /* Sorteios deitado */
+    .st-overlay { gap: 0.5rem; padding: 0.5rem 3.6rem 0.5rem 1rem; }
+    .st-title { font-size: 1.15rem; }
+    .st-sub { font-size: 0.82rem; }
+    .st-wheel-wrap { width: min(62vh, 320px); height: min(62vh, 320px); }
+    .st-wheel-center { width: 44px; height: 44px; font-size: 0.65rem; }
+    .st-result { font-size: 1.2rem; }
+    .st-result-name { flex-direction: row; gap: 0.7rem; }
+    .st-result-name .lc-avatar { width: 56px; height: 56px; }
+    .st-actions { margin-top: 0.2rem; }
+    .st-btn { padding: 0.55rem 1rem; font-size: 0.85rem; }
+    .st-dice-list { width: min(92vw, 760px); grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
+    .st-die { padding: 0.45rem 0.3rem; gap: 0.2rem; }
+    .st-die .lc-avatar { width: 32px; height: 32px; }
+    .st-die-val { font-size: 1.7rem; min-height: 1.7rem; }
+    .st-die-name { font-size: 0.78rem; }
+    .st-zoned-top { padding: 0.1rem 0; }
+    .st-zone-avatar { width: 34px; height: 34px; }
+    .st-zone-name { font-size: 0.9rem; }
+    .st-brk .lc-avatar { width: 34px; height: 34px; }
+    .st-coin-wrap { width: 96px; height: 96px; }
+    .modal:not(.lc-dialog) .modal-content { max-height: calc(100dvh - 0.7rem); }
+}
+
+/* ----- Temporada e pontuação ----- */
+.season-body { display: flex; flex-direction: column; gap: 1rem; }
+.season-now { padding: 0.8rem 0.9rem; border-radius: var(--border-radius); background: linear-gradient(135deg, rgba(99,102,241,0.25), var(--bg-tertiary)); border: 1px solid rgba(99,102,241,0.4); }
+.season-now-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+.season-now-name { font-size: 1.5rem; font-weight: 800; line-height: 1.1; }
+.season-now-dates { font-size: 0.82rem; color: var(--text-secondary); }
+.season-months { flex-wrap: wrap; }
+.season-months button { flex: 1 1 30%; }
+.season-anchor { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-top: 0.6rem; }
+.season-anchor input { padding: 0.5rem 0.6rem; background: var(--bg-tertiary); color: var(--text-primary); border-radius: var(--border-radius-sm); font-size: 0.95rem; }
+.season-scoring { display: flex; flex-direction: column; gap: 0.4rem; }
+.season-opt { display: flex; align-items: center; gap: 0.7rem; padding: 0.6rem 0.7rem; border-radius: var(--border-radius); background: var(--bg-tertiary); border: 2px solid transparent; color: var(--text-primary); text-align: left; cursor: pointer; }
+.season-opt > .ic { width: 22px; height: 22px; color: var(--text-muted); flex-shrink: 0; }
+.season-opt-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+.season-opt-text b { font-size: 0.92rem; }
+.season-opt-text small { font-size: 0.72rem; color: var(--text-muted); line-height: 1.3; }
+.season-opt-check { width: 18px; height: 18px; color: var(--accent-primary); opacity: 0; flex-shrink: 0; }
+.season-opt.active { border-color: var(--accent-primary); background: rgba(99,102,241,0.14); }
+.season-opt.active > .ic { color: var(--accent-primary); }
+.season-opt.active .season-opt-check { opacity: 1; }
+.season-body .setup-hint { margin-top: 0.4rem; }
+.season-body .pe-actions .primary-btn { width: 100%; margin: 0; }
+
+/* ----- Sorteios com área por jogador (Reflexo, Corrida de toques) ----- */
+.st-zoned { justify-content: stretch; gap: 0; padding: 0; }
+.st-zoned-top { flex-shrink: 0; text-align: center; padding: 0.6rem 3.6rem 0.3rem; }
+.st-zoned-top .st-title { font-size: 1.2rem; }
+.st-zoned-top .st-sub { font-size: 0.82rem; }
+.st-zones { flex: 1; width: 100%; display: grid; grid-template-columns: repeat(var(--cols, 2), 1fr); gap: 0.4rem; padding: 0.4rem; min-height: 0; }
+.st-zone {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.25rem;
+    border-radius: var(--border-radius-lg); background: color-mix(in srgb, var(--zc) 30%, #0a0a0f);
+    border: 3px solid var(--zc); color: #fff; min-height: 0; overflow: hidden; transition: transform 120ms, opacity 200ms, background 200ms;
+    -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
+}
+.st-zone-avatar { width: 56px; height: 56px; border: 2px solid #fff; }
+.st-zone-name { font-weight: 800; font-size: 1.1rem; text-shadow: 0 1px 4px rgba(0,0,0,0.6); }
+.st-zone-sub { font-size: 1.6rem; font-weight: 900; min-height: 1.2em; line-height: 1; }
+.st-zone.pulse { transform: scale(0.96); background: var(--zc); }
+.st-zone.winner { background: var(--zc); transform: scale(1.02); box-shadow: 0 0 0 4px #fff, 0 0 40px var(--zc); z-index: 1; }
+.st-zone.early { background: #5a1a1a; border-color: #ef4444; }
+.st-zone.dim { opacity: 0.35; }
+.st-zone.tied { box-shadow: 0 0 0 3px #f5c542; }
+.st-zoned.wait .st-zone { background: #3b0a0a; border-color: #7f1d1d; }
+.st-zoned.go .st-zone { border-color: #22c55e; }
+.st-zoned.go { background: #0f5132; }
+.st-zoned.wait { background: #3b0a0a; }
+.st-zoned.early { background: #5a1a1a; }
+.st-banner {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.8); pointer-events: none;
+    padding: 0.5rem 1.4rem; border-radius: 999px; background: rgba(0,0,0,0.75); color: #fff; font-size: clamp(1.4rem, 5vw, 2.6rem); font-weight: 900;
+    letter-spacing: 0.04em; opacity: 0; transition: opacity 120ms, transform 120ms; z-index: 3; white-space: nowrap;
+}
+.st-banner.on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.st-banner.go { background: #16a34a; }
+.st-banner.wait { background: #b91c1c; }
+.st-banner.early { background: #7f1d1d; }
+.st-banner.win { background: #f5c542; color: #1a1a1a; }
+.st-zoned-bottom { flex-shrink: 0; display: flex; justify-content: center; padding: 0 0 0.6rem; }
+.st-zoned-bottom:empty { display: none; }
+/* Mata-mata (moeda) */
+.st-bracket { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; max-width: min(92vw, 640px); }
+.st-brk { display: flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.7rem 0.3rem 0.3rem; border-radius: 999px; background: rgba(255,255,255,0.1); font-weight: 700; font-size: 0.9rem; transition: opacity 300ms; }
+.st-brk .lc-avatar { width: 30px; height: 30px; }
+.st-brk.out { opacity: 0.3; text-decoration: line-through; }
+.st-coin-wrap { width: 120px; height: 120px; perspective: 600px; }
+.st-coin { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; }
+.st-coin-face { position: absolute; inset: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 900; color: #fff; backface-visibility: hidden; border: 5px solid rgba(255,255,255,0.85); box-shadow: 0 8px 24px rgba(0,0,0,0.6); text-shadow: 0 2px 4px rgba(0,0,0,0.6); }
+.st-coin-b { transform: rotateY(180deg); }
+
 /* ----- v2.3.1: comandante no card, identidade do jogador, config em 4 abas ----- */
 .mana-dots { display: inline-flex; gap: 2px; vertical-align: middle; }
 .mana-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; border: 1px solid rgba(0,0,0,0.45); box-shadow: 0 0 0 1px rgba(255,255,255,0.15); }

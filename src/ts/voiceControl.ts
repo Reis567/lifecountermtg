@@ -811,7 +811,7 @@ function vcEnsureFab(): void {
     btn.type = 'button';
     btn.id = 'voice-fab';
     btn.className = 'voice-fab';
-    btn.title = 'Segure e fale um comando (ex.: "Zé menos 3"); toque rápido liga/desliga';
+    btn.title = 'Segure, fale o comando (ex.: "Zé menos 3") e solte pra aplicar';
     btn.innerHTML = '<svg class="ic"><use href="#ic-mic"/></svg>';
     btn.style.display = vcGameActive ? '' : 'none';
     btn.setAttribute('aria-label', 'Comando de voz');
@@ -835,14 +835,12 @@ function vcEnsureFab(): void {
         const held = Date.now() - vcHoldStartedAt;
         if (e.type === 'pointercancel') { vcStop(); return; }
         if (held < VC_TAP_MS) {
-            // Toque rápido: se já estava ouvindo antes do toque, desliga; senão fica ouvindo.
-            if (vcTapShouldStop) { vcStop(); vcTapShouldStop = false; return; }
-            vcTapShouldStop = true;
-            vcSchedulePushStop(VC_PUSH_SILENCE_MS);
+            // Toque rápido não liga nada: o jeito é SEGURAR, falar e soltar.
+            vcStop();
+            vcToast('Segure o microfone enquanto fala e solte pra aplicar', false);
             return;
         }
         // Soltou depois de segurar: para de captar e espera o resultado final.
-        vcTapShouldStop = false;
         if (vcPushTimer !== null) { clearTimeout(vcPushTimer); vcPushTimer = null; }
         vcBeginDrain();
     };

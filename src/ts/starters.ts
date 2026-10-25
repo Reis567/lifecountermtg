@@ -218,64 +218,266 @@ export function openDiceStarter(): void {
     el.querySelector('#st-roll')?.addEventListener('click', roll);
 }
 
+// ------------------------------------------------- Áreas por jogador (zonas)
+// Reflexo e Corrida de toques dividem a tela em uma área por jogador (cor e
+// nome de cada um), que funciona bem com o celular deitado no meio da mesa.
+function stZonesHtml(players: StPlayer[]): string {
+    const n = players.length;
+    const cols = n <= 2 ? n : n <= 6 ? Math.ceil(n / 2) : Math.ceil(n / 3);
+    return `<div class="st-zones" style="--cols:${cols}">${players.map((p) => `
+        <div class="st-zone" data-id="${p.id}" style="--zc:${p.color}">
+            ${avatarHtml({ name: p.name, photo_url: p.avatar, color: p.color }, 'lc-avatar st-zone-avatar')}
+            <div class="st-zone-name">${escapeHtml(p.name)}</div>
+            <div class="st-zone-sub" data-sub="${p.id}"></div>
+        </div>`).join('')}</div>`;
+}
+
+function stZoneOf(e: Event): HTMLElement | null {
+    return (e.target as HTMLElement).closest('.st-zone') as HTMLElement | null;
+}
+
 // ------------------------------------------------------------------ Reflexo
+// Cada um deixa o dedo perto da própria área. A tela conta 3-2-1, fica vermelha
+// ("esperem") e, num momento aleatório, VERDE: o primeiro a tocar na própria
+// área começa. Quem toca antes do verde queima a largada (e o jogo recomeça).
 export function openReflexStarter(): void {
-    const el = stOpen('st-reflex');
-    el.innerHTML += `
-        <div class="st-title" id="st-title">Reflexo</div>
-        <div class="st-reflex-big" id="st-big">PREPARAR</div>
-        <div class="st-sub" id="st-sub">Dedos fora da tela. Quando ficar VERDE, o primeiro a encostar começa.</div>
-        <div id="st-out"></div>`;
-    const big = el.querySelector('#st-big') as HTMLElement;
+    const players = stPlayers();
+    if (players.length < 2) return;
+    const el = stOpen('st-zoned st-reflex');
+    el.insertAdjacentHTML('beforeend', `
+        <div class="st-zoned-top">
+            <div class="st-title">Reflexo</div>
+            <div class="st-sub" id="st-sub">Cada um perto da sua área. Toque em qualquer lugar pra começar.</div>
+        </div>
+        ${stZonesHtml(players)}
+        <div class="st-banner" id="st-banner"></div>
+        <div class="st-zoned-bottom" id="st-out"></div>`);
     const sub = el.querySelector('#st-sub') as HTMLElement;
+    const banner = el.querySelector('#st-banner') as HTMLElement;
     const out = el.querySelector('#st-out') as HTMLElement;
-    let phase: 'idle' | 'wait' | 'go' | 'done' = 'idle';
-    const colors = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#22c55e', '#ef4444', '#3b82f6', '#a855f7'];
-    const arm = (): void => {
+    let phase: 'idle' | 'count' | 'wait' | 'go' | 'done' = 'idle';
+    const setBanner = (txt: string, cls = ''): void => { banner.textContent = txt; banner.className = `st-banner ${cls} ${txt ? 'on' : ''}`; };
+    const reset = (): void => {
+        el.querySelectorAll('.st-zone').forEach((z) => z.classList.remove('winner', 'early', 'dim'));
+        el.classList.remove('wait', 'go', 'early');
         out.innerHTML = '';
-        el.querySelectorAll('.st-tap').forEach((t) => t.remove());
-        el.classList.remove('go', 'early');
-        el.classList.add('wait');
-        phase = 'wait';
-        big.textContent = 'ESPEREM…';
-        sub.textContent = 'Dedos fora da tela. Verde = pode encostar.';
+        setBanner('');
+    };
+    const arm = (): void => {
+        reset();
+        phase = 'count';
+        sub.textContent = 'Preparar…';
+        const steps = ['3', '2', '1'];
+        steps.forEach((s, i) => stLater(() => { if (phase === 'count') { setBanner(s); audioManager.play('click'); } }, 600 * i));
         stLater(() => {
-            if (phase !== 'wait') return;
-            phase = 'go';
-            el.classList.remove('wait');
-            el.classList.add('go');
-            big.textContent = 'AGORA!';
-            audioManager.play('turn');
-            try { navigator.vibrate?.(60); } catch { /* ignore */ }
-        }, 1800 + stRand(3200));
+            if (phase !== 'count') return;
+            phase = 'wait';
+            el.classList.add('wait');
+            setBanner('ESPEREM…', 'wait');
+            sub.textContent = 'Vermelho: dedo parado. Verde: toque na SUA área.';
+            stLater(() => {
+                if (phase !== 'wait') return;
+                phase = 'go';
+                el.classList.remove('wait');
+                el.classList.add('go');
+                setBanner('AGORA!', 'go');
+                audioManager.play('turn');
+                try { navigator.vibrate?.(60); } catch { /* ignore */ }
+            }, 1500 + stRand(3500));
+        }, 600 * steps.length);
     };
     el.addEventListener('pointerdown', (e) => {
         if ((e.target as HTMLElement).closest('.st-close, .st-btn')) return;
         if (phase === 'idle') { arm(); return; }
-        if (phase === 'wait') {
+        const zone = stZoneOf(e);
+        if (!zone) return;
+        const p = players.find((x) => x.id === zone.dataset.id)!;
+        if (phase === 'wait' || phase === 'count') {
             phase = 'done';
             el.classList.remove('wait');
             el.classList.add('early');
-            big.textContent = 'QUEIMOU!';
-            sub.textContent = 'Alguém encostou antes do verde. Toque pra tentar de novo.';
+            zone.classList.add('early');
+            setBanner(`${p.name} queimou a largada!`, 'early');
+            sub.textContent = 'Recomeçando…';
             audioManager.play('damage');
-            stLater(() => { phase = 'idle'; }, 600);
+            try { navigator.vibrate?.([80, 60, 80]); } catch { /* ignore */ }
+            stLater(() => { phase = 'idle'; arm(); }, 1800);
             return;
         }
         if (phase === 'go') {
             phase = 'done';
-            const dot = document.createElement('div');
-            dot.className = 'st-tap';
-            dot.style.left = `${e.clientX}px`;
-            dot.style.top = `${e.clientY}px`;
-            dot.style.background = colors[stRand(colors.length)];
-            el.appendChild(dot);
-            big.textContent = 'ESSE DEDO!';
-            sub.textContent = 'O mais rápido começa.';
+            el.classList.remove('go');
+            el.querySelectorAll('.st-zone').forEach((z) => z.classList.toggle('dim', z !== zone));
+            zone.classList.add('winner');
+            setBanner(`${p.name} começa!`, 'win');
+            sub.textContent = 'Reflexo mais rápido da mesa.';
             audioManager.play('turn');
             try { navigator.vibrate?.([30, 40, 90]); } catch { /* ignore */ }
             out.innerHTML = stActions(arm);
             stBindActions(out, () => { phase = 'idle'; arm(); });
+            stMarkActive(p);
         }
     });
+}
+
+// --------------------------------------------------------- Corrida de toques
+// 5 segundos: cada um toca na própria área o mais rápido que conseguir. Quem
+// tocar mais vezes começa.
+export function openTapRaceStarter(): void {
+    const players = stPlayers();
+    if (players.length < 2) return;
+    const el = stOpen('st-zoned st-race');
+    el.insertAdjacentHTML('beforeend', `
+        <div class="st-zoned-top">
+            <div class="st-title">Corrida de toques</div>
+            <div class="st-sub" id="st-sub">5 segundos: toque na SUA área o mais rápido que der. Toque em qualquer lugar pra começar.</div>
+        </div>
+        ${stZonesHtml(players)}
+        <div class="st-banner" id="st-banner"></div>
+        <div class="st-zoned-bottom" id="st-out"></div>`);
+    const sub = el.querySelector('#st-sub') as HTMLElement;
+    const banner = el.querySelector('#st-banner') as HTMLElement;
+    const out = el.querySelector('#st-out') as HTMLElement;
+    const counts = new Map<string, number>();
+    let phase: 'idle' | 'count' | 'run' | 'done' = 'idle';
+    const DURATION = 5000;
+    const setBanner = (txt: string, cls = ''): void => { banner.textContent = txt; banner.className = `st-banner ${cls} ${txt ? 'on' : ''}`; };
+    const paint = (): void => {
+        players.forEach((p) => {
+            const s = el.querySelector(`[data-sub="${p.id}"]`) as HTMLElement | null;
+            if (s) s.textContent = `${counts.get(p.id) || 0}`;
+        });
+    };
+    const start = (): void => {
+        el.querySelectorAll('.st-zone').forEach((z) => z.classList.remove('winner', 'dim', 'tied'));
+        out.innerHTML = '';
+        counts.clear();
+        paint();
+        phase = 'count';
+        ['3', '2', '1'].forEach((s, i) => stLater(() => { if (phase === 'count') { setBanner(s); audioManager.play('click'); } }, 600 * i));
+        stLater(() => {
+            if (phase !== 'count') return;
+            phase = 'run';
+            el.classList.add('go');
+            setBanner('VAI!', 'go');
+            sub.textContent = 'Toca, toca, toca!';
+            audioManager.play('turn');
+            const t0 = Date.now();
+            const tick = window.setInterval(() => {
+                const left = Math.max(0, DURATION - (Date.now() - t0));
+                setBanner(`${(left / 1000).toFixed(1)} s`, 'go');
+                if (left <= 0) { clearInterval(tick); finish(); }
+            }, 100);
+            stTimers.push(tick as unknown as number);
+        }, 1800);
+    };
+    const finish = (): void => {
+        phase = 'done';
+        el.classList.remove('go');
+        const best = Math.max(...players.map((p) => counts.get(p.id) || 0));
+        const top = players.filter((p) => (counts.get(p.id) || 0) === best);
+        if (best === 0 || top.length > 1) {
+            top.forEach((p) => el.querySelector(`.st-zone[data-id="${p.id}"]`)?.classList.add('tied'));
+            setBanner(best === 0 ? 'Ninguém tocou!' : `Empate em ${best}!`, 'early');
+            sub.textContent = 'De novo?';
+            out.innerHTML = stActions(start);
+            stBindActions(out, start);
+            return;
+        }
+        const p = top[0];
+        el.querySelectorAll('.st-zone').forEach((z) => z.classList.toggle('dim', (z as HTMLElement).dataset.id !== p.id));
+        el.querySelector(`.st-zone[data-id="${p.id}"]`)?.classList.add('winner');
+        setBanner(`${p.name} começa!`, 'win');
+        sub.textContent = `${best} toques em 5 segundos.`;
+        audioManager.play('turn');
+        try { navigator.vibrate?.([30, 40, 90]); } catch { /* ignore */ }
+        out.innerHTML = stActions(start);
+        stBindActions(out, start);
+        stMarkActive(p);
+    };
+    el.addEventListener('pointerdown', (e) => {
+        if ((e.target as HTMLElement).closest('.st-close, .st-btn')) return;
+        if (phase === 'idle') { start(); return; }
+        if (phase !== 'run') return;
+        const zone = stZoneOf(e);
+        if (!zone) return;
+        const id = zone.dataset.id!;
+        counts.set(id, (counts.get(id) || 0) + 1);
+        zone.classList.add('pulse');
+        window.setTimeout(() => zone.classList.remove('pulse'), 90);
+        paint();
+    });
+}
+
+// ----------------------------------------------------------- Mata-mata (moeda)
+// Eliminatória: a cada rodada, uma moeda tira um jogador. Quem sobrar começa.
+export function openBracketStarter(): void {
+    const players = stPlayers();
+    if (players.length < 2) return;
+    const el = stOpen();
+    el.insertAdjacentHTML('beforeend', `
+        <div class="st-title">Mata-mata</div>
+        <div class="st-sub" id="st-sub">A cada rodada a moeda elimina um. Quem sobrar começa.</div>
+        <div class="st-bracket" id="st-bracket"></div>
+        <div class="st-coin-wrap" id="st-coin"><div class="st-coin"><div class="st-coin-face st-coin-a"></div><div class="st-coin-face st-coin-b"></div></div></div>
+        <div id="st-out"><div class="st-actions"><button type="button" class="st-btn st-btn-primary" id="st-flip">Jogar a moeda</button></div></div>`);
+    const sub = el.querySelector('#st-sub') as HTMLElement;
+    const list = el.querySelector('#st-bracket') as HTMLElement;
+    const coinWrap = el.querySelector('#st-coin') as HTMLElement;
+    const coin = el.querySelector('.st-coin') as HTMLElement;
+    const out = el.querySelector('#st-out') as HTMLElement;
+    let alive = players.slice();
+    let flipping = false;
+    const render = (): void => {
+        list.innerHTML = players.map((p) => `
+            <div class="st-brk ${alive.includes(p) ? '' : 'out'}" data-id="${p.id}">
+                ${avatarHtml({ name: p.name, photo_url: p.avatar, color: p.color }, 'lc-avatar')}
+                <span>${escapeHtml(p.name)}</span>
+            </div>`).join('');
+    };
+    const flip = (): void => {
+        if (flipping || alive.length < 2) return;
+        flipping = true;
+        out.innerHTML = '';
+        // Duelo: dois da vez (os dois primeiros vivos, rotacionando); perdedor sai.
+        const a = alive[0], b = alive[1];
+        const faceA = coinWrap.querySelector('.st-coin-a') as HTMLElement;
+        const faceB = coinWrap.querySelector('.st-coin-b') as HTMLElement;
+        faceA.style.background = a.color; faceA.textContent = a.name.slice(0, 2).toUpperCase();
+        faceB.style.background = b.color; faceB.textContent = b.name.slice(0, 2).toUpperCase();
+        sub.textContent = `${a.name} × ${b.name}`;
+        const loserIsA = stRand(2) === 0;
+        // Gira várias voltas e para na face do VENCEDOR.
+        const turns = 5 + stRand(3);
+        const end = turns * 360 + (loserIsA ? 180 : 0);
+        coin.style.transition = 'none';
+        coin.style.transform = 'rotateY(0deg)';
+        void coin.offsetWidth;
+        coin.style.transition = 'transform 1.8s cubic-bezier(0.2, 0.8, 0.2, 1)';
+        coin.style.transform = `rotateY(${end}deg)`;
+        audioManager.play('click');
+        stLater(() => {
+            const loser = loserIsA ? a : b;
+            const winner = loserIsA ? b : a;
+            alive = alive.filter((p) => p !== loser);
+            // vencedor vai pro fim da fila (duela de novo só quando precisar)
+            alive = alive.filter((p) => p !== winner).concat(winner);
+            render();
+            audioManager.play('damage');
+            flipping = false;
+            if (alive.length === 1) {
+                const p = alive[0];
+                sub.textContent = '';
+                out.innerHTML = stResultHtml(p, 'Sobreviveu ao mata-mata') + stActions(() => { alive = players.slice(); render(); });
+                stBindActions(out, () => { alive = players.slice(); render(); sub.textContent = 'A cada rodada a moeda elimina um. Quem sobrar começa.'; out.innerHTML = `<div class="st-actions"><button type="button" class="st-btn st-btn-primary" id="st-flip">Jogar a moeda</button></div>`; out.querySelector('#st-flip')?.addEventListener('click', flip); });
+                stMarkActive(p);
+            } else {
+                sub.textContent = `${loser.name} caiu! Faltam ${alive.length}.`;
+                out.innerHTML = `<div class="st-actions"><button type="button" class="st-btn st-btn-primary" id="st-flip">Próxima moeda</button></div>`;
+                out.querySelector('#st-flip')?.addEventListener('click', flip);
+            }
+        }, 1900);
+    };
+    render();
+    el.querySelector('#st-flip')?.addEventListener('click', flip);
 }

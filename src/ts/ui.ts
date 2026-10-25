@@ -6,7 +6,7 @@ import { gameState, secureRandom, secureRandomInt } from './state.js';
 import { audioManager, ambientMusic, narrator } from './audio.js';
 import { openCardScanner, setupCardScanner } from './cardScanner.js';
 import { openFingerPicker } from './fingerPicker.js';
-import { openRouletteStarter, openDiceStarter, openReflexStarter } from './starters.js';
+import { openRouletteStarter, openDiceStarter, openReflexStarter, openTapRaceStarter, openBracketStarter } from './starters.js';
 import { setupVoiceControl, vcSetGameActive, vcFabVisible } from './voiceControl.js';
 import { narrateElimination, narrateWinner } from './aiNarrator.js';
 import { startEscandalosa, stopEscandalosa, isEscandalosaEnabled } from './victory.js';
@@ -1096,9 +1096,11 @@ function setupGameScreenListeners(): void {
     // Next turn button
     $('next-turn-btn')?.addEventListener('click', () => {
         if (isButtonDebounced('next-turn-btn')) return;
-        audioManager.play('turn');
-        gameState.nextTurn();
+        passTurn('botão');
     });
+    // Toque no "Turno N · fulano" do cabeçalho também passa.
+    document.querySelector('.turn-indicator')?.addEventListener('click', () => passTurn('cabeçalho'));
+    setupTurnSwipe();
 
     // Undo buttons
     $('undo-btn')?.addEventListener('click', performUndo);
@@ -1227,6 +1229,8 @@ function setupGameScreenListeners(): void {
     $('open-roulette')?.addEventListener('click', () => { closeModal($('tools-modal')); openRouletteStarter(); });
     $('open-dicestarter')?.addEventListener('click', () => { closeModal($('tools-modal')); openDiceStarter(); });
     $('open-reflex')?.addEventListener('click', () => { closeModal($('tools-modal')); openReflexStarter(); });
+    $('open-taprace')?.addEventListener('click', () => { closeModal($('tools-modal')); openTapRaceStarter(); });
+    $('open-bracket')?.addEventListener('click', () => { closeModal($('tools-modal')); openBracketStarter(); });
     // Voz: o voiceControl liga o toggle no #voice-btn; aqui só fechamos o modal.
     $('voice-btn')?.addEventListener('click', () => closeModal($('tools-modal')));
 
@@ -1385,6 +1389,8 @@ function setupSettingsTabs(): void {
     starter('settings-open-randomstarter', () => startRandomStarterAnimation());
     starter('settings-open-fingerpicker', () => openFingerPicker());
     starter('settings-open-reflex', () => openReflexStarter());
+    starter('settings-open-taprace', () => openTapRaceStarter());
+    starter('settings-open-bracket', () => openBracketStarter());
     starter('settings-open-roulette', () => openRouletteStarter());
     starter('settings-open-dicestarter', () => openDiceStarter());
 }
@@ -1966,39 +1972,63 @@ function openSeasonSettings(current: SeasonSettingsDTO | null, onSaved: (cfg: Se
     modal.className = 'modal active';
     modal.id = 'season-cfg-dyn';
     modal.style.zIndex = '2100';
-    const months = current?.season_months ?? 1;
-    const tiebreak = current?.tiebreak ?? 'points';
+    let months = current?.season_months ?? 1;
+    let tiebreak: 'points' | 'wins' = current?.tiebreak ?? 'points';
+    let scoring: ScoringMode = current?.scoring_mode ?? 'placement';
     const start = current?.season_start ?? '2026-01-01';
+    const fmtD = (iso: string): string => { const d = new Date(iso + 'T00:00:00'); return isNaN(d.getTime()) ? iso : d.toLocaleDateString('pt-BR'); };
+    const SCORING: Array<{ key: ScoringMode; title: string; desc: string; ic: string }> = [
+        { key: 'placement', title: 'Por colocação', desc: 'Numa mesa de N, o 1º leva N pontos, o 2º leva N−1… o último leva 1. Premia consistência.', ic: 'ic-counters' },
+        { key: 'winner_only', title: 'Só vitória', desc: 'Quem venceu leva 1 ponto; o resto, nada. Simples e direto.', ic: 'ic-trophy' },
+        { key: 'podium', title: 'Pódio', desc: '1º leva 3 pontos e 2º leva 1. Dá valor ao segundo lugar.', ic: 'ic-crown' },
+        { key: 'elo', title: 'Elo', desc: 'Nota que sobe mais ao vencer mesa forte e cai menos ao perder pra favoritos. Começa em 1000.', ic: 'ic-chart' },
+    ];
     modal.innerHTML = `
-        <div class="modal-content lc-dialog-content">
-            <div class="lc-dialog-title"><svg class="ic ic-title"><use href="#ic-settings"/></svg>Temporada, pontuação e desempate</div>
-            <div class="season-form">
-                <label>Duração da temporada
-                    <select id="season-months">
-                        ${[1, 2, 3, 4, 6, 12].map(m => `<option value="${m}" ${m === months ? 'selected' : ''}>${m === 1 ? '1 mês' : m === 12 ? '1 ano' : `${m} meses`}</option>`).join('')}
-                    </select>
-                </label>
-                <label>Início da contagem (âncora)
-                    <input type="date" id="season-start" value="${escapeHtml(start)}">
-                </label>
-                <label>Pontuação
-                    <select id="season-scoring">
-                        <option value="placement" ${(current?.scoring_mode ?? 'placement') === 'placement' ? 'selected' : ''}>Por colocação (1º = N pts … último = 1)</option>
-                        <option value="winner_only" ${current?.scoring_mode === 'winner_only' ? 'selected' : ''}>Só vitória vale (1 ponto)</option>
-                        <option value="podium" ${current?.scoring_mode === 'podium' ? 'selected' : ''}>Pódio: 1º = 3, 2º = 1</option>
-                        <option value="elo" ${current?.scoring_mode === 'elo' ? 'selected' : ''}>Elo (nota por força da mesa)</option>
-                    </select>
-                </label>
-                <label>Desempate
-                    <select id="season-tiebreak">
-                        <option value="points" ${tiebreak === 'points' ? 'selected' : ''}>Pontos, depois vitórias</option>
-                        <option value="wins" ${tiebreak === 'wins' ? 'selected' : ''}>Vitórias, depois pontos</option>
-                    </select>
-                </label>
-                <div class="update-muted">${current ? `Temporada atual: ${escapeHtml(current.current_season.label)} (${current.current_season.start} → ${current.current_season.end})` : 'Sem conexão: não dá pra alterar agora.'}</div>
-                <div class="lc-dialog-actions">
+        <div class="modal-content profile-picker-content">
+            <div class="modal-header">
+                <h2><svg class="ic ic-title"><use href="#ic-settings"/></svg>Temporada e pontuação</h2>
+                <button class="modal-close" type="button">&times;</button>
+            </div>
+            <div class="profile-picker-body season-body">
+                ${current ? `
+                <div class="season-now">
+                    <div class="season-now-label">Temporada atual</div>
+                    <div class="season-now-name">${escapeHtml(current.current_season.label)}</div>
+                    <div class="season-now-dates">${fmtD(current.current_season.start)} até ${fmtD(current.current_season.end)}</div>
+                </div>` : '<div class="ranking-empty">Sem conexão com o servidor: não dá pra alterar agora.</div>'}
+                <div class="pe-section">
+                    <div class="podium-section-label">Duração de cada temporada</div>
+                    <div class="seg-mini season-months" id="season-months">
+                        ${[1, 2, 3, 4, 6, 12].map(m => `<button type="button" data-v="${m}" class="${m === months ? 'active' : ''}">${m === 12 ? '1 ano' : `${m} ${m === 1 ? 'mês' : 'meses'}`}</button>`).join('')}
+                    </div>
+                    <label class="season-anchor">
+                        <span class="pp-bar-label">Contagem começa em</span>
+                        <input type="date" id="season-start" value="${escapeHtml(start)}">
+                    </label>
+                    <div class="setup-hint">As temporadas são contadas a partir dessa data, de X em X meses. Ex.: 3 meses a partir de 01/01 = T1, T2, T3 e T4 do ano.</div>
+                </div>
+                <div class="pe-section">
+                    <div class="podium-section-label">Como os pontos são contados</div>
+                    <div class="season-scoring" id="season-scoring">
+                        ${SCORING.map(s => `
+                        <button type="button" class="season-opt ${s.key === scoring ? 'active' : ''}" data-v="${s.key}">
+                            <svg class="ic"><use href="#${s.ic}"/></svg>
+                            <span class="season-opt-text"><b>${s.title}</b><small>${s.desc}</small></span>
+                            <svg class="ic season-opt-check"><use href="#ic-check"/></svg>
+                        </button>`).join('')}
+                    </div>
+                    <div class="setup-hint">Mudar a pontuação recalcula o ranking inteiro (todas as temporadas), não só daqui pra frente.</div>
+                </div>
+                <div class="pe-section">
+                    <div class="podium-section-label">Desempate</div>
+                    <div class="seg-mini" id="season-tiebreak">
+                        <button type="button" data-v="points" class="${tiebreak === 'points' ? 'active' : ''}">Pontos, depois vitórias</button>
+                        <button type="button" data-v="wins" class="${tiebreak === 'wins' ? 'active' : ''}">Vitórias, depois pontos</button>
+                    </div>
+                </div>
+                <div class="pe-actions">
+                    <button type="button" class="primary-btn" id="season-save" ${current ? '' : 'disabled'}>Salvar para a mesa toda</button>
                     <button type="button" class="cs-gallery-btn" id="season-cancel">Cancelar</button>
-                    <button type="button" class="primary-btn" id="season-save" ${current ? '' : 'disabled'}>Salvar</button>
                 </div>
             </div>
         </div>
@@ -2006,16 +2036,29 @@ function openSeasonSettings(current: SeasonSettingsDTO | null, onSaved: (cfg: Se
     document.body.appendChild(modal);
     const close = (): void => modal.remove();
     modal.querySelector('#season-cancel')?.addEventListener('click', close);
+    modal.querySelector('.modal-close')?.addEventListener('click', close);
     modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    const seg = (id: string, apply: (v: string) => void): void => {
+        const box = modal.querySelector(`#${id}`) as HTMLElement;
+        box.addEventListener('click', (e) => {
+            const b = (e.target as HTMLElement).closest('button[data-v]') as HTMLElement | null;
+            if (!b) return;
+            box.querySelectorAll('button[data-v]').forEach((x) => x.classList.toggle('active', x === b));
+            apply(b.dataset.v!);
+        });
+    };
+    seg('season-months', (v) => { months = Number(v); });
+    seg('season-scoring', (v) => { scoring = v as ScoringMode; });
+    seg('season-tiebreak', (v) => { tiebreak = v as 'points' | 'wins'; });
     modal.querySelector('#season-save')?.addEventListener('click', async () => {
         const btn = modal.querySelector('#season-save') as HTMLButtonElement;
         btn.disabled = true;
         try {
             const cfg = await apiSetSeasonSettings({
-                season_months: Number((modal.querySelector('#season-months') as HTMLSelectElement).value),
+                season_months: months,
                 season_start: (modal.querySelector('#season-start') as HTMLInputElement).value,
-                tiebreak: (modal.querySelector('#season-tiebreak') as HTMLSelectElement).value as 'points' | 'wins',
-                scoring_mode: (modal.querySelector('#season-scoring') as HTMLSelectElement).value as ScoringMode,
+                tiebreak,
+                scoring_mode: scoring,
             });
             close();
             onSaved(cfg);
@@ -3679,48 +3722,103 @@ function updateGridLayout(grid: HTMLElement, state: GameState): void {
     // Build grid template
     // minmax(0, 1fr): um card deitado (90°/270°, mais largo que a célula antes de
     // girar) não pode esticar a coluna/linha e esmagar os vizinhos.
+    // Os cards ocupam a tela toda; o microfone fica no centro e os cards que
+    // encostam nele ganham um recorte circular (ver maskCardsAroundFab).
     const maxCols = Math.max(...rows);
-    const nRows = rows.length;
+    grid.classList.remove('has-fab');
+    grid.style.gridTemplateColumns = `repeat(${maxCols}, minmax(0, 1fr))`;
+    grid.style.gridTemplateRows = `repeat(${rows.length}, minmax(0, 1fr))`;
+    grid.style.gridTemplateAreas = areas.map(row => `"${row.join(' ')}"`).join(' ');
+}
 
-    // Microfone ENCAIXADO entre os cards: o grid ganha uma calha (coluna e/ou
-    // linha estreita) no meio, e o botão vira um item do grid na área "fab".
-    // Colunas pares → calha vertical entre as duas do meio; 2+ linhas → calha
-    // horizontal entre as linhas centrais. Sem calha possível (1 linha com
-    // colunas ímpares) o botão cai no fallback absoluto do CSS.
-    const fab = vcFabVisible();
-    const gutterCol = fab && maxCols % 2 === 0 ? maxCols / 2 : -1;
-    const gutterRow = fab && nRows >= 2 ? Math.floor(nRows / 2) : -1;
-    const hasFabArea = gutterCol >= 0 || gutterRow >= 0;
-    const colTpl: string[] = [];
-    for (let c = 0; c < maxCols; c++) {
-        if (c === gutterCol) colTpl.push('var(--fab-gutter)');
-        colTpl.push('minmax(0, 1fr)');
-    }
-    const rowTpl: string[] = [];
-    const finalAreas: string[][] = [];
-    const fabCol = gutterCol >= 0 ? gutterCol : Math.floor(maxCols / 2);
-    const withGutterCol = (row: string[]): string[] => {
-        if (gutterCol < 0) return row;
-        const left = row[gutterCol - 1], right = row[gutterCol];
-        return [...row.slice(0, gutterCol), left === right ? left : '.', ...row.slice(gutterCol)];
-    };
-    for (let r = 0; r < nRows; r++) {
-        if (r === gutterRow) {
-            rowTpl.push('var(--fab-gutter)');
-            const g = withGutterCol(Array(maxCols).fill('.'));
-            g[fabCol] = 'fab';
-            finalAreas.push(g);
+// ===== Passar o turno =====
+// Três jeitos: botão "Passar" no card de quem está jogando, ▶ do cabeçalho e
+// ARRASTAR PRO LADO em qualquer ponto da mesa (fora dos botões de vida).
+let lastPassAt = 0;
+function passTurn(_via: string): void {
+    const now = Date.now();
+    if (now - lastPassAt < 400) return;
+    lastPassAt = now;
+    const s = gameState.getState();
+    if (!s.gameStarted || s.matchClosed) return;
+    audioManager.play('turn');
+    gameState.nextTurn();
+    const n = gameState.getState();
+    const ap = n.players[n.activePlayerIndex];
+    showSpecialMoment(`Turno ${n.currentTurn} · vez de ${ap?.name || '?'}`, 'success');
+    try { navigator.vibrate?.(20); } catch { /* ignore */ }
+}
+
+function setupTurnSwipe(): void {
+    const grid = document.getElementById('players-grid');
+    if (!grid) return;
+    let sx = 0, sy = 0, st = 0, tracking = false;
+    const SWIPE_MIN = 90, SWIPE_MAX_OFF = 70, SWIPE_MAX_MS = 700;
+    grid.addEventListener('pointerdown', (e) => {
+        const t = e.target as HTMLElement;
+        // Botões, controles de vida e o microfone têm gesto próprio.
+        if (t.closest('button, input, select, .voice-fab, .life-shortcuts-popup, .revive-overlay')) { tracking = false; return; }
+        tracking = true;
+        sx = e.clientX; sy = e.clientY; st = Date.now();
+    }, { passive: true });
+    const end = (e: PointerEvent): void => {
+        if (!tracking) return;
+        tracking = false;
+        const dx = e.clientX - sx, dy = e.clientY - sy;
+        if (Date.now() - st > SWIPE_MAX_MS) return;
+        if (Math.abs(dx) >= SWIPE_MIN && Math.abs(dy) <= SWIPE_MAX_OFF) {
+            const fx = e.clientX, fy = e.clientY;
+            // Rastro visual rápido na direção do arrasto.
+            const trail = document.createElement('div');
+            trail.className = 'turn-swipe-trail';
+            trail.style.left = `${fx}px`; trail.style.top = `${fy}px`;
+            document.body.appendChild(trail);
+            window.setTimeout(() => trail.remove(), 500);
+            passTurn('arrasto');
         }
-        rowTpl.push('minmax(0, 1fr)');
-        const row = withGutterCol(areas[r]);
-        // 1 linha só: o microfone mora na calha vertical, no meio da linha.
-        if (gutterRow < 0 && gutterCol >= 0 && row[gutterCol] === '.') row[gutterCol] = 'fab';
-        finalAreas.push(row);
+    };
+    grid.addEventListener('pointerup', end, { passive: true });
+    grid.addEventListener('pointercancel', () => { tracking = false; }, { passive: true });
+}
+
+// Recorte circular nos cards ao redor do microfone: o botão fica no centro do
+// grid, por cima, e cada card que ele encosta recebe uma máscara com um buraco
+// exatamente onde o botão está (convertido pro sistema de coordenadas do card,
+// que pode estar girado). Assim o botão "encaixa" entre os cards sem roubar
+// espaço de ninguém.
+const FAB_CUT_RADIUS = 32; // raio do buraco (botão de 52 px + folga)
+function maskCardsAroundFab(): void {
+    const grid = document.getElementById('players-grid');
+    const fab = document.getElementById('voice-fab');
+    if (!grid) return;
+    const cards = grid.querySelectorAll<HTMLElement>('.player-card');
+    const visible = !!fab && vcFabVisible() && getComputedStyle(fab).display !== 'none';
+    if (!visible) {
+        cards.forEach((c) => { c.style.maskImage = ''; (c.style as any).webkitMaskImage = ''; });
+        return;
     }
-    grid.classList.toggle('has-fab', hasFabArea);
-    grid.style.gridTemplateColumns = colTpl.join(' ');
-    grid.style.gridTemplateRows = rowTpl.join(' ');
-    grid.style.gridTemplateAreas = finalAreas.map(row => `"${row.join(' ')}"`).join(' ');
+    const fr = fab!.getBoundingClientRect();
+    const fx = fr.left + fr.width / 2, fy = fr.top + fr.height / 2;
+    cards.forEach((card) => {
+        const r = card.getBoundingClientRect();
+        // Distância do centro do botão até o retângulo do card (0 = dentro).
+        const dx = Math.max(r.left - fx, 0, fx - r.right);
+        const dy = Math.max(r.top - fy, 0, fy - r.bottom);
+        if (Math.hypot(dx, dy) > FAB_CUT_RADIUS + 1) {
+            card.style.maskImage = '';
+            (card.style as any).webkitMaskImage = '';
+            return;
+        }
+        // Ponto do botão em coordenadas locais do card (antes da rotação).
+        const theta = (Number(card.dataset.rotation || 0) * Math.PI) / 180;
+        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+        const vx = fx - cx, vy = fy - cy;
+        const lx = card.offsetWidth / 2 + (vx * Math.cos(theta) + vy * Math.sin(theta));
+        const ly = card.offsetHeight / 2 + (-vx * Math.sin(theta) + vy * Math.cos(theta));
+        const m = `radial-gradient(circle at ${lx.toFixed(1)}px ${ly.toFixed(1)}px, transparent ${FAB_CUT_RADIUS}px, #000 ${FAB_CUT_RADIUS + 1}px)`;
+        card.style.maskImage = m;
+        (card.style as any).webkitMaskImage = m;
+    });
 }
 
 // ===== Render parcial dos cards =====
@@ -3824,6 +3922,7 @@ function fitRotatedCards(): void {
             card.style.minHeight = '0';
             card.style.maxWidth = 'none';
         });
+        maskCardsAroundFab();
     });
 }
 window.addEventListener('resize', () => fitRotatedCards());
@@ -3878,27 +3977,25 @@ function renderPlayerCardHtml(player: Player, index: number, state: GameState): 
                         ${player.emoji ? `<span class="player-emoji">${escapeHtml(player.emoji)}</span>` :
                           player.avatar ? `<img src="${escapeHtml(player.avatar)}" class="player-avatar" alt="${escapeHtml(player.name)}">` :
                           `<div class="player-avatar" style="background: ${escapeHtml(player.color)}"></div>`}
-                        <span class="player-name">${escapeHtml(player.name)}</span>
-                        ${player.tag ? `<span class="player-tag">${escapeHtml(player.tag)}</span>` : ''}
+                        <div class="player-id-text">
+                            <div class="player-name-row">
+                                <span class="player-name">${escapeHtml(player.name)}</span>
+                                ${player.tag ? `<span class="player-tag">${escapeHtml(player.tag)}</span>` : ''}
+                                <span class="player-status-badges">
+                                    ${player.isMonarch ? '<span class="monarch-badge-inline" title="Monarca"><svg class="ic ic-gold"><use href="#ic-crown"/></svg></span>' : ''}
+                                    ${state.viadoPlayerId === player.id ? '<span class="viado-badge" title="Viado">🏳️‍🌈</span>' : ''}
+                                    ${team ? `<span class="team-badge team-${teamIndex}" title="${team.name}">T${teamIndex}</span>` : ''}
+                                </span>
+                            </div>
+                            <button type="button" class="player-commander ${player.deckName ? 'has-deck' : ''}" data-action="pick-deck" title="Comandante desta partida (toque pra trocar)">
+                                ${player.deckImage ? `<img class="player-commander-art" src="${escapeHtml(player.deckImage)}" alt="">` : '<svg class="ic"><use href="#ic-deck"/></svg>'}
+                                <span class="player-commander-name">${player.deckName ? escapeHtml(player.deckName) : 'comandante?'}</span>
+                                ${player.deckColors ? colorsHtml(player.deckColors) : ''}
+                            </button>
+                        </div>
                     </div>
-                    <div class="player-status-badges">
-                        ${player.isMonarch ? '<span class="monarch-badge-inline" title="Monarca"><svg class="ic ic-gold"><use href="#ic-crown"/></svg></span>' : ''}
-                        ${state.viadoPlayerId === player.id ? '<span class="viado-badge" title="Viado">🏳️‍🌈</span>' : ''}
-                        ${team ? `<span class="team-badge team-${teamIndex}" title="${team.name}">T${teamIndex}</span>` : ''}
-                    </div>
-                    <div class="player-actions">
-                        <button class="player-action-btn" data-action="taunt" title="Taunt / Provocação"><svg class="ic"><use href="#ic-chat"/></svg></button>
-                        <button class="player-action-btn commander-drag-btn" data-action="commander" title="Dano de Comandante: toque abre, arraste até o alvo aplica"><svg class="ic"><use href="#ic-swords"/></svg></button>
-                        <button class="player-action-btn" data-action="counters" title="Contadores"><svg class="ic"><use href="#ic-counters"/></svg></button>
-                        <button class="player-action-btn" data-action="rotate" title="Girar este card"><svg class="ic"><use href="#ic-rotate"/></svg></button>
-                        <button class="player-action-btn" data-action="settings" title="Config"><svg class="ic"><use href="#ic-settings"/></svg></button>
-                    </div>
+                    <button class="player-action-btn player-settings-btn" data-action="settings" title="Configurar jogador"><svg class="ic"><use href="#ic-settings"/></svg></button>
                 </div>
-                <button type="button" class="player-commander ${player.deckName ? 'has-deck' : ''}" data-action="pick-deck" title="Comandante desta partida (toque pra trocar)">
-                    ${player.deckImage ? `<img class="player-commander-art" src="${escapeHtml(player.deckImage)}" alt="">` : '<svg class="ic"><use href="#ic-deck"/></svg>'}
-                    <span class="player-commander-name">${player.deckName ? escapeHtml(player.deckName) : 'comandante?'}</span>
-                    ${player.deckColors ? colorsHtml(player.deckColors) : ''}
-                </button>
                 <div class="player-life-container">
                     <button class="life-control minus" data-action="life" data-amount="-1">−</button>
                     <div class="life-display">
@@ -3918,7 +4015,14 @@ function renderPlayerCardHtml(player: Player, index: number, state: GameState): 
                     </div>
                 </div>
                 <div class="player-footer ${countersCollapsed ? 'collapsed' : ''}" data-player-id="${player.id}">
-                    ${countersHtml}
+                    <div class="player-footer-counters">${countersHtml}</div>
+                    <div class="player-actions">
+                        ${isActive && !player.isEliminated ? '<button class="player-action-btn pass-turn-btn" data-action="pass-turn" title="Passar o turno (ou arraste pro lado na mesa)"><svg class="ic"><use href="#ic-play"/></svg><span>Passar</span></button>' : ''}
+                        <button class="player-action-btn" data-action="taunt" title="Taunt / Provocação"><svg class="ic"><use href="#ic-chat"/></svg></button>
+                        <button class="player-action-btn commander-drag-btn" data-action="commander" title="Dano de Comandante: toque abre, arraste até o alvo aplica"><svg class="ic"><use href="#ic-swords"/></svg></button>
+                        <button class="player-action-btn" data-action="counters" title="Contadores"><svg class="ic"><use href="#ic-counters"/></svg></button>
+                        <button class="player-action-btn" data-action="rotate" title="Girar este card"><svg class="ic"><use href="#ic-rotate"/></svg></button>
+                    </div>
                 </div>
                 ${reviveHtml}
             </div>
@@ -4134,6 +4238,7 @@ function bindPlayerCard(card: HTMLElement, playerId: string): void {
             gameState.updatePlayerSetup(playerId, { manualRotation: ((p.manualRotation || 0) + 90) % 360 });
         });
         card.querySelector('[data-action="pick-deck"]')?.addEventListener('click', (e) => { e.stopPropagation(); openDeckPicker(playerId); });
+        card.querySelector('[data-action="pass-turn"]')?.addEventListener('click', (e) => { e.stopPropagation(); passTurn('botão'); });
 
         // Toque longo no número da vida: metade / dobro / definir.
         const lifeEl = card.querySelector('.life-value') as HTMLElement | null;

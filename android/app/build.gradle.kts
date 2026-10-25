@@ -12,8 +12,8 @@ android {
         minSdk = 24
         targetSdk = 34
         // Mantenha em sincronia com src/ts/updater.ts (APP_VERSION_CODE/NAME) e deploy.ps1.
-        versionCode = 19
-        versionName = "2.3.1"
+        versionCode = 20
+        versionName = "2.3.2"
     }
 
     buildTypes {

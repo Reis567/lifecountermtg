@@ -81,7 +81,10 @@ class MainActivity : AppCompatActivity() {
     private val audioPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) startSpeech()
+        // Permissão veio depois de soltar o botão: não liga sozinho (o JS já
+        // mandou parar). Avisa pra segurar de novo.
+        if (granted) sendVoiceStatus("microfone liberado — segure o botão e fale")
+        else sendVoiceStatus("sem permissão de microfone")
     }
 
     private val notificationPermissionLauncher = registerForActivityResult(
@@ -623,7 +626,10 @@ class MainActivity : AppCompatActivity() {
                             voiceActive = false
                             return
                         }
-                        if (error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                        if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
+                            // Sobrou uma sessão antiga: cancela e tenta de novo.
+                            try { speechRecognizer?.cancel() } catch (_: Exception) {}
+                        } else if (error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
                             sendVoiceStatus(errText(error))
                         }
                         if (voiceActive) restartListening()
