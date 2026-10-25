@@ -965,6 +965,7 @@ function setupGameScreenListeners() {
     });
     // Toque no "Turno N · fulano" do cabeçalho também passa.
     document.querySelector('.turn-indicator')?.addEventListener('click', () => passTurn('cabeçalho'));
+    $('turn-bar-next')?.addEventListener('click', () => passTurn('barra'));
     setupTurnSwipe();
     // Undo buttons
     $('undo-btn')?.addEventListener('click', performUndo);
@@ -3434,6 +3435,16 @@ function renderGame(state) {
     const casualBadge = $('casual-badge');
     if (casualBadge)
         casualBadge.style.display = state.casual ? '' : 'none';
+    // Barra do turno (embaixo): quem joga + botão grande de passar.
+    const tbName = $('turn-bar-name'), tbTurn = $('turn-bar-turn'), tb = $('turn-bar');
+    if (tbName)
+        tbName.textContent = activePlayer ? activePlayer.name : '—';
+    if (tbTurn)
+        tbTurn.textContent = `Turno ${state.currentTurn}`;
+    if (tb) {
+        tb.style.setProperty('--turn-color', activePlayer?.color || 'var(--accent-primary)');
+        tb.classList.toggle('closed', !!state.matchClosed);
+    }
     // Update players grid layout
     const grid = $('players-grid');
     updateGridLayout(grid, state);
@@ -3577,7 +3588,8 @@ function setupTurnSwipe() {
     grid.addEventListener('pointerdown', (e) => {
         const t = e.target;
         // Botões, controles de vida e o microfone têm gesto próprio.
-        if (t.closest('button, input, select, .voice-fab, .life-shortcuts-popup, .revive-overlay')) {
+        // (os lados −/+ da vida contam: o toque deles só aplica ao soltar sem mover)
+        if (t.closest('button:not(.life-control), input, select, .voice-fab, .life-shortcuts-popup, .revive-overlay')) {
             tracking = false;
             return;
         }
@@ -3613,7 +3625,7 @@ function setupTurnSwipe() {
 // exatamente onde o botão está (convertido pro sistema de coordenadas do card,
 // que pode estar girado). Assim o botão "encaixa" entre os cards sem roubar
 // espaço de ninguém.
-const FAB_CUT_RADIUS = 32; // raio do buraco (botão de 52 px + folga)
+const FAB_CUT_RADIUS = 36; // raio do buraco (botão de 56 px + folga)
 function maskCardsAroundFab() {
     const grid = document.getElementById('players-grid');
     const fab = document.getElementById('voice-fab');
@@ -3635,17 +3647,24 @@ function maskCardsAroundFab() {
         if (Math.hypot(dx, dy) > FAB_CUT_RADIUS + 1) {
             card.style.maskImage = '';
             card.style.webkitMaskImage = '';
+            delete card.dataset.notch;
             return;
         }
         // Ponto do botão em coordenadas locais do card (antes da rotação).
         const theta = (Number(card.dataset.rotation || 0) * Math.PI) / 180;
         const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
         const vx = fx - cx, vy = fy - cy;
-        const lx = card.offsetWidth / 2 + (vx * Math.cos(theta) + vy * Math.sin(theta));
-        const ly = card.offsetHeight / 2 + (-vx * Math.sin(theta) + vy * Math.cos(theta));
+        const W = card.offsetWidth, H = card.offsetHeight;
+        const lx = W / 2 + (vx * Math.cos(theta) + vy * Math.sin(theta));
+        const ly = H / 2 + (-vx * Math.sin(theta) + vy * Math.cos(theta));
         const m = `radial-gradient(circle at ${lx.toFixed(1)}px ${ly.toFixed(1)}px, transparent ${FAB_CUT_RADIUS}px, #000 ${FAB_CUT_RADIUS + 1}px)`;
         card.style.maskImage = m;
         card.style.webkitMaskImage = m;
+        // Onde o recorte cai (em coordenadas do card): o CSS afasta o conteúdo
+        // dessa ponta (foto, nome, botões) pra nada ficar embaixo do microfone.
+        const v = ly < H / 2 ? 't' : 'b';
+        const h = lx < W * 0.3 ? 'l' : lx > W * 0.7 ? 'r' : 'c';
+        card.dataset.notch = v + h;
     });
 }
 // ===== Render parcial dos cards =====
@@ -3820,6 +3839,8 @@ function renderPlayerCardHtml(player, index, state) {
                     <button class="player-action-btn player-settings-btn" data-action="settings" title="Configurar jogador"><svg class="ic"><use href="#ic-settings"/></svg></button>
                 </div>
                 <div class="player-life-container">
+                    <div class="player-counters-float ${countersCollapsed ? 'collapsed' : ''}" data-player-id="${player.id}">${countersHtml}</div>
+                    <button class="cmd-fab commander-drag-btn" data-action="commander" title="Dano de comandante: toque abre, ARRASTE até o alvo pra aplicar"><svg class="ic"><use href="#ic-swords"/></svg><span>CMD</span></button>
                     <button class="life-control minus" data-action="life" data-amount="-1">−</button>
                     <div class="life-display">
                         <div class="life-value-row">
@@ -3837,15 +3858,10 @@ function renderPlayerCardHtml(player, index, state) {
                         <button class="life-shortcut-btn" data-amount="+${(state.settings.holdStep || 5) * 2}">+${(state.settings.holdStep || 5) * 2}</button>
                     </div>
                 </div>
-                <div class="player-footer ${countersCollapsed ? 'collapsed' : ''}" data-player-id="${player.id}">
-                    <div class="player-footer-counters">${countersHtml}</div>
-                    <div class="player-actions">
-                        ${isActive && !player.isEliminated ? '<button class="player-action-btn pass-turn-btn" data-action="pass-turn" title="Passar o turno (ou arraste pro lado na mesa)"><svg class="ic"><use href="#ic-play"/></svg><span>Passar</span></button>' : ''}
-                        <button class="player-action-btn" data-action="taunt" title="Taunt / Provocação"><svg class="ic"><use href="#ic-chat"/></svg></button>
-                        <button class="player-action-btn commander-drag-btn" data-action="commander" title="Dano de Comandante: toque abre, arraste até o alvo aplica"><svg class="ic"><use href="#ic-swords"/></svg></button>
-                        <button class="player-action-btn" data-action="counters" title="Contadores"><svg class="ic"><use href="#ic-counters"/></svg></button>
-                        <button class="player-action-btn" data-action="rotate" title="Girar este card"><svg class="ic"><use href="#ic-rotate"/></svg></button>
-                    </div>
+                <div class="player-footer" data-player-id="${player.id}">
+                    <button class="player-action-btn" data-action="counters" title="Contadores (veneno, energia…)"><svg class="ic"><use href="#ic-counters"/></svg><span>Contadores</span></button>
+                    <button class="player-action-btn" data-action="taunt" title="Provocação"><svg class="ic"><use href="#ic-chat"/></svg><span>Provocar</span></button>
+                    <button class="player-action-btn" data-action="rotate" title="Girar este card"><svg class="ic"><use href="#ic-rotate"/></svg><span>Girar</span></button>
                 </div>
                 ${reviveHtml}
             </div>
@@ -3899,7 +3915,7 @@ function setupCommanderDrag(btn, sourceId) {
             cmdDragGhost = document.createElement('div');
             cmdDragGhost.className = 'cmd-drag-ghost';
             cmdDragGhost.style.setProperty('--player-color', src?.color || '#fff');
-            cmdDragGhost.textContent = `⚔️ ${src?.name || ''}`;
+            cmdDragGhost.innerHTML = `<svg class="ic"><use href="#ic-swords"/></svg> ${escapeHtml(src?.name || '')} → solte no alvo`;
             document.body.appendChild(cmdDragGhost);
         }
         if (cmdDragGhost) {
@@ -4062,14 +4078,46 @@ function openLifeGraphModal() {
 function bindPlayerCard(card, playerId) {
     {
         // Life controls with hold support
+        // Vida: toque = ±1 (aplicado ao soltar), segurar = atalhos ±5/±10,
+        // arrastar pro lado = passa o turno (gesto do grid; o toque não dispara).
         card.querySelectorAll('.life-control').forEach(btn => {
             const amount = parseInt(btn.dataset.amount || '0');
-            btn.addEventListener('mousedown', (e) => startLifeChange(playerId, amount, e));
-            btn.addEventListener('touchstart', (e) => startLifeChange(playerId, amount, e), { passive: true });
-            btn.addEventListener('mouseup', stopLifeChange);
-            btn.addEventListener('mouseleave', stopLifeChange);
-            btn.addEventListener('touchend', stopLifeChange);
-            btn.addEventListener('touchcancel', stopLifeChange);
+            let pid = -1, sx = 0, sy = 0, moved = false, held = false, holdT = null;
+            btn.addEventListener('pointerdown', (e) => {
+                pid = e.pointerId;
+                sx = e.clientX;
+                sy = e.clientY;
+                moved = false;
+                held = false;
+                if (holdT !== null)
+                    clearTimeout(holdT);
+                holdT = window.setTimeout(() => { holdT = null; held = true; showLifeShortcutsPopup(playerId); }, 320);
+            });
+            btn.addEventListener('pointermove', (e) => {
+                if (e.pointerId !== pid || moved)
+                    return;
+                if (Math.hypot(e.clientX - sx, e.clientY - sy) > 12) {
+                    moved = true;
+                    if (holdT !== null) {
+                        clearTimeout(holdT);
+                        holdT = null;
+                    }
+                }
+            });
+            const up = (e) => {
+                if (e.pointerId !== pid)
+                    return;
+                pid = -1;
+                if (holdT !== null) {
+                    clearTimeout(holdT);
+                    holdT = null;
+                }
+                if (moved || held || e.type === 'pointercancel')
+                    return;
+                tapLife(playerId, amount);
+            };
+            btn.addEventListener('pointerup', up);
+            btn.addEventListener('pointercancel', up);
         });
         // Action buttons
         const cmdBtn = card.querySelector('[data-action="commander"]');
@@ -4088,7 +4136,6 @@ function bindPlayerCard(card, playerId) {
             gameState.updatePlayerSetup(playerId, { manualRotation: ((p.manualRotation || 0) + 90) % 360 });
         });
         card.querySelector('[data-action="pick-deck"]')?.addEventListener('click', (e) => { e.stopPropagation(); openDeckPicker(playerId); });
-        card.querySelector('[data-action="pass-turn"]')?.addEventListener('click', (e) => { e.stopPropagation(); passTurn('botão'); });
         // Toque longo no número da vida: metade / dobro / definir.
         const lifeEl = card.querySelector('.life-value');
         if (lifeEl) {
@@ -4191,8 +4238,8 @@ function bindPlayerCard(card, playerId) {
                 }
             });
         });
-        // Counter footer collapse toggle (double tap)
-        const footer = card.querySelector('.player-footer');
+        // Contadores: toque duplo na pilha recolhe/expande
+        const footer = card.querySelector('.player-counters-float');
         if (footer) {
             let lastTap = 0;
             footer.addEventListener('touchend', (e) => {
@@ -4331,23 +4378,17 @@ function updateSettingsControls(state) {
     }
 }
 // Life change with hold support - shows shortcuts popup on hold
-function startLifeChange(playerId, baseAmount, event) {
-    event.preventDefault();
-    // Debounce to prevent multiple rapid touches on mobile
+// Toque simples no lado −/+ do card: ±1 (com debounce contra toque duplo).
+function tapLife(playerId, baseAmount) {
     const now = Date.now();
-    if (now - lastLifeChangeTime < LIFE_CHANGE_DEBOUNCE_MS) {
+    if (now - lastLifeChangeTime < LIFE_CHANGE_DEBOUNCE_MS)
         return;
-    }
     lastLifeChangeTime = now;
     const state = gameState.getState();
     const player = state.players.find(p => p.id === playerId);
     if (!player || player.isEliminated)
         return;
     changeLifeWithFeedback(playerId, baseAmount);
-    // Show shortcuts popup after holding for 300ms
-    holdTimeout = window.setTimeout(() => {
-        showLifeShortcutsPopup(playerId);
-    }, 300);
 }
 // Show life shortcuts popup
 function showLifeShortcutsPopup(playerId) {

@@ -411,6 +411,16 @@
                 <!-- Player cards will be injected here -->
             </div>
 
+            <!-- Barra do turno: quem está jogando + passar a vez (ou arraste pro lado na mesa) -->
+            <div id="turn-bar" class="turn-bar">
+                <div class="turn-bar-info">
+                    <span class="turn-bar-dot"></span>
+                    <span class="turn-bar-text"><span class="turn-bar-label">Vez de</span><span id="turn-bar-name" class="turn-bar-name">—</span></span>
+                    <span id="turn-bar-turn" class="turn-bar-turn">Turno 1</span>
+                </div>
+                <button type="button" id="turn-bar-next" class="turn-bar-next"><span>Passar a vez</span><svg class="ic"><use href="#ic-play"/></svg></button>
+            </div>
+
             <!-- Floating Undo Button -->
             <button id="floating-undo-btn" class="floating-undo-btn" style="display: none;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
