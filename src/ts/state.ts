@@ -185,6 +185,13 @@ export function createDefaultSettings(playerCount: number = 4): GameSettings {
         silentMode: false,
         narratorPersona: 'classic',
         soundPack: 'default',
+        lifeFontSize: 'normal',
+        buttonSize: 'normal',
+        holdStep: 5,
+        hapticsEnabled: true,
+        showAvatarsOnCards: true,
+        dimEliminated: true,
+        cardStyle: 'gradient',
     };
 }
 
@@ -204,6 +211,7 @@ export function createInitialState(): GameState {
         gameStarted: false,
         winner: null,
         matchClosed: false,
+        casual: false,
         history: [],
         undoStack: [],
         gameMode: 'standard',
@@ -309,6 +317,14 @@ class GameStateManager {
                 if (parsed.settings.narratorVolume === undefined) parsed.settings.narratorVolume = 80;
                 if (parsed.settings.silentMode === undefined) parsed.settings.silentMode = false;
                 if (!parsed.settings.soundPack) parsed.settings.soundPack = 'default';
+                if (parsed.casual === undefined) parsed.casual = false;
+                if (!parsed.settings.lifeFontSize) parsed.settings.lifeFontSize = 'normal';
+                if (!parsed.settings.buttonSize) parsed.settings.buttonSize = 'normal';
+                if (!parsed.settings.holdStep) parsed.settings.holdStep = 5;
+                if (parsed.settings.hapticsEnabled === undefined) parsed.settings.hapticsEnabled = true;
+                if (parsed.settings.showAvatarsOnCards === undefined) parsed.settings.showAvatarsOnCards = true;
+                if (parsed.settings.dimEliminated === undefined) parsed.settings.dimEliminated = true;
+                if (!parsed.settings.cardStyle) parsed.settings.cardStyle = 'gradient';
                 // Ensure all players have new properties (migration for older saves)
                 parsed.players = parsed.players.map((p: Player) => ({
                     ...p,
@@ -791,6 +807,12 @@ class GameStateManager {
         this.notify();
     }
 
+    // Partida amistosa: escolhida no setup, nunca vai pro ranking.
+    setCasual(on: boolean): void {
+        this.state.casual = on;
+        this.notify();
+    }
+
     resetGame(resetCommanderDeaths: boolean = false): void {
         this.state.players.forEach(player => {
             player.life = this.state.settings.startingLife;
@@ -835,9 +857,10 @@ class GameStateManager {
             profileId: p.profileId ?? null, name: p.name, avatar: p.avatar, color: p.color, emoji: p.emoji,
             deckId: p.deckId ?? null, deckName: p.deckName ?? null,
         }));
+        // Preferências (tema, som, personalização) continuam as mesmas; só a mesa zera.
+        const settings = this.state.settings;
         this.state = createInitialState();
-        this.state.settings.playerCount = playerCount;
-        this.state.settings.layout = getDefaultLayout(playerCount);
+        this.state.settings = { ...settings, playerCount, layout: getDefaultLayout(playerCount) };
         this.state.players = Array.from({ length: playerCount }, (_, i) => {
             const player = createPlayer(i, this.state.settings.startingLife, playerCount);
             const prev = roster[i];

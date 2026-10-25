@@ -92,6 +92,14 @@ export interface GameSettings {
     narratorPersona: NarratorPersona;
     soundPack: SoundPack;
     silentMode: boolean; // um toque: corta efeitos, música, narrador e sirene
+    // Personalização da mesa (v2.3.0)
+    lifeFontSize: 'small' | 'normal' | 'large'; // tamanho do número da vida
+    buttonSize: 'normal' | 'large'; // botões dos cards maiores (dedão)
+    holdStep: 5 | 10; // quanto vale o toque longo em +/−
+    hapticsEnabled: boolean; // vibra a cada mudança de vida (celular)
+    showAvatarsOnCards: boolean; // foto do perfil no cabeçalho do card
+    dimEliminated: boolean; // card do eliminado fica acinzentado
+    cardStyle: 'gradient' | 'solid' | 'minimal'; // visual do cabeçalho do card
 }
 
 export type NarratorPersona = 'classic' | 'futebol' | 'galvao' | 'novela' | 'caze';
@@ -116,6 +124,7 @@ export interface GameState {
     gameStarted: boolean;
     winner: string | null;
     matchClosed: boolean; // partida encerrada explicitamente (resultado já salvo no ranking)
+    casual: boolean; // partida amistosa: nunca entra no ranking (escolhido no setup)
     history: GameEvent[];
     undoStack: UndoAction[];
     gameMode: GameMode;

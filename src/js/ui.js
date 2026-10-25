@@ -5,7 +5,8 @@ import { gameState, secureRandomInt } from './state.js';
 import { audioManager, ambientMusic, narrator } from './audio.js';
 import { openCardScanner, setupCardScanner } from './cardScanner.js';
 import { openFingerPicker } from './fingerPicker.js';
-import { setupVoiceControl, vcSetGameActive } from './voiceControl.js';
+import { openRouletteStarter, openDiceStarter, openReflexStarter } from './starters.js';
+import { setupVoiceControl, vcSetGameActive, vcFabVisible } from './voiceControl.js';
 import { narrateElimination, narrateWinner } from './aiNarrator.js';
 import { startEscandalosa, stopEscandalosa, isEscandalosaEnabled } from './victory.js';
 import { saveResult, buildAutoResult, buildManualResult, placementsFromOrder, aggregateRemote, listMatchesRemote, deleteMatchRemote, } from './ranking.js';
@@ -577,6 +578,8 @@ export function initUI() {
     applyTheme(gameState.getState().settings.theme);
     applyAnimationIntensity(gameState.getState().settings.animationIntensity);
     applyFontStyle(gameState.getState().settings.fontStyle);
+    applyCustomization(gameState.getState().settings);
+    setupHomeTabs();
     // Initialize animated background
     animatedBg.init();
     const state = gameState.getState();
@@ -785,45 +788,55 @@ function setupSetupScreenListeners() {
     $('table-mode-checkbox')?.addEventListener('change', (e) => {
         gameState.toggleTableMode(e.target.checked);
     });
-    // Toggle player setup section (for mobile)
-    $('toggle-player-setup')?.addEventListener('click', () => {
-        const section = document.querySelector('.setup-section-players');
-        if (section) {
-            section.classList.toggle('collapsed');
-            // Mark as user-expanded to prevent auto-collapse
-            if (!section.classList.contains('collapsed')) {
-                section.classList.add('user-expanded');
-            }
-            else {
-                section.classList.remove('user-expanded');
-            }
-        }
+    // (v2.3.0) O recolhimento automático da lista de jogadores no celular deitado
+    // foi removido: a lista "sumia" sem botão pra voltar (teclado aberto também
+    // contava como deitado).
+    // Partida amistosa: não conta pro ranking (e não exige perfil em todo mundo).
+    $('casual-checkbox')?.addEventListener('change', (e) => {
+        gameState.setCasual(e.target.checked);
     });
-    // Auto-collapse player setup on mobile landscape
-    const checkMobileLandscape = () => {
-        const isLandscape = window.matchMedia('(orientation: landscape) and (max-height: 500px)').matches;
-        const section = document.querySelector('.setup-section-players');
-        if (isLandscape && section && !section.classList.contains('user-expanded')) {
-            section.classList.add('collapsed');
-        }
+    // Personalização da mesa (v2.3.0)
+    const segListen = (id, apply) => {
+        const box = $(id);
+        if (!box)
+            return;
+        box.addEventListener('click', (e) => {
+            const b = e.target.closest('button[data-v]');
+            if (!b)
+                return;
+            apply(b.dataset.v);
+            applyCustomization(gameState.getState().settings);
+        });
     };
-    checkMobileLandscape();
-    window.addEventListener('resize', checkMobileLandscape);
-    window.addEventListener('orientationchange', checkMobileLandscape);
-    // Start game button — exige nome + foto (perfil) de cada jogador.
+    segListen('setup-life-size', (v) => gameState.updateSettings({ lifeFontSize: v }));
+    segListen('setup-btn-size', (v) => gameState.updateSettings({ buttonSize: v }));
+    segListen('setup-hold-step', (v) => gameState.updateSettings({ holdStep: Number(v) }));
+    segListen('setup-card-style', (v) => gameState.updateSettings({ cardStyle: v }));
+    const swListen = (id, key) => {
+        $(id)?.addEventListener('change', (e) => {
+            gameState.updateSettings({ [key]: e.target.checked });
+            applyCustomization(gameState.getState().settings);
+        });
+    };
+    swListen('setup-haptics', 'hapticsEnabled');
+    swListen('setup-avatars', 'showAvatarsOnCards');
+    swListen('setup-dim-elim', 'dimEliminated');
+    // Start game button — exige nome + foto (perfil) de cada jogador
+    // (menos na partida amistosa, que não vai pro ranking).
     $('start-game-btn')?.addEventListener('click', () => {
         if (isButtonDebounced('start-game-btn'))
             return;
         const state = gameState.getState();
         const missing = state.players.find((p) => p.profileId === null);
-        if (missing) {
-            showSpecialMoment('Escolha o perfil (nome + foto) de todos os jogadores antes de começar.', 'warning');
-            document.querySelector('.setup-section-players')?.classList.remove('collapsed');
+        if (missing && !state.casual) {
+            showSpecialMoment('Escolha o perfil (nome + foto) de todos os jogadores antes de começar — ou marque "partida amistosa".', 'warning');
             openProfilePicker(missing.id);
             return;
         }
         const seen = new Set();
         const dup = state.players.find((p) => {
+            if (p.profileId === null)
+                return false;
             if (seen.has(p.profileId))
                 return true;
             seen.add(p.profileId);
@@ -1063,8 +1076,6 @@ function setupGameScreenListeners() {
             showSpecialMoment(`Mesa ao vivo não subiu: ${e?.message || e}`, 'danger');
         }
     });
-    $('open-ranking-home')?.addEventListener('click', () => openRankingModal());
-    $('open-profiles-home')?.addEventListener('click', () => openProfilesModal());
     $('open-update-home')?.addEventListener('click', () => openUpdateModal());
     $('open-fingerpicker')?.addEventListener('click', () => {
         closeModal($('tools-modal'));
@@ -1076,6 +1087,9 @@ function setupGameScreenListeners() {
         closeModal($('tools-modal'));
         startRandomStarterAnimation();
     });
+    $('open-roulette')?.addEventListener('click', () => { closeModal($('tools-modal')); openRouletteStarter(); });
+    $('open-dicestarter')?.addEventListener('click', () => { closeModal($('tools-modal')); openDiceStarter(); });
+    $('open-reflex')?.addEventListener('click', () => { closeModal($('tools-modal')); openReflexStarter(); });
     // Voz: o voiceControl liga o toggle no #voice-btn; aqui só fechamos o modal.
     $('voice-btn')?.addEventListener('click', () => closeModal($('tools-modal')));
     // Share result button
@@ -1141,7 +1155,7 @@ function setupSettingsTabs() {
         return;
     list.dataset.tabified = '1';
     const tabFor = (h3text) => {
-        const t = h3text.toLowerCase();
+        const t = h3text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
         if (/audio|som/.test(t))
             return 'som';
         if (/visual|tema|gif/.test(t))
@@ -1195,6 +1209,9 @@ function setupSettingsTabs() {
 // Partida que não pode ir pro ranking: jogadores sem perfil (dados de antes da
 // atualização) ou partida velha demais (ficou salva no celular por dias).
 function matchNotRankable(state) {
+    if (state.casual) {
+        return 'Partida amistosa não entra no ranking.';
+    }
     if (state.players.some((p) => p.profileId === null || p.profileId === undefined)) {
         return 'Partida sem perfil em todos os jogadores não entra no ranking.';
     }
@@ -1368,15 +1385,18 @@ function fmtDateTime(iso) {
         d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 // Ranking (servidor) + histórico completo de partidas da mesa.
-function openRankingModal(initialTab = 'today') {
+// `mount`: em vez de modal, desenha dentro desse elemento (abas da home).
+function openRankingModal(initialTab = 'today', mount) {
     let tab = initialTab;
     let historyProfile = null;
     let historyPeriod = '';
     let seasonCfg = null;
-    document.getElementById('ranking-modal-dyn')?.remove();
+    const inline = !!mount;
+    if (!inline)
+        document.getElementById('ranking-modal-dyn')?.remove();
     const modal = document.createElement('div');
-    modal.className = 'modal active';
-    modal.id = 'ranking-modal-dyn';
+    modal.className = inline ? `inline-view ${initialTab === 'history' ? 'view-history' : ''}` : 'modal active';
+    modal.id = inline ? `ranking-inline-${initialTab}` : 'ranking-modal-dyn';
     modal.innerHTML = `
         <div class="modal-content ranking-modal-content">
             <div class="modal-header">
@@ -1411,11 +1431,21 @@ function openRankingModal(initialTab = 'today') {
             </div>
         </div>
     `;
-    document.body.appendChild(modal);
+    if (inline) {
+        mount.innerHTML = '';
+        const h2 = modal.querySelector('.modal-header h2');
+        if (h2 && initialTab === 'history')
+            h2.innerHTML = '<svg class="ic ic-title"><use href="#ic-clock"/></svg>Histórico de partidas';
+        mount.appendChild(modal);
+    }
+    else {
+        document.body.appendChild(modal);
+    }
     const tableEl = modal.querySelector('#ranking-table');
     const sourceEl = modal.querySelector('#ranking-source');
     const filtersEl = modal.querySelector('#history-filters');
-    const close = () => modal.remove();
+    const close = () => { if (!inline)
+        modal.remove(); };
     const medalFor = placeBadge;
     let renderToken = 0;
     const profSel = modal.querySelector('#history-filter-profile');
@@ -1449,7 +1479,7 @@ function openRankingModal(initialTab = 'today') {
                 tableEl.innerHTML = '<div class="ranking-empty">Sem partidas com perfil ainda.</div>';
                 return;
             }
-            tableEl.innerHTML = rows.map((r, i) => {
+            tableEl.innerHTML = podiumHtml(rows.map(r => ({ name: r.name, points: r.elo, wins: r.wins ?? 0, matches: r.matches, profileId: r.profile_id, photoUrl: r.photo_url })), 'Elo') + rows.map((r, i) => {
                 const h = r.history;
                 const delta = h.length >= 2 ? h[h.length - 1].elo - h[h.length - 2].elo : (h.length === 1 ? h[0].elo - 1000 : 0);
                 const prof = getProfileById(r.profile_id);
@@ -1535,7 +1565,7 @@ function openRankingModal(initialTab = 'today') {
                 ${r.profileId ? '<svg class="ic rk-chev"><use href="#ic-chevron"/></svg>' : ''}
             </div>`;
         }).join('');
-        tableEl.innerHTML = body;
+        tableEl.innerHTML = podiumHtml(rows, unit) + body;
     };
     const renderHistory = async () => {
         const token = ++renderToken;
@@ -1634,10 +1664,29 @@ function openRankingModal(initialTab = 'today') {
     });
     modal.querySelector('#ranking-cfg')?.addEventListener('click', () => openSeasonSettings(seasonCfg, (cfg) => { seasonCfg = cfg; render(); }));
     modal.querySelector('.modal-close')?.addEventListener('click', close);
-    modal.addEventListener('click', (e) => { if (e.target === modal)
-        close(); });
+    if (!inline)
+        modal.addEventListener('click', (e) => { if (e.target === modal)
+            close(); });
     void apiGetSeasonSettings().then((cfg) => { seasonCfg = cfg; }).catch(() => { });
     void flushSyncQueue().finally(render);
+}
+// Pódio (top 3 com foto) no topo do ranking.
+function podiumHtml(rows, unit) {
+    if (rows.length < 3)
+        return '';
+    const pod = (r, place) => {
+        const prof = getProfileById(r.profileId ?? null);
+        return `
+        <div class="rk-pod rk-pod-${place} ${r.profileId ? 'ranking-clickable' : ''}" data-profile="${r.profileId ?? ''}">
+            ${placeBadge(place)}
+            ${place === 1 ? '<svg class="ic rk-pod-crown"><use href="#ic-crown"/></svg>' : ''}
+            ${avatarHtml({ name: r.name, photo_url: r.photoUrl ?? prof?.photo_url ?? null, color: prof?.color }, 'lc-avatar')}
+            <div class="rk-pod-name">${escapeHtml(r.name)}</div>
+            <div class="rk-pod-pts">${r.points}<small>${unit}</small></div>
+            <div class="rk-pod-meta">${r.wins} vit · ${r.matches} part</div>
+        </div>`;
+    };
+    return `<div class="rk-podium">${pod(rows[1], 2)}${pod(rows[0], 1)}${pod(rows[2], 3)}</div><div class="rk-list-label">Classificação completa</div>`;
 }
 // Exporta o ranking como imagem (canvas) e abre o modal de compartilhar.
 async function exportRankingImage(title, rows) {
@@ -1828,8 +1877,34 @@ function openProfilePage(profileId) {
     const load = () => apiProfileStats(profileId).then((s) => {
         const p = s.profile;
         const stat = (label, value, cls = '') => `<div class="pp-stat ${cls}"><div class="pp-stat-value">${value}</div><div class="pp-stat-label">${label}</div></div>`;
+        const fmtMs = (ms) => ms ? fmtDuration(ms) : '—';
+        const fmtH = (ms) => { if (!ms)
+            return '—'; const h = ms / 3600000; return h >= 1 ? `${h.toFixed(1)} h` : `${Math.round(ms / 60000)} min`; };
+        const formHtml = (s.form || []).slice().reverse().map(f => {
+            const cls = f.place === 1 ? 'w' : f.place <= 3 ? 'p' : 'l';
+            return `<span class="pp-form-dot ${cls}" title="${f.place}º de ${f.players}" data-match="${f.match_id}">${f.place}º</span>`;
+        }).join('');
+        const maxM = Math.max(1, ...(s.by_month || []).map(m => m.matches));
+        const monthsHtml = (s.by_month || []).map(m => `
+            <div class="pp-month" title="${m.label}: ${m.wins} vitória(s) em ${m.matches}">
+                <div class="pp-month-bar" style="height:${Math.max(6, Math.round(100 * m.matches / maxM))}%"><div class="pp-month-win" style="height:${m.matches ? Math.round(100 * m.wins / m.matches) : 0}%"></div></div>
+                <div class="pp-month-lbl">${m.label}</div>
+            </div>`).join('');
+        const bar = (label, val, max, right, gold = false) => `<div class="pp-bar"><span class="pp-bar-label">${label}</span><span class="pp-bar-track"><span class="pp-bar-fill ${gold ? 'gold' : ''}" style="width:${max ? Math.round(100 * val / max) : 0}%"></span></span><span class="pp-bar-val">${right}</span></div>`;
+        const maxPd = Math.max(1, ...(s.place_dist || []).map(d => d.count));
+        const placeDistHtml = (s.place_dist || []).map(d => bar(`${d.place}º lugar`, d.count, maxPd, `${d.count}×`, d.place === 1)).join('');
+        const pcHtml = (s.by_player_count || []).map(r => bar(`${r.players} jogadores`, r.win_rate, 100, `${r.win_rate}% (${r.wins}/${r.matches})`)).join('');
+        const maxWd = Math.max(1, ...(s.weekday || []).map(w => w.matches));
+        const wdHtml = (s.weekday || []).filter(w => w.matches).map(w => bar(w.label, w.matches, maxWd, `${w.wins}/${w.matches}`)).join('');
+        const h2hHtml = (s.head_to_head || []).slice(0, 8).map(h => `
+            <div class="pp-h2h-row" data-profile="${h.profile_id ?? ''}">
+                ${avatarHtml({ name: h.name, photo_url: h.photo_url, color: getProfileById(h.profile_id ?? null)?.color }, 'lc-avatar')}
+                <div><div class="pp-h2h-name">${escapeHtml(h.name)}</div><div class="pp-h2h-sub">${h.matches} juntos · você eliminou ${h.i_beat_them}× · te eliminou ${h.they_beat_me}×</div></div>
+                <div class="pp-h2h-score"><span class="win">${h.my_wins}</span> × <span class="loss">${h.their_wins}</span></div>
+            </div>`).join('');
         body.innerHTML = `
             <div class="pp-hero">
+                ${p.photo_url ? `<div class="pp-hero-bg" style="background-image:url('${escapeHtml(p.photo_url)}')"></div>` : ''}
                 ${avatarHtml({ name: p.name, photo_url: p.photo_url, color: p.color }, 'lc-avatar pp-avatar')}
                 <div class="pp-hero-info">
                     <div class="pp-name">${escapeHtml(p.name)} ${(s.trophies || []).map(() => trophyIc).join('')}</div>
@@ -1849,6 +1924,17 @@ function openProfilePage(profileId) {
                 ${stat('pódios', s.podiums)}${stat('lanternas', s.last_places)}${stat('colocação média', s.avg_place ?? '—')}${stat('duração média', fmtDuration(s.avg_duration_ms))}
                 ${stat('sequência atual', `${s.current_streak}<svg class="ic ic-flame"><use href="#ic-flame"/></svg>`)}${stat('melhor sequência', s.best_streak)}${stat('Elo', s.elo)}${stat('troféus', (s.trophies || []).length)}
             </div>
+            ${(s.form || []).length ? `<div class="pp-section"><div class="podium-section-label">Forma recente (últimas ${s.form.length})</div><div class="pp-form">${formHtml}</div></div>` : ''}
+            <div class="pp-stats pp-stats-3">
+                ${stat('eliminações', s.kills ?? 0)}${stat('mortes do cmd.', s.commander_deaths_total ?? 0)}${stat('pts / partida', s.points_per_match ?? 0)}
+                ${stat('vida ao vencer', s.avg_final_life_wins ?? '—')}${stat('maior partida', fmtMs(s.longest_ms))}${stat('menor partida', fmtMs(s.shortest_ms))}
+                ${stat('tempo de mesa', fmtH(s.total_time_ms))}${stat('melhor mês', s.best_month ? `${s.best_month.label}<small>${s.best_month.wins}v</small>` : '—')}${stat('desde', s.first_match_at ? fmtDateTime(s.first_match_at).slice(0, 8) : '—')}
+            </div>
+            ${(s.by_month || []).length >= 2 ? `<div class="pp-section"><div class="podium-section-label">Partidas por mês (dourado = vitórias)</div><div class="pp-months">${monthsHtml}</div></div>` : ''}
+            ${placeDistHtml ? `<div class="pp-section"><div class="podium-section-label">Onde costuma terminar</div><div class="pp-bars">${placeDistHtml}</div></div>` : ''}
+            ${(s.by_player_count || []).length ? `<div class="pp-section"><div class="podium-section-label">Aproveitamento por tamanho de mesa</div><div class="pp-bars">${pcHtml}</div></div>` : ''}
+            ${h2hHtml ? `<div class="pp-section"><div class="podium-section-label">Confrontos diretos (vitórias suas × dele)</div><div class="pp-h2h">${h2hHtml}</div></div>` : ''}
+            ${wdHtml ? `<div class="pp-section"><div class="podium-section-label">Dia da semana (vitórias/partidas)</div><div class="pp-bars">${wdHtml}</div></div>` : ''}
             ${(s.elo_history || []).length >= 2 ? `<div class="pp-section"><div class="podium-section-label">Evolução do Elo</div>${eloSparkline(s.elo_history)}</div>` : ''}
             ${(s.deck_stats || []).length ? `
             <div class="pp-section">
@@ -1871,6 +1957,21 @@ function openProfilePage(profileId) {
             </div>
         `;
         body.querySelectorAll('.pp-recent').forEach((el) => el.addEventListener('click', () => openMatchDetail(Number(el.dataset.id))));
+        body.querySelectorAll('.pp-form-dot').forEach((el) => el.addEventListener('click', () => openMatchDetail(Number(el.dataset.match))));
+        body.querySelectorAll('.pp-h2h-row').forEach((el) => el.addEventListener('click', () => { if (el.dataset.profile)
+            openProfilePage(Number(el.dataset.profile)); }));
+        // Foto em tela cheia.
+        body.querySelector('.pp-avatar')?.addEventListener('click', () => {
+            if (!p.photo_url)
+                return;
+            document.getElementById('lc-lightbox')?.remove();
+            const lb = document.createElement('div');
+            lb.id = 'lc-lightbox';
+            lb.className = 'lc-lightbox';
+            lb.innerHTML = `<button type="button" class="lc-lightbox-close" aria-label="Fechar">&times;</button><img src="${escapeHtml(p.photo_url)}" alt="${escapeHtml(p.name)}"><div class="lc-lightbox-name">${escapeHtml(p.name)}</div>`;
+            lb.addEventListener('click', () => lb.remove());
+            document.body.appendChild(lb);
+        });
     }).catch((e) => {
         body.innerHTML = `<div class="ranking-empty">Sem conexão com o servidor (${escapeHtml(String(e?.message || e))}).</div>`;
     });
@@ -2544,6 +2645,17 @@ function renderSetup(state) {
     cb('setup-show-cmd-deaths', state.settings.showCommanderDeaths);
     cb('setup-escandalosa', state.settings.escandalosaEnabled !== false);
     cb('table-mode-checkbox', state.settings.layout.tableMode);
+    cb('casual-checkbox', !!state.casual);
+    cb('setup-haptics', state.settings.hapticsEnabled !== false);
+    cb('setup-avatars', state.settings.showAvatarsOnCards !== false);
+    cb('setup-dim-elim', state.settings.dimEliminated !== false);
+    const seg = (id, v) => {
+        document.querySelectorAll(`#${id} button[data-v]`).forEach((b) => b.classList.toggle('active', b.dataset.v === v));
+    };
+    seg('setup-life-size', state.settings.lifeFontSize || 'normal');
+    seg('setup-btn-size', state.settings.buttonSize || 'normal');
+    seg('setup-hold-step', String(state.settings.holdStep || 5));
+    seg('setup-card-style', state.settings.cardStyle || 'gradient');
     const vsum = $('setup-visual-summary');
     if (vsum) {
         const themeName = THEMES[state.settings.theme]?.name || state.settings.theme;
@@ -2609,14 +2721,43 @@ function renderSetup(state) {
     });
     const startBtn = $('start-game-btn');
     if (startBtn) {
-        const ready = state.players.every((p) => p.profileId !== null);
+        const ready = state.casual || state.players.every((p) => p.profileId !== null);
         startBtn.classList.toggle('start-btn-waiting', !ready);
+        const text = !ready ? 'Escolha os perfis para iniciar' : state.casual ? 'Iniciar partida amistosa' : 'Iniciar partida';
         const label = startBtn.querySelector('span');
         if (label)
-            label.textContent = ready ? 'Iniciar partida' : 'Escolha os perfis para iniciar';
+            label.textContent = text;
         else
-            startBtn.textContent = ready ? 'Iniciar partida' : 'Escolha os perfis para iniciar';
+            startBtn.textContent = text;
     }
+}
+// Personalização da mesa: vira atributos no <body> que o CSS lê.
+function applyCustomization(s) {
+    const b = document.body;
+    b.setAttribute('data-life-size', s.lifeFontSize || 'normal');
+    b.setAttribute('data-btn-size', s.buttonSize || 'normal');
+    b.setAttribute('data-avatars', s.showAvatarsOnCards === false ? 'off' : 'on');
+    b.setAttribute('data-dim-elim', s.dimEliminated === false ? 'off' : 'on');
+    b.setAttribute('data-card-style', s.cardStyle || 'gradient');
+}
+let homeTab = 'play';
+function homeShowTab(tab) {
+    homeTab = tab;
+    document.querySelectorAll('.home-pane').forEach((p) => p.classList.toggle('active', p.dataset.pane === tab));
+    document.querySelectorAll('.home-tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+    window.scrollTo({ top: 0 });
+    // Conteúdo das abas é (re)montado a cada entrada: dados sempre frescos.
+    if (tab === 'ranking')
+        openRankingModal('season', $('home-mount-ranking'));
+    else if (tab === 'profiles')
+        openProfilesModal($('home-mount-profiles'));
+    else if (tab === 'history')
+        openRankingModal('history', $('home-mount-history'));
+}
+function setupHomeTabs() {
+    document.querySelectorAll('.home-tab').forEach((b) => {
+        b.addEventListener('click', () => homeShowTab(b.dataset.tab || 'play'));
+    });
 }
 // ===== Perfis da mesa (nome + foto) =====
 // Modal pra escolher o perfil de um jogador da mesa (ou criar um novo).
@@ -2888,11 +3029,13 @@ function openDeckPicker(playerId) {
     render();
 }
 // Gerenciar perfis: editar nome/foto, remover.
-function openProfilesModal() {
-    document.getElementById('profiles-modal-dyn')?.remove();
+function openProfilesModal(mount) {
+    const inline = !!mount;
+    if (!inline)
+        document.getElementById('profiles-modal-dyn')?.remove();
     const modal = document.createElement('div');
-    modal.className = 'modal active';
-    modal.id = 'profiles-modal-dyn';
+    modal.className = inline ? 'inline-view' : 'modal active';
+    modal.id = inline ? 'profiles-inline' : 'profiles-modal-dyn';
     modal.innerHTML = `
         <div class="modal-content profile-picker-content">
             <div class="modal-header">
@@ -2910,11 +3053,19 @@ function openProfilesModal() {
             </div>
         </div>
     `;
-    document.body.appendChild(modal);
-    const close = () => modal.remove();
+    if (inline) {
+        mount.innerHTML = '';
+        mount.appendChild(modal);
+    }
+    else {
+        document.body.appendChild(modal);
+    }
+    const close = () => { if (!inline)
+        modal.remove(); };
     modal.querySelector('.modal-close')?.addEventListener('click', close);
-    modal.addEventListener('click', (e) => { if (e.target === modal)
-        close(); });
+    if (!inline)
+        modal.addEventListener('click', (e) => { if (e.target === modal)
+            close(); });
     const listEl = modal.querySelector('#profiles-manage');
     const mySel = modal.querySelector('#my-profile-select');
     mySel.addEventListener('change', () => {
@@ -3166,6 +3317,9 @@ function renderGame(state) {
     $('turn-count').textContent = `Turno ${state.currentTurn}`;
     const activePlayer = state.players[state.activePlayerIndex];
     $('active-player-name').textContent = activePlayer ? activePlayer.name : '';
+    const casualBadge = $('casual-badge');
+    if (casualBadge)
+        casualBadge.style.display = state.casual ? '' : 'none';
     // Update players grid layout
     const grid = $('players-grid');
     updateGridLayout(grid, state);
@@ -3271,9 +3425,49 @@ function updateGridLayout(grid, state) {
     // minmax(0, 1fr): um card deitado (90°/270°, mais largo que a célula antes de
     // girar) não pode esticar a coluna/linha e esmagar os vizinhos.
     const maxCols = Math.max(...rows);
-    grid.style.gridTemplateColumns = `repeat(${maxCols}, minmax(0, 1fr))`;
-    grid.style.gridTemplateRows = `repeat(${rows.length}, minmax(0, 1fr))`;
-    grid.style.gridTemplateAreas = areas.map(row => `"${row.join(' ')}"`).join(' ');
+    const nRows = rows.length;
+    // Microfone ENCAIXADO entre os cards: o grid ganha uma calha (coluna e/ou
+    // linha estreita) no meio, e o botão vira um item do grid na área "fab".
+    // Colunas pares → calha vertical entre as duas do meio; 2+ linhas → calha
+    // horizontal entre as linhas centrais. Sem calha possível (1 linha com
+    // colunas ímpares) o botão cai no fallback absoluto do CSS.
+    const fab = vcFabVisible();
+    const gutterCol = fab && maxCols % 2 === 0 ? maxCols / 2 : -1;
+    const gutterRow = fab && nRows >= 2 ? Math.floor(nRows / 2) : -1;
+    const hasFabArea = gutterCol >= 0 || gutterRow >= 0;
+    const colTpl = [];
+    for (let c = 0; c < maxCols; c++) {
+        if (c === gutterCol)
+            colTpl.push('var(--fab-gutter)');
+        colTpl.push('minmax(0, 1fr)');
+    }
+    const rowTpl = [];
+    const finalAreas = [];
+    const fabCol = gutterCol >= 0 ? gutterCol : Math.floor(maxCols / 2);
+    const withGutterCol = (row) => {
+        if (gutterCol < 0)
+            return row;
+        const left = row[gutterCol - 1], right = row[gutterCol];
+        return [...row.slice(0, gutterCol), left === right ? left : '.', ...row.slice(gutterCol)];
+    };
+    for (let r = 0; r < nRows; r++) {
+        if (r === gutterRow) {
+            rowTpl.push('var(--fab-gutter)');
+            const g = withGutterCol(Array(maxCols).fill('.'));
+            g[fabCol] = 'fab';
+            finalAreas.push(g);
+        }
+        rowTpl.push('minmax(0, 1fr)');
+        const row = withGutterCol(areas[r]);
+        // 1 linha só: o microfone mora na calha vertical, no meio da linha.
+        if (gutterRow < 0 && gutterCol >= 0 && row[gutterCol] === '.')
+            row[gutterCol] = 'fab';
+        finalAreas.push(row);
+    }
+    grid.classList.toggle('has-fab', hasFabArea);
+    grid.style.gridTemplateColumns = colTpl.join(' ');
+    grid.style.gridTemplateRows = rowTpl.join(' ');
+    grid.style.gridTemplateAreas = finalAreas.map(row => `"${row.join(' ')}"`).join(' ');
 }
 // ===== Render parcial dos cards =====
 // Cada card tem uma "assinatura" do que entra no HTML dele. Se só a vida mudou,
@@ -3290,7 +3484,7 @@ function playerCardSignature(player, index, state) {
         player.isEliminated, player.isMonarch, player.id === state.winner, player.rotation, player.manualRotation || 0, player.life === 1,
         player.counters, player.commanderDeaths, player.commanderDamage,
         index === state.activePlayerIndex, state.viadoPlayerId === player.id, team?.id,
-        state.settings.gifPaused, state.settings.showCommanderDeaths, state.settings.layout.tableMode,
+        state.settings.gifPaused, state.settings.showCommanderDeaths, state.settings.layout.tableMode, state.settings.holdStep,
         collapsedCounters.has(player.id),
         // faixas de vida (classes low-life/critical-life), não o valor em si
         player.life <= SPECIAL_MOMENTS.LOW_LIFE ? 'crit' : player.life <= SPECIAL_MOMENTS.DANGER_ZONE ? 'low' : 'ok',
@@ -3453,10 +3647,10 @@ function renderPlayerCardHtml(player, index, state) {
                     <button class="life-control plus" data-action="life" data-amount="1">+</button>
                     <div class="life-change-indicator"></div>
                     <div class="life-shortcuts-popup" data-player-id="${player.id}">
-                        <button class="life-shortcut-btn" data-amount="-10">-10</button>
-                        <button class="life-shortcut-btn" data-amount="-5">-5</button>
-                        <button class="life-shortcut-btn" data-amount="+5">+5</button>
-                        <button class="life-shortcut-btn" data-amount="+10">+10</button>
+                        <button class="life-shortcut-btn" data-amount="-${(state.settings.holdStep || 5) * 2}">-${(state.settings.holdStep || 5) * 2}</button>
+                        <button class="life-shortcut-btn" data-amount="-${state.settings.holdStep || 5}">-${state.settings.holdStep || 5}</button>
+                        <button class="life-shortcut-btn" data-amount="+${state.settings.holdStep || 5}">+${state.settings.holdStep || 5}</button>
+                        <button class="life-shortcut-btn" data-amount="+${(state.settings.holdStep || 5) * 2}">+${(state.settings.holdStep || 5) * 2}</button>
                     </div>
                 </div>
                 <div class="player-footer ${countersCollapsed ? 'collapsed' : ''}" data-player-id="${player.id}">
@@ -4044,6 +4238,12 @@ function changeLifeWithFeedback(playerId, amount) {
     const lifeBefore = playerBefore?.life || 0;
     gameState.changeLife(playerId, amount);
     audioManager.play(amount < 0 ? 'damage' : 'heal', playerId);
+    if (state.settings.hapticsEnabled !== false) {
+        try {
+            navigator.vibrate?.(amount < 0 ? 14 : 8);
+        }
+        catch { /* ignore */ }
+    }
     // Update damage shadow - get element AFTER render (gameState.changeLife triggers re-render)
     const newCard = $('players-grid').querySelector(`[data-player-id="${playerId}"]`);
     const damageShadow = newCard?.querySelector('.damage-shadow');

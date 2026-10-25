@@ -694,9 +694,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopSpeech() {
         voiceActive = false
-        speechRecognizer?.let {
-            try { it.stopListening() } catch (_: Exception) {}
-            try { it.cancel() } catch (_: Exception) {}
+        // stopListening() ainda ENTREGA o resultado final (onResults); cancel() na
+        // sequência jogava esse resultado fora e o comando "não funcionava".
+        // Só cancela se nada chegar em 3,5 s.
+        speechRecognizer?.let { try { it.stopListening() } catch (_: Exception) {} }
+        if (::webView.isInitialized) {
+            webView.postDelayed({
+                if (!voiceActive) try { speechRecognizer?.cancel() } catch (_: Exception) {}
+            }, 3500)
         }
     }
 

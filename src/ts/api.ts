@@ -54,6 +54,7 @@ export interface EloRowDTO {
     photo_url: string | null;
     elo: number;
     matches: number;
+    wins?: number;
     history: Array<{ match_id: number; at: string; elo: number }>;
 }
 
@@ -131,6 +132,24 @@ export interface ProfileStatsDTO {
     trophies: Array<{ label: string; start: string; points: number }>;
     deck_stats: Array<{ deck_id: number | null; name: string; colors: string; matches: number; wins: number; win_rate: number }>;
     color_stats: Array<{ color: string; matches: number; wins: number; win_rate: number }>;
+    // v2.3.0: análises extras
+    head_to_head?: Array<{ profile_id: number | null; name: string; photo_url: string | null; matches: number; my_wins: number; their_wins: number; i_beat_them: number; they_beat_me: number; my_avg_place: number | null }>;
+    form?: Array<{ place: number; players: number; match_id: number }>;
+    by_month?: Array<{ month: string; label: string; matches: number; wins: number; points: number }>;
+    by_player_count?: Array<{ players: number; matches: number; wins: number; win_rate: number }>;
+    place_dist?: Array<{ place: number; count: number }>;
+    weekday?: Array<{ day: number; label: string; matches: number; wins: number }>;
+    kills?: number;
+    commander_deaths_total?: number;
+    avg_final_life_wins?: number | null;
+    longest_ms?: number;
+    shortest_ms?: number;
+    total_time_ms?: number;
+    first_match_at?: string | null;
+    last_match_at?: string | null;
+    points_per_match?: number;
+    best_month?: { label: string; wins: number; matches: number } | null;
+    top_deck?: { name: string; colors: string; matches: number; win_rate: number } | null;
 }
 
 export type ScoringMode = 'placement' | 'winner_only' | 'podium' | 'elo';

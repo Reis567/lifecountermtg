@@ -362,6 +362,9 @@ def elo(request):
     """Notas Elo atuais + histórico de evolução por perfil."""
     ratings, history = scoring.compute_elo()
     profiles = {p.id: p for p in Profile.objects.all()}
+    wins = {}
+    for pl in MatchPlacement.objects.filter(place=1, profile__isnull=False).values_list('profile_id', flat=True):
+        wins[pl] = wins.get(pl, 0) + 1
     rows = []
     for pid, r in ratings.items():
         p = profiles.get(pid)
@@ -369,7 +372,7 @@ def elo(request):
             continue
         rows.append({
             'profile_id': pid, 'name': p.name, 'photo_url': _abs(request, p.photo.url) if p.photo else None,
-            'elo': r, 'matches': len(history.get(pid, [])),
+            'elo': r, 'matches': len(history.get(pid, [])), 'wins': wins.get(pid, 0),
             'history': [{'match_id': mid, 'at': at, 'elo': e} for mid, at, e in history.get(pid, [])],
         })
     rows.sort(key=lambda x: -x['elo'])
@@ -527,7 +530,113 @@ def profile_stats(request, pk):
     deck_stats = sorted(decks.values(), key=lambda d: (-d['matches'], -d['wins']))
     color_stats = sorted(colors.values(), key=lambda d: (-d['matches'], -d['wins']))
 
+    # ----- v2.3.0: análises extras -----
+    # Confrontos diretos: por adversário, partidas juntos, quem venceu, quem eliminou quem.
+    all_pl = list(MatchPlacement.objects.filter(match_id__in=match_ids).select_related('profile'))
+    by_match = {}
+    for pl in all_pl:
+        by_match.setdefault(pl.match_id, []).append(pl)
+    mine = {p.match_id: p for p in placements}
+    me_name = profile.name.strip().lower()
+    h2h = {}
+    for mid, pls in by_match.items():
+        my = mine.get(mid)
+        if not my:
+            continue
+        for o in pls:
+            if o.id == my.id:
+                continue
+            key = o.profile_id or ('n:' + o.name.strip().lower())
+            r = h2h.setdefault(key, {
+                'profile_id': o.profile_id, 'name': o.profile.name if o.profile else o.name,
+                'photo_url': _abs(request, o.profile.photo.url) if o.profile and o.profile.photo else None,
+                'matches': 0, 'my_wins': 0, 'their_wins': 0, 'i_beat_them': 0, 'they_beat_me': 0, '_places': [],
+            })
+            r['matches'] += 1
+            r['_places'].append(my.place)
+            if my.place == 1:
+                r['my_wins'] += 1
+            if o.place == 1:
+                r['their_wins'] += 1
+            if (o.eliminated_by or '').strip().lower() == me_name:
+                r['i_beat_them'] += 1
+            o_name = (o.profile.name if o.profile else o.name).strip().lower()
+            if (my.eliminated_by or '').strip().lower() == o_name:
+                r['they_beat_me'] += 1
+    head_to_head = []
+    for r in h2h.values():
+        pl_ = r.pop('_places')
+        r['my_avg_place'] = round(sum(pl_) / len(pl_), 2) if pl_ else None
+        head_to_head.append(r)
+    head_to_head.sort(key=lambda r: (-r['matches'], r['name'].lower()))
+
+    form = [{'place': p.place, 'players': p.match.player_count, 'match_id': p.match_id} for p in placements[:10]]
+
+    months = {}
+    for p in placements:
+        d = timezone.localtime(p.match.ended_at)
+        key = d.strftime('%Y-%m')
+        m = months.setdefault(key, {'month': key, 'label': d.strftime('%m/%y'), 'matches': 0, 'wins': 0, 'points': 0})
+        m['matches'] += 1
+        m['points'] += p.points
+        if p.place == 1:
+            m['wins'] += 1
+    by_month = sorted(months.values(), key=lambda m: m['month'])[-12:]
+    best_month = max(months.values(), key=lambda m: (m['wins'], m['matches']), default=None)
+    if best_month:
+        best_month = {'label': best_month['label'], 'wins': best_month['wins'], 'matches': best_month['matches']}
+
+    by_pc = {}
+    for p in placements:
+        n = p.match.player_count
+        r = by_pc.setdefault(n, {'players': n, 'matches': 0, 'wins': 0})
+        r['matches'] += 1
+        if p.place == 1:
+            r['wins'] += 1
+    for r in by_pc.values():
+        r['win_rate'] = round(100.0 * r['wins'] / r['matches'], 1) if r['matches'] else 0.0
+    by_player_count = sorted(by_pc.values(), key=lambda r: r['players'])
+
+    max_place = max((p.place for p in placements), default=0)
+    place_dist = [{'place': i, 'count': sum(1 for p in placements if p.place == i)} for i in range(1, max_place + 1)]
+
+    wd_labels = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
+    wd = {i: {'day': i, 'label': wd_labels[i], 'matches': 0, 'wins': 0} for i in range(7)}
+    for p in placements:
+        d = timezone.localtime(p.match.ended_at).weekday()
+        wd[d]['matches'] += 1
+        if p.place == 1:
+            wd[d]['wins'] += 1
+    weekday = [wd[i] for i in range(7)]
+
+    kills = sum(1 for o in all_pl if (o.eliminated_by or '').strip().lower() == me_name and o.profile_id != profile.id)
+    commander_deaths_total = sum(p.commander_deaths or 0 for p in placements)
+    win_lives = [p.final_life for p in placements if p.place == 1 and p.final_life is not None]
+    avg_final_life_wins = round(sum(win_lives) / len(win_lives), 1) if win_lives else None
+    durations = [p.match.duration_ms for p in placements if p.match.duration_ms]
+    top_deck = None
+    if deck_stats:
+        td = max(deck_stats, key=lambda d: (d['matches'], d['wins']))
+        top_deck = {'name': td['name'], 'colors': td['colors'], 'matches': td['matches'], 'win_rate': td['win_rate']}
+
     return Response({
+        'head_to_head': head_to_head,
+        'form': form,
+        'by_month': by_month,
+        'by_player_count': by_player_count,
+        'place_dist': place_dist,
+        'weekday': weekday,
+        'kills': kills,
+        'commander_deaths_total': commander_deaths_total,
+        'avg_final_life_wins': avg_final_life_wins,
+        'longest_ms': max(durations) if durations else 0,
+        'shortest_ms': min(durations) if durations else 0,
+        'total_time_ms': sum(durations) if durations else 0,
+        'first_match_at': placements[-1].match.ended_at if placements else None,
+        'last_match_at': placements[0].match.ended_at if placements else None,
+        'points_per_match': round(points / matches_n, 2) if matches_n else 0,
+        'best_month': best_month,
+        'top_deck': top_deck,
         'elo': elo_now,
         'elo_history': elo_history,
         'trophies': _trophies_for(request, profile.id),

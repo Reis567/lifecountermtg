@@ -28,6 +28,12 @@ let vcPushTimer: number | null = null; // auto-desliga no push-to-talk
 let vcGameActive = false;
 const VC_PUSH_SILENCE_MS = 8000; // sem fala final -> desliga
 const VC_PUSH_AFTER_CMD_MS = 1800; // depois de aplicar um comando, dá tempo pra emendar outro
+// Soltou o botão: o reconhecedor para de captar, mas o resultado FINAL ainda
+// chega (Android entrega depois do stopListening; Web Speech idem depois do
+// stop()). Ficamos "drenando" por até este tempo antes de desligar de vez.
+const VC_DRAIN_MS = 3000;
+let vcDraining = false;
+let vcDrainTimer: number | null = null;
 
 interface VoiceCommand {
     playerId?: string;
@@ -83,6 +89,10 @@ function vcNativeBridge(): any {
 }
 export function vcSupported(): boolean {
     return !!vcNativeBridge() || !!vcWebSpeech();
+}
+// O grid reserva uma célula pro microfone só quando ele vai aparecer.
+export function vcFabVisible(): boolean {
+    return vcGameActive && vcSupported();
 }
 
 // ----- Normalização / parsing -----
@@ -642,15 +652,19 @@ function vcHandleTranscript(raw: string, final: boolean): void {
             return;
         }
         if (!vcArmed) return; // modo ambiente: só age depois de ouvir "contador"
-    } else if (!vcHolding) {
+    } else if (!vcHolding && !vcDraining) {
         vcSchedulePushStop(VC_PUSH_SILENCE_MS);
     }
 
     const cmd = vcParse(raw);
     if (!cmd) {
         vcSetHeard(`"${raw}" — não entendi (diga "ajuda")`);
+        if (vcDraining) { vcToast(`Não entendi: "${raw}"`, false); window.setTimeout(() => { if (vcDraining) vcStop(); }, 900); }
         return;
     }
+    // Resultado final chegou depois de soltar o botão: aplica e desliga.
+    const wasDraining = vcDraining;
+    if (wasDraining && vcDrainTimer !== null) { clearTimeout(vcDrainTimer); vcDrainTimer = null; }
 
     // Dedup: o reconhecedor às vezes entrega o mesmo final 2x (causava aplicar em dobro).
     const key = vcCmdKey(cmd);
@@ -669,11 +683,28 @@ function vcHandleTranscript(raw: string, final: boolean): void {
     } else {
         vcApply(cmd);
     }
+    if (wasDraining) {
+        window.setTimeout(() => { if (vcDraining) vcStop(); }, 350);
+        return;
+    }
     // Push-to-talk: aplicou, dá um tempinho pra emendar outro comando e desliga
     // (se o dedo ainda estiver segurando o botão, continua ouvindo até soltar).
     if (vcMode === 'push' && vcActive && !vcHolding && cmd.action !== 'stopVoice' && cmd.action !== 'help') {
         vcSchedulePushStop(cmd.query ? VC_PUSH_SILENCE_MS : VC_PUSH_AFTER_CMD_MS);
     }
+}
+
+// Soltou o botão depois de segurar: para de captar áudio mas espera o
+// resultado final chegar (até VC_DRAIN_MS) antes de desligar de vez.
+function vcBeginDrain(): void {
+    if (!vcActive || vcDraining) return;
+    vcDraining = true;
+    vcSetTitle('Processando…');
+    const native = vcNativeBridge();
+    if (native) { try { native.stop(); } catch { /* ignore */ } }
+    else if (vcRec) { try { vcRec.stop(); } catch { /* ignore */ } }
+    if (vcDrainTimer !== null) clearTimeout(vcDrainTimer);
+    vcDrainTimer = window.setTimeout(() => { vcDrainTimer = null; if (vcDraining) vcStop(); }, VC_DRAIN_MS);
 }
 
 // Texto de confirmação para comandos que mudam muito a mesa (null = aplica direto).
@@ -769,7 +800,6 @@ export function vcSetGameActive(active: boolean): void {
 // ele para (com ~1 s de folga pra pegar a última palavra). Toque rápido liga e
 // fica ouvindo até o próximo toque ou até o comando ser aplicado.
 const VC_TAP_MS = 350;
-const VC_RELEASE_GRACE_MS = 1000;
 let vcHoldStartedAt = 0;
 let vcHolding = false;
 
@@ -792,6 +822,7 @@ function vcEnsureFab(): void {
         vcHoldStartedAt = Date.now();
         vcHolding = true;
         if (vcPushTimer !== null) { clearTimeout(vcPushTimer); vcPushTimer = null; }
+        if (vcDraining) vcStop(); // apertou de novo enquanto processava: recomeça limpo
         if (!vcActive) vcStart('push');
         else if (vcMode === 'ambient') { vcStop(); vcStart('push'); }
         btn.classList.add('voice-fab-holding');
@@ -810,10 +841,10 @@ function vcEnsureFab(): void {
             vcSchedulePushStop(VC_PUSH_SILENCE_MS);
             return;
         }
-        // Soltou depois de segurar: folga curta pra chegar o resultado final e para.
+        // Soltou depois de segurar: para de captar e espera o resultado final.
         vcTapShouldStop = false;
-        vcSetTitle('Processando…');
-        vcSchedulePushStop(VC_RELEASE_GRACE_MS);
+        if (vcPushTimer !== null) { clearTimeout(vcPushTimer); vcPushTimer = null; }
+        vcBeginDrain();
     };
     btn.addEventListener('pointerup', release);
     btn.addEventListener('pointercancel', release);
@@ -876,7 +907,7 @@ function vcStart(mode: VcMode): void {
             vcHandleTranscript(r[0].transcript, r.isFinal);
         }
     };
-    vcRec.onend = () => { if (vcActive) { try { vcRec.start(); } catch { /* já rodando */ } } };
+    vcRec.onend = () => { if (vcActive && !vcDraining && vcRec) { try { vcRec.start(); } catch { /* já rodando */ } } };
     vcRec.onerror = (e: any) => {
         if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
             vcSetHeard('Microfone bloqueado. Permita o acesso.');
@@ -894,6 +925,8 @@ function vcStop(): void {
     vcArmed = false;
     vcTapShouldStop = false;
     vcHolding = false;
+    vcDraining = false;
+    if (vcDrainTimer !== null) { clearTimeout(vcDrainTimer); vcDrainTimer = null; }
     vcFab?.classList.remove('voice-fab-holding');
     if (vcPushTimer !== null) { clearTimeout(vcPushTimer); vcPushTimer = null; }
     vcBtnClass(false, false);

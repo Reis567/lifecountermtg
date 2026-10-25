@@ -157,6 +157,13 @@ export function createDefaultSettings(playerCount = 4) {
         silentMode: false,
         narratorPersona: 'classic',
         soundPack: 'default',
+        lifeFontSize: 'normal',
+        buttonSize: 'normal',
+        holdStep: 5,
+        hapticsEnabled: true,
+        showAvatarsOnCards: true,
+        dimEliminated: true,
+        cardStyle: 'gradient',
     };
 }
 // Create initial game state
@@ -173,6 +180,7 @@ export function createInitialState() {
         gameStarted: false,
         winner: null,
         matchClosed: false,
+        casual: false,
         history: [],
         undoStack: [],
         gameMode: 'standard',
@@ -297,6 +305,22 @@ class GameStateManager {
                     parsed.settings.silentMode = false;
                 if (!parsed.settings.soundPack)
                     parsed.settings.soundPack = 'default';
+                if (parsed.casual === undefined)
+                    parsed.casual = false;
+                if (!parsed.settings.lifeFontSize)
+                    parsed.settings.lifeFontSize = 'normal';
+                if (!parsed.settings.buttonSize)
+                    parsed.settings.buttonSize = 'normal';
+                if (!parsed.settings.holdStep)
+                    parsed.settings.holdStep = 5;
+                if (parsed.settings.hapticsEnabled === undefined)
+                    parsed.settings.hapticsEnabled = true;
+                if (parsed.settings.showAvatarsOnCards === undefined)
+                    parsed.settings.showAvatarsOnCards = true;
+                if (parsed.settings.dimEliminated === undefined)
+                    parsed.settings.dimEliminated = true;
+                if (!parsed.settings.cardStyle)
+                    parsed.settings.cardStyle = 'gradient';
                 // Ensure all players have new properties (migration for older saves)
                 parsed.players = parsed.players.map((p) => ({
                     ...p,
@@ -721,6 +745,11 @@ class GameStateManager {
         this.state.mechanics = { ...createDefaultMechanics(), dayNight: this.state.mechanics?.dayNight === 'none' ? 'none' : 'none' };
         this.notify();
     }
+    // Partida amistosa: escolhida no setup, nunca vai pro ranking.
+    setCasual(on) {
+        this.state.casual = on;
+        this.notify();
+    }
     resetGame(resetCommanderDeaths = false) {
         this.state.players.forEach(player => {
             player.life = this.state.settings.startingLife;
@@ -764,9 +793,10 @@ class GameStateManager {
             profileId: p.profileId ?? null, name: p.name, avatar: p.avatar, color: p.color, emoji: p.emoji,
             deckId: p.deckId ?? null, deckName: p.deckName ?? null,
         }));
+        // Preferências (tema, som, personalização) continuam as mesmas; só a mesa zera.
+        const settings = this.state.settings;
         this.state = createInitialState();
-        this.state.settings.playerCount = playerCount;
-        this.state.settings.layout = getDefaultLayout(playerCount);
+        this.state.settings = { ...settings, playerCount, layout: getDefaultLayout(playerCount) };
         this.state.players = Array.from({ length: playerCount }, (_, i) => {
             const player = createPlayer(i, this.state.settings.startingLife, playerCount);
             const prev = roster[i];
