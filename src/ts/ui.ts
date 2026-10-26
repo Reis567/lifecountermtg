@@ -40,7 +40,9 @@ import { openMechanicsModal, renderMechanicsBadge } from './mechanics.js';
 import { setupNotifications, onNotification, getMyProfileId, setMyProfileId } from './notifications.js';
 import { buildLifeSeries, lifeChartSvg, drawLifeChart } from './chart.js';
 import { liveHostStart, liveHostStop, liveHostSession, liveHostNotify, liveHostSetAllowEdits, onLiveHostChange, liveJoinUrl, liveGuestOpen } from './live.js';
-import { apiCreateDeck, apiDeleteDeck, apiUploadProfileSound, apiDeleteProfileSound, apiElo, apiSeasons, type DeckDTO, type ScoringMode } from './api.js';
+import { apiCreateDeck, apiDeleteDeck, apiUploadProfileSound, apiDeleteProfileSound, apiElo, apiSeasons, apiSeasonOverview, type DeckDTO, type ScoringMode, type SeasonOverviewDTO, type SeasonAwardDTO } from './api.js';
+import { identifyCardFromFile } from './cardScanner.js';
+import { isGeminiConfigured } from './aiClient.js';
 import { setNarratorContext } from './aiNarrator.js';
 import { promptDialog } from './dialogs.js';
 import {
@@ -727,6 +729,7 @@ export function initUI(): void {
     narrator.setEnabled(state.settings.narratorEnabled);
     narrator.setSpeed(state.settings.narratorSpeed);
     narrator.setVolume(state.settings.narratorVolume ?? 80);
+    narrator.setVoiceMode(state.settings.narratorVoice === 'gemini' ? 'gemini' : 'device');
 
     // Initialize sound pack
     audioManager.setSoundPack(state.settings.soundPack);
@@ -1727,6 +1730,7 @@ function openRankingModal(initialTab: RankingTab = 'today', mount?: HTMLElement)
                     <div class="hall-head"><strong>${escapeHtml(s.label)}</strong>${s.current ? ' <span class="hall-tag">em andamento</span>' : ' <span class="hall-tag closed">encerrada</span>'}<span class="update-muted"> · ${s.matches} partida(s)</span></div>
                     ${s.champion ? `<div class="hall-champ ranking-clickable" data-profile="${s.champion.profile_id ?? ''}">${avatarHtml({ name: s.champion.name, photo_url: s.champion.photo_url, color: champProf?.color }, 'lc-avatar pp-avatar-md')}<div><div class="hall-champ-name"><svg class="ic ic-gold"><use href="#${s.current ? 'ic-crown' : 'ic-trophy'}"/></svg>${s.current ? 'líder' : 'campeão'}: ${escapeHtml(s.champion.name)}</div><div class="update-muted">${s.champion.points} pts · ${s.champion.wins} vitória(s)</div></div></div>` : ''}
                     <div class="hall-top">${s.top.slice(1).map((t, i) => `<span class="pp-chip">${medalFor(i + 2)} ${escapeHtml(t.name)} · ${t.points}</span>`).join('')}</div>
+                    ${(s.awards || []).length ? `<div class="hall-awards">${(s.awards || []).map(a => awardChipHtml(a, s.current)).join('')}</div>` : ''}
                 </div>`;
             }).join('');
         } catch (e: any) {
@@ -1769,6 +1773,16 @@ function openRankingModal(initialTab: RankingTab = 'today', mount?: HTMLElement)
             </div>`;
         }).join('');
         tableEl.innerHTML = podiumHtml(rows, unit) + body;
+        // Aba Temporada: resumo visual + corrida de pontos em cima do pódio.
+        if (tab === 'season' && remote) {
+            apiSeasonOverview().then((ov) => {
+                if (token !== renderToken) return;
+                tableEl.insertAdjacentHTML('afterbegin', seasonOverviewHtml(ov));
+                tableEl.querySelector('#season-race-toggle')?.addEventListener('click', () => {
+                    tableEl.querySelector('#season-race')?.classList.toggle('open');
+                });
+            }).catch(() => { /* sem resumo */ });
+        }
     };
 
     const renderHistory = async (): Promise<void> => {
@@ -1863,6 +1877,83 @@ function openRankingModal(initialTab: RankingTab = 'today', mount?: HTMLElement)
 
     void apiGetSeasonSettings().then((cfg) => { seasonCfg = cfg; }).catch(() => { /* offline */ });
     void flushSyncQueue().finally(render);
+}
+
+// Prêmio automático de temporada (chip com foto).
+const AWARD_ICON: Record<string, string> = { most_kills: 'ic-skull', most_podiums: 'ic-crown', most_matches: 'ic-clock', zebra: 'ic-bolt', longest_streak: 'ic-flame', champion: 'ic-trophy' };
+function awardChipHtml(a: SeasonAwardDTO, partial = false): string {
+    const prof = getProfileById(a.profile_id);
+    const val = a.key === 'zebra' ? `+${a.value} Elo` : a.key === 'longest_streak' ? `${a.value} seguidas` : `${a.value}`;
+    return `<span class="award-chip ${partial ? 'partial' : ''} ranking-clickable" data-profile="${a.profile_id}" title="${escapeHtml(a.label)}${partial ? ' (parcial)' : ''}">
+        <svg class="ic"><use href="#${AWARD_ICON[a.key] || 'ic-trophy'}"/></svg>
+        ${avatarHtml({ name: a.name, photo_url: a.photo_url, color: prof?.color }, 'lc-avatar lc-avatar-xs')}
+        <span class="award-chip-text"><b>${escapeHtml(a.label)}</b><small>${escapeHtml(a.name)} · ${val}</small></span>
+    </span>`;
+}
+
+// Resumo visual da temporada atual (aba Temporada).
+function seasonOverviewHtml(ov: SeasonOverviewDTO): string {
+    const fmtD = (iso: string): string => { const d = new Date(iso + 'T00:00:00'); return isNaN(d.getTime()) ? iso : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); };
+    const leader = ov.leader;
+    const lp = leader ? getProfileById(leader.profile_id ?? null) : null;
+    const stat = (label: string, value: string, sub = ''): string => `<div class="so-stat"><div class="so-stat-v">${value}</div><div class="so-stat-l">${label}</div>${sub ? `<div class="so-stat-s">${sub}</div>` : ''}</div>`;
+    const race = ov.race && ov.race.series.length && ov.race.matches.length >= 2 ? raceChartSvg(ov.race) : '';
+    return `
+    <div class="season-overview">
+        <div class="so-head">
+            <div>
+                <div class="so-label">Temporada atual</div>
+                <div class="so-name">${escapeHtml(ov.label)}</div>
+                <div class="so-dates">${fmtD(ov.start)} → ${fmtD(ov.end)} · ${ov.matches} partida${ov.matches === 1 ? '' : 's'}</div>
+            </div>
+            <div class="so-days"><b>${ov.days_left}</b><small>dia${ov.days_left === 1 ? '' : 's'} restante${ov.days_left === 1 ? '' : 's'}</small></div>
+        </div>
+        <div class="so-progress"><span style="width:${Math.max(2, Math.min(100, ov.progress))}%"></span></div>
+        ${leader ? `
+        <div class="so-leader ranking-clickable" data-profile="${leader.profile_id ?? ''}">
+            ${avatarHtml({ name: leader.name, photo_url: leader.photo_url, color: lp?.color }, 'lc-avatar so-leader-avatar')}
+            <div class="so-leader-text">
+                <div class="so-leader-l"><svg class="ic ic-gold"><use href="#ic-crown"/></svg>Líder</div>
+                <div class="so-leader-n">${escapeHtml(leader.name)}</div>
+                <div class="so-leader-s">${leader.points} pts · ${leader.wins} vit · ${ov.gap !== null && ov.runner_up ? `${ov.gap} na frente de ${escapeHtml(ov.runner_up.name)}` : 'sozinho na tabela'}</div>
+            </div>
+        </div>` : ''}
+        <div class="so-stats">
+            ${ov.longest_streak ? stat('maior sequência', `${ov.longest_streak.value}`, escapeHtml(ov.longest_streak.name)) : ''}
+            ${ov.longest_match ? stat('partida mais longa', fmtDuration(ov.longest_match.duration_ms), escapeHtml(ov.longest_match.winner || '')) : ''}
+            ${ov.commander ? stat('comandante da temporada', `${ov.commander.wins} vit`, escapeHtml(ov.commander.name)) : ''}
+        </div>
+        ${ov.commander && ov.commander.image ? `<div class="so-cmd"><img src="${escapeHtml(ov.commander.image)}" alt=""><div><div class="so-cmd-n">${escapeHtml(ov.commander.name)}</div><div class="so-cmd-s">${ov.commander.wins} vitória${ov.commander.wins === 1 ? '' : 's'} em ${ov.commander.matches} · ${colorsHtml(ov.commander.colors)}${ov.commander.pilot ? ` · ${escapeHtml(ov.commander.pilot)}` : ''}</div></div></div>` : ''}
+        ${ov.awards.length ? `<div class="so-awards-l">Prêmios parciais (fecham com a temporada)</div><div class="hall-awards">${ov.awards.map(a => awardChipHtml(a, true)).join('')}</div>` : ''}
+        ${race ? `<button type="button" class="so-race-toggle" id="season-race-toggle"><svg class="ic"><use href="#ic-chart"/></svg>Corrida de pontos<svg class="ic so-chev"><use href="#ic-chevron"/></svg></button><div class="so-race" id="season-race">${race}</div>` : ''}
+    </div>`;
+}
+
+// Corrida de pontos: linha por jogador, pontos acumulados partida a partida.
+function raceChartSvg(race: SeasonOverviewDTO['race']): string {
+    const W = 640, H = 260, padL = 30, padR = 90, padT = 12, padB = 26;
+    const n = race.matches.length;
+    const maxV = Math.max(1, ...race.series.flatMap(s => s.values));
+    const px = (i: number): number => padL + (i / Math.max(1, n - 1)) * (W - padL - padR);
+    const py = (v: number): number => padT + (1 - v / maxV) * (H - padT - padB);
+    const grid = [0, 0.25, 0.5, 0.75, 1].map(f => `<line x1="${padL}" x2="${W - padR}" y1="${py(maxV * f).toFixed(1)}" y2="${py(maxV * f).toFixed(1)}" stroke="rgba(255,255,255,0.08)"/><text x="${padL - 4}" y="${(py(maxV * f) + 4).toFixed(1)}" font-size="10" text-anchor="end" fill="#888">${Math.round(maxV * f)}</text>`).join('');
+    const sorted = race.series.slice().sort((a, b) => (b.values[n - 1] || 0) - (a.values[n - 1] || 0));
+    // Rótulos à direita sem sobrepor: empurra cada um pra baixo do anterior (12 px).
+    const labelY: number[] = [];
+    sorted.forEach((s, idx) => {
+        const want = py(s.values[n - 1] || 0);
+        labelY[idx] = idx === 0 ? Math.max(padT + 8, want) : Math.max(want, labelY[idx - 1] + 12);
+    });
+    const lines = sorted.map((s, idx) => {
+        const d = s.values.map((v, i) => `${i === 0 ? 'M' : 'L'}${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(' ');
+        const last = s.values[n - 1] || 0;
+        const ly = Math.min(H - padB - 4, labelY[idx]);
+        return `<path d="${d}" fill="none" stroke="${escapeHtml(s.color || '#888')}" stroke-width="${idx === 0 ? 3 : 2}" stroke-linejoin="round" opacity="${idx === 0 ? 1 : 0.85}"/>
+            <circle cx="${px(n - 1).toFixed(1)}" cy="${py(last).toFixed(1)}" r="4" fill="${escapeHtml(s.color || '#888')}"/>
+            <text x="${(px(n - 1) + 8).toFixed(1)}" y="${(ly + 4).toFixed(1)}" font-size="11" font-weight="700" fill="${escapeHtml(s.color || '#ccc')}">${escapeHtml(s.name.slice(0, 10))} ${last}</text>`;
+    }).join('');
+    const xl = `<text x="${padL}" y="${H - 8}" font-size="10" fill="#888">1ª partida</text><text x="${W - padR}" y="${H - 8}" font-size="10" text-anchor="end" fill="#888">${n}ª</text>`;
+    return `<svg class="race-chart" viewBox="0 0 ${W} ${H}">${grid}${lines}${xl}</svg>`;
 }
 
 // Pódio (top 3 com foto) no topo do ranking.
@@ -2430,6 +2521,12 @@ function setupSettingsListeners(): void {
         const speed = parseFloat((e.target as HTMLSelectElement).value);
         gameState.updateSettings({ narratorSpeed: speed });
         narrator.setSpeed(speed);
+    });
+    $('narrator-voice')?.addEventListener('change', (e) => {
+        const v = (e.target as HTMLSelectElement).value;
+        gameState.updateSettings({ narratorVoice: v });
+        narrator.setVoiceMode(v === 'gemini' ? 'gemini' : 'device');
+        if (v === 'gemini') { narrator.setEnabled(true); narrator.speak('Voz por inteligência artificial ligada.'); }
     });
 
     $('narrator-volume-slider')?.addEventListener('input', (e) => {
@@ -3290,6 +3387,7 @@ function openDeckPicker(playerId: string): void {
                     </div>
                     <div class="deck-search">
                         <input type="text" id="deck-search-input" class="profile-new-name" placeholder="Buscar comandante no Scryfall…" autocomplete="off">
+                        ${isGeminiConfigured() ? `<label class="cs-gallery-btn deck-photo-btn" id="deck-photo-btn"><input type="file" accept="image/*" capture="environment" hidden id="deck-photo-input"><svg class="ic"><use href="#ic-camera"/></svg> Fotografar o comandante</label>` : ''}
                         <div id="deck-search-results" class="deck-results"></div>
                     </div>
                     <div class="profile-picker-footer">
@@ -3305,6 +3403,27 @@ function openDeckPicker(playerId: string): void {
         }));
         const input = modal.querySelector('#deck-search-input') as HTMLInputElement;
         const results = modal.querySelector('#deck-search-results') as HTMLElement;
+        // Foto do comandante → IA identifica → Scryfall → marca o deck.
+        modal.querySelector('#deck-photo-input')?.addEventListener('change', async (e) => {
+            const f = (e.target as HTMLInputElement).files?.[0];
+            if (!f) return;
+            results.innerHTML = '<div class="update-muted">Identificando a carta pela foto…</div>';
+            try {
+                const h = await identifyCardFromFile(f);
+                results.innerHTML = `<div class="update-muted">Reconheci: <b>${escapeHtml(h.name)}</b></div>`;
+                if (!hasProfile) { choose({ id: null, name: h.name, colors: h.colors, image_url: h.image }); return; }
+                try {
+                    const created = await apiCreateDeck(player.profileId!, { name: h.name, commander: h.name, colors: h.colors, image_url: h.image, scryfall_id: h.id });
+                    await refreshProfiles();
+                    choose(created);
+                } catch (err: any) {
+                    showSpecialMoment(`Não deu pra salvar no perfil (${err?.message || err}); vale só nesta partida.`, 'warning');
+                    choose({ id: null, name: h.name, colors: h.colors, image_url: h.image });
+                }
+            } catch (err: any) {
+                results.innerHTML = `<div class="update-muted">${escapeHtml(String(err?.message || err))}</div>`;
+            }
+        });
         let timer: number | null = null;
         input.addEventListener('input', () => {
             if (timer !== null) window.clearTimeout(timer);
@@ -3740,6 +3859,72 @@ function updateGridLayout(grid: HTMLElement, state: GameState): void {
     grid.style.gridTemplateAreas = areas.map(row => `"${row.join(' ')}"`).join(' ');
 }
 
+// Dano de comandante por atacante, visível no card: uma barra por oponente
+// (cor dele) crescendo até 21. Com 15+ de alguém, selo "em risco".
+const CMD_RISK_FROM = 15;
+function commanderBarsHtml(player: Player, state: GameState): string {
+    const entries = Object.entries(player.commanderDamage || {}).filter(([, v]) => v > 0);
+    if (!entries.length) return '';
+    const maxD = Math.max(...entries.map(([, v]) => v));
+    const risk = maxD >= CMD_RISK_FROM && maxD < COMMANDER_DAMAGE_LETHAL && !player.isEliminated;
+    const bars = entries.sort((a, b) => b[1] - a[1]).map(([sid, v]) => {
+        const src = state.players.find(p => p.id === sid);
+        const pct = Math.min(100, Math.round(100 * v / COMMANDER_DAMAGE_LETHAL));
+        return `<div class="cmd-bar ${v >= COMMANDER_DAMAGE_LETHAL ? 'lethal' : v >= CMD_RISK_FROM ? 'danger' : ''}" title="${escapeHtml(src?.name || '?')}: ${v}/21" data-action="commander-bars">
+            <span class="cmd-bar-name">${escapeHtml((src?.name || '?').slice(0, 8))}</span>
+            <span class="cmd-bar-track"><span class="cmd-bar-fill" style="width:${pct}%;background:${escapeHtml(src?.color || '#888')}"></span></span>
+            <span class="cmd-bar-val">${v}</span>
+        </div>`;
+    }).join('');
+    return `<div class="cmd-bars">${risk ? `<div class="cmd-risk"><svg class="ic"><use href="#ic-swords"/></svg>em risco · ${maxD}/21</div>` : ''}${bars}</div>`;
+}
+
+// Linha do tempo de UM jogador (toque longo no número): últimos 10 eventos
+// dele, cada um com "estornar" — aplica o inverso daquele evento específico
+// (fica no log como um evento novo; o undo geral continua existindo).
+const revertedEvents = new Set<string>();
+const TIMELINE_TYPES = new Set(['life_change', 'commander_damage', 'counter_change', 'custom_counter', 'commander_death', 'player_eliminated', 'revive']);
+function playerTimelineHtml(playerId: string): string {
+    const s = gameState.getState();
+    const nameOf = (id: string): string => s.players.find(p => p.id === id)?.name || 'Jogador';
+    const evs = s.history.filter(e => e.playerId === playerId && TIMELINE_TYPES.has(e.type)).slice(0, 10);
+    if (!evs.length) return '<div class="update-muted lq-empty">Nenhum evento ainda nesta partida.</div>';
+    return `<div class="lq-timeline">${evs.map(e => {
+        const canRevert = !revertedEvents.has(e.id) && (e.type === 'life_change' || e.type === 'commander_damage' || e.type === 'counter_change' || e.type === 'commander_death' || e.type === 'player_eliminated');
+        const d = e.details || {};
+        let delta = '';
+        // Sinal do ponto de vista da vida do jogador: dano de comandante recebido é negativo.
+        let bad = (d.amount || 0) < 0;
+        if (e.type === 'life_change') delta = `${(d.amount || 0) > 0 ? '+' : ''}${d.amount || 0}`;
+        if (e.type === 'commander_damage') { delta = `${(d.amount || 0) > 0 ? '−' : '+'}${Math.abs(d.amount || 0)} cmd`; bad = (d.amount || 0) > 0; }
+        if (e.type === 'player_eliminated') bad = true;
+        if (e.type === 'commander_death') bad = (d.amount || 1) > 0;
+        return `<div class="lq-ev ${revertedEvents.has(e.id) ? 'reverted' : ''}">
+            <span class="lq-ev-turn">T${e.turn ?? '?'}</span>
+            <span class="lq-ev-delta ${bad ? 'neg' : 'pos'}">${delta}</span>
+            <span class="lq-ev-text">${escapeHtml(describeEvent(e, nameOf).replace(/^[^:]+: /, ''))}</span>
+            ${canRevert ? `<button type="button" class="lq-ev-undo" data-ev="${e.id}" title="Estornar só este evento"><svg class="ic"><use href="#ic-rotate"/></svg></button>` : (revertedEvents.has(e.id) ? '<span class="lq-ev-done">estornado</span>' : '')}
+        </div>`;
+    }).join('')}</div>`;
+}
+
+function revertEvent(playerId: string, eventId: string): boolean {
+    const s = gameState.getState();
+    const e = s.history.find(x => x.id === eventId);
+    if (!e || revertedEvents.has(eventId)) return false;
+    const d = e.details || {};
+    switch (e.type) {
+        case 'life_change': gameState.changeLife(playerId, -(d.amount || 0), 'modal'); break;
+        case 'commander_damage': if (d.fromPlayerId) gameState.addCommanderDamage(playerId, d.fromPlayerId, -(d.amount || 0)); else return false; break;
+        case 'counter_change': if (d.counterType && d.counterType !== 'custom') gameState.changeCounter(playerId, d.counterType as any, -(d.amount || 0)); else return false; break;
+        case 'commander_death': gameState.changeCommanderDeaths(playerId, -(d.amount || 1)); break;
+        case 'player_eliminated': gameState.revivePlayer(playerId, true); break;
+        default: return false;
+    }
+    revertedEvents.add(eventId);
+    return true;
+}
+
 // ===== Passar o turno =====
 // Três jeitos: botão "Passar" no card de quem está jogando, ▶ do cabeçalho e
 // ARRASTAR PRO LADO em qualquer ponto da mesa (fora dos botões de vida).
@@ -4015,6 +4200,7 @@ function renderPlayerCardHtml(player: Player, index: number, state: GameState): 
                 </div>
                 <div class="player-life-container">
                     <div class="player-counters-float ${countersCollapsed ? 'collapsed' : ''}" data-player-id="${player.id}">${countersHtml}</div>
+                    ${commanderBarsHtml(player, state)}
                     <button class="cmd-fab commander-drag-btn" data-action="commander" title="Dano de comandante: toque abre, ARRASTE até o alvo pra aplicar"><svg class="ic"><use href="#ic-swords"/></svg><span>CMD</span></button>
                     <button class="life-control minus" data-action="life" data-amount="-1">−</button>
                     <div class="life-display">
@@ -4164,18 +4350,36 @@ function openLifeQuickMenu(playerId: string, x: number, y: number): void {
     const pop = document.createElement('div');
     pop.id = 'life-quick-pop';
     pop.className = 'cmd-quick-pop';
-    pop.innerHTML = `
-        <div class="cmd-quick-title"><b>${escapeHtml(p.name)}</b> · ${p.life} de vida</div>
+    pop.classList.add('life-quick-pop');
+    const render = (): void => {
+        const cur = gameState.getState().players.find(pl => pl.id === playerId);
+        pop.innerHTML = `
+        <div class="cmd-quick-title"><b>${escapeHtml(p.name)}</b> · ${cur?.life ?? p.life} de vida</div>
         <div class="cmd-quick-row life-quick-row">
             <button type="button" data-set="${half}">½ → ${half}</button>
             <button type="button" data-set="${dbl}">×2 → ${dbl}</button>
             <button type="button" data-set="custom">Definir…</button>
         </div>
-    `;
+        <div class="lq-head">Últimos eventos de ${escapeHtml(p.name)} <span class="update-muted">(toque na seta pra estornar um)</span></div>
+        ${playerTimelineHtml(playerId)}
+        `;
+        pop.querySelectorAll<HTMLElement>('.lq-ev-undo').forEach(b => b.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            if (revertEvent(playerId, b.dataset.ev!)) {
+                audioManager.play('click');
+                try { navigator.vibrate?.(20); } catch { /* ignore */ }
+                render();
+            }
+        }));
+        bindSet();
+    };
     document.body.appendChild(pop);
-    pop.style.left = `${Math.max(8, Math.min(window.innerWidth - 260, x - 120))}px`;
-    pop.style.top = `${Math.max(8, Math.min(window.innerHeight - 120, y - 70))}px`;
+    const W = Math.min(320, window.innerWidth - 16);
+    pop.style.width = `${W}px`;
+    pop.style.left = `${Math.max(8, Math.min(window.innerWidth - W - 8, x - W / 2))}px`;
+    pop.style.top = `${Math.max(8, Math.min(window.innerHeight - 320, y - 70))}px`;
     const close = (): void => pop.remove();
+    const bindSet = (): void => {
     pop.querySelectorAll<HTMLElement>('[data-set]').forEach(b => b.addEventListener('click', async () => {
         close();
         if (b.dataset.set === 'custom') {
@@ -4187,9 +4391,80 @@ function openLifeQuickMenu(playerId: string, x: number, y: number): void {
         gameState.setLife(playerId, Number(b.dataset.set), 'shortcut');
         try { navigator.vibrate?.(30); } catch { /* ignore */ }
     }));
+    };
+    render();
     window.setTimeout(() => document.addEventListener('pointerdown', function onOut(ev) {
         if (!pop.contains(ev.target as Node)) { close(); document.removeEventListener('pointerdown', onOut); }
     }), 50);
+}
+
+// ===== Ficha do comandante (toque na arte/pílula do card) =====
+function edhrecSlug(name: string): string {
+    return name.split('//')[0].trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+function manaCostHtml(cost: string): string {
+    return (cost || '').replace(/\{([^}]+)\}/g, (_m, s: string) => {
+        const u = s.toUpperCase();
+        if ('WUBRG'.includes(u) && u.length === 1) return `<span class="mana-dot mana-${u}"></span>`;
+        return `<span class="mana-pip">${escapeHtml(s)}</span>`;
+    });
+}
+async function openCommanderSheet(playerId: string): Promise<void> {
+    const player = gameState.getState().players.find(p => p.id === playerId);
+    if (!player || !player.deckName) { openDeckPicker(playerId); return; }
+    document.getElementById('cmd-sheet-dyn')?.remove();
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.id = 'cmd-sheet-dyn';
+    modal.style.zIndex = '2075';
+    modal.innerHTML = `
+        <div class="modal-content profile-picker-content">
+            <div class="modal-header">
+                <h2><svg class="ic ic-title"><use href="#ic-deck"/></svg>${escapeHtml(player.deckName)}</h2>
+                <button class="modal-close" type="button">&times;</button>
+            </div>
+            <div class="profile-picker-body cs-sheet" id="cmd-sheet-body"><div class="ranking-empty">Buscando no Scryfall…</div></div>
+        </div>`;
+    document.body.appendChild(modal);
+    const close = (): void => modal.remove();
+    modal.querySelector('.modal-close')?.addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    const body = modal.querySelector('#cmd-sheet-body') as HTMLElement;
+    const prof = player.profileId !== null ? getProfileById(player.profileId) : null;
+    const deck = prof?.decks?.find(d => d.id === player.deckId);
+    try {
+        const url = deck?.scryfall_id ? `https://api.scryfall.com/cards/${deck.scryfall_id}` : `https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(player.deckName)}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`Scryfall ${res.status}`);
+        const c: any = await res.json();
+        const face = c.card_faces?.[0];
+        const img = c.image_uris?.normal || face?.image_uris?.normal || '';
+        const oracle = (c.oracle_text || c.card_faces?.map((f: any) => `${f.name}\n${f.oracle_text || ''}`).join('\n\n') || '').replace(/\n/g, '<br>');
+        const price = c.prices?.usd ? `US$ ${c.prices.usd}` : c.prices?.eur ? `€ ${c.prices.eur}` : '—';
+        const legal = c.legalities?.commander;
+        body.innerHTML = `
+            <div class="cs-sheet-top">
+                ${img ? `<img class="cs-sheet-img" src="${escapeHtml(img)}" alt="">` : ''}
+                <div class="cs-sheet-info">
+                    <div class="cs-sheet-name">${escapeHtml(c.name || player.deckName)}</div>
+                    <div class="cs-sheet-cost">${manaCostHtml(c.mana_cost || face?.mana_cost || '')}</div>
+                    <div class="cs-sheet-type">${escapeHtml(c.type_line || face?.type_line || '')}</div>
+                    <div class="cs-sheet-meta">${escapeHtml(c.set_name || '')}${c.rarity ? ` · ${escapeHtml(c.rarity)}` : ''}</div>
+                    <div class="cs-sheet-meta">Preço: <b>${price}</b>${legal ? ` · Commander: <b class="${legal === 'legal' ? 'elo-up' : 'elo-down'}">${legal === 'legal' ? 'legal' : escapeHtml(legal)}</b>` : ''}</div>
+                    ${c.edhrec_rank ? `<div class="cs-sheet-meta">EDHREC #${c.edhrec_rank}</div>` : ''}
+                </div>
+            </div>
+            <div class="cs-sheet-oracle">${oracle ? escapeHtml(oracle).replace(/&lt;br&gt;/g, '<br>') : '<span class="update-muted">Sem texto.</span>'}</div>
+            <div class="pe-actions">
+                <a class="cs-gallery-btn cs-sheet-link" href="https://edhrec.com/commanders/${edhrecSlug(c.name || player.deckName)}" target="_blank" rel="noopener"><svg class="ic"><use href="#ic-chart"/></svg> Abrir no EDHREC</a>
+                <a class="cs-gallery-btn cs-sheet-link" href="${escapeHtml(c.scryfall_uri || '#')}" target="_blank" rel="noopener"><svg class="ic"><use href="#ic-search"/></svg> Ver no Scryfall</a>
+                <button type="button" class="cs-gallery-btn" id="cmd-sheet-change"><svg class="ic"><use href="#ic-deck"/></svg> Trocar comandante</button>
+            </div>`;
+        body.querySelector('#cmd-sheet-change')?.addEventListener('click', () => { close(); openDeckPicker(playerId); });
+    } catch (e: any) {
+        body.innerHTML = `<div class="ranking-empty">Scryfall indisponível (${escapeHtml(String(e?.message || e))}).</div><div class="pe-actions"><button type="button" class="cs-gallery-btn" id="cmd-sheet-change">Trocar comandante</button></div>`;
+        body.querySelector('#cmd-sheet-change')?.addEventListener('click', () => { close(); openDeckPicker(playerId); });
+    }
 }
 
 // ===== Gráfico de vida (ao vivo) =====
@@ -4268,7 +4543,10 @@ function bindPlayerCard(card: HTMLElement, playerId: string): void {
             if (!p) return;
             gameState.updatePlayerSetup(playerId, { manualRotation: ((p.manualRotation || 0) + 90) % 360 });
         });
-        card.querySelector('[data-action="pick-deck"]')?.addEventListener('click', (e) => { e.stopPropagation(); openDeckPicker(playerId); });
+        // Pílula do comandante: com comandante marcado abre a FICHA (Scryfall); sem, abre o seletor.
+        card.querySelector('[data-action="pick-deck"]')?.addEventListener('click', (e) => { e.stopPropagation(); void openCommanderSheet(playerId); });
+        // Barras de dano de comandante: toque abre o modal completo.
+        card.querySelector('.cmd-bars')?.addEventListener('click', (e) => { e.stopPropagation(); openCommanderDamageModal(playerId); });
 
         // Toque longo no número da vida: metade / dobro / definir.
         const lifeEl = card.querySelector('.life-value') as HTMLElement | null;
@@ -4490,6 +4768,8 @@ function updateSettingsControls(state: GameState): void {
     ($('narrator-speed') as HTMLSelectElement).value = state.settings.narratorSpeed.toString();
     const personaSel = $('narrator-persona') as HTMLSelectElement | null;
     if (personaSel) personaSel.value = state.settings.narratorPersona ?? 'classic';
+    const voiceSel = $('narrator-voice') as HTMLSelectElement | null;
+    if (voiceSel) voiceSel.value = state.settings.narratorVoice === 'gemini' ? 'gemini' : 'default';
     ($('sound-pack') as HTMLSelectElement).value = state.settings.soundPack;
     ($('gif-paused') as HTMLInputElement).checked = state.settings.gifPaused;
     ($('gif-fps-reduced') as HTMLInputElement).checked = state.settings.gifFpsReduced;

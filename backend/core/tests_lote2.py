@@ -98,8 +98,10 @@ class Lote2Tests(TestCase):
         self.assertTrue(r.data['seasons'][0]['current'])
         self.assertEqual(r.data['seasons'][1]['champion']['name'], 'Reis')
         stats = self.c.get(f'/api/profiles/{self.reis.id}/stats/').data
-        self.assertEqual(len(stats['trophies']), 1)
-        self.assertEqual(self.c.get(f'/api/profiles/{self.ze.id}/stats/').data['trophies'], [])
+        champs = [t for t in stats['trophies'] if t['kind'] == 'champion']
+        self.assertEqual(len(champs), 1)
+        ze_champs = [t for t in self.c.get(f'/api/profiles/{self.ze.id}/stats/').data['trophies'] if t['kind'] == 'champion']
+        self.assertEqual(ze_champs, [])
 
     def test_decks_and_winrates(self):
         r = self.c.post(f'/api/profiles/{self.ze.id}/decks/', {'name': 'Atraxa', 'commander': 'Atraxa, Praetors\' Voice', 'colors': 'WUBG', 'image_url': 'https://cards.scryfall.io/y.jpg'}, format='json', **KEY)

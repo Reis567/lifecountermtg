@@ -122,6 +122,9 @@ export function apiElo() {
 export function apiSeasons() {
     return apiFetch('/api/seasons/');
 }
+export function apiSeasonOverview() {
+    return apiFetch('/api/seasons/summary/');
+}
 export function apiCreateDeck(profileId, data) {
     return apiFetch(`/api/profiles/${profileId}/decks/`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),

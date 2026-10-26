@@ -1,6 +1,7 @@
 // ===== Audio Management =====
 
 import { gameState } from './state.js';
+import { geminiSpeak, isGeminiConfigured } from './aiClient.js';
 
 // Secure random for fair 50/50 chances
 function secureRandomBool(): boolean {
@@ -888,10 +889,29 @@ class EventNarrator {
         this.volume = Math.max(0, Math.min(1, volume / 100));
     }
 
-    speak(text: string): void {
-        if (!this.enabled || !this.synthesis) return;
-        if (gameState.getState().settings.silentMode) return;
+    // 'device' = TTS do aparelho; 'gemini' = voz por IA com timbre por persona.
+    private voiceMode: 'device' | 'gemini' = 'device';
+    private aiAudio: HTMLAudioElement | null = null;
+    setVoiceMode(mode: 'device' | 'gemini'): void {
+        this.voiceMode = mode;
+    }
 
+    speak(text: string): void {
+        if (!this.enabled) return;
+        if (gameState.getState().settings.silentMode) return;
+        if (this.voiceMode === 'gemini' && isGeminiConfigured()) {
+            this.shutUp();
+            const persona = gameState.getState().settings.narratorPersona || 'classic';
+            geminiSpeak(text, persona, this.volume)
+                .then((a) => { this.aiAudio = a; })
+                .catch((e) => { console.warn('TTS IA falhou, usando o aparelho:', e); this.speakDevice(text); });
+            return;
+        }
+        this.speakDevice(text);
+    }
+
+    private speakDevice(text: string): void {
+        if (!this.synthesis) return;
         // Cancel any ongoing speech
         this.synthesis.cancel();
 
@@ -925,11 +945,12 @@ class EventNarrator {
 
     // Há fala em andamento ou na fila?
     isBusy(): boolean {
-        return !!this.synthesis && (this.synthesis.speaking || this.synthesis.pending);
+        return (!!this.synthesis && (this.synthesis.speaking || this.synthesis.pending)) || (!!this.aiAudio && !this.aiAudio.paused && !this.aiAudio.ended);
     }
 
     shutUp(): void {
         this.synthesis?.cancel();
+        if (this.aiAudio) { try { this.aiAudio.pause(); } catch { /* ignore */ } this.aiAudio = null; }
     }
 
     // Announce game events

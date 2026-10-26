@@ -65,6 +65,96 @@ export async function geminiGenerate(parts, opts = {}) {
 export async function geminiText(prompt, opts = {}) {
     return geminiGenerate([{ text: prompt }], opts);
 }
+// ===== Voz por IA (Gemini TTS) =====
+// O narrador pode falar com uma voz do Gemini em vez do TTS do aparelho: cada
+// persona tem uma voz e uma instrução de estilo. A API devolve PCM 16-bit 24 kHz
+// em base64; embrulhamos num WAV e tocamos com <audio>. Falhou → quem chamou
+// cai pro TTS do aparelho.
+export const GEMINI_TTS_VOICES = {
+    classic: { voice: 'Kore', style: 'Fale de forma clara e animada, como um narrador de jogo' },
+    futebol: { voice: 'Puck', style: 'Fale como um locutor de futebol brasileiro eufórico, rápido e empolgado' },
+    galvao: { voice: 'Fenrir', style: 'Fale como um narrador esportivo veterano, dramático e nostálgico' },
+    novela: { voice: 'Aoede', style: 'Fale como uma narradora de novela, pausada, grave e melodramática' },
+    caze: { voice: 'Charon', style: 'Fale como um streamer brasileiro reagindo, informal, rindo, zoando' },
+};
+function pcm16ToWav(pcm, sampleRate = 24000) {
+    const header = new ArrayBuffer(44);
+    const v = new DataView(header);
+    const w = (o, s) => { for (let i = 0; i < s.length; i++)
+        v.setUint8(o + i, s.charCodeAt(i)); };
+    w(0, 'RIFF');
+    v.setUint32(4, 36 + pcm.length, true);
+    w(8, 'WAVE');
+    w(12, 'fmt ');
+    v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true);
+    v.setUint16(22, 1, true);
+    v.setUint32(24, sampleRate, true);
+    v.setUint32(28, sampleRate * 2, true);
+    v.setUint16(32, 2, true);
+    v.setUint16(34, 16, true);
+    w(36, 'data');
+    v.setUint32(40, pcm.length, true);
+    const body = new ArrayBuffer(pcm.length);
+    new Uint8Array(body).set(pcm);
+    return new Blob([header, body], { type: 'audio/wav' });
+}
+const ttsCache = new Map(); // texto+voz -> object URL
+export async function geminiSpeak(text, persona, volume = 0.8) {
+    if (!isGeminiConfigured())
+        throw new Error('Chave do Gemini não configurada.');
+    const cfg = GEMINI_TTS_VOICES[persona] || GEMINI_TTS_VOICES.classic;
+    const key = `${cfg.voice}|${text}`;
+    let url = ttsCache.get(key);
+    if (!url) {
+        const model = (typeof window !== 'undefined' && window.LIFECOUNTER_GEMINI_TTS_MODEL) || 'gemini-2.5-flash-preview-tts';
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(cfgKey())}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ role: 'user', parts: [{ text: `${cfg.style}, em português do Brasil: ${text}` }] }],
+                generationConfig: {
+                    responseModalities: ['AUDIO'],
+                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: cfg.voice } } },
+                },
+            }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok)
+            throw new Error(data?.error?.message || `TTS HTTP ${res.status}`);
+        const part = data?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
+        if (!part)
+            throw new Error('Sem áudio na resposta.');
+        const mime = part.inlineData.mimeType || '';
+        const rate = Number((mime.match(/rate=(\d+)/) || [])[1] || 24000);
+        const bin = atob(part.inlineData.data);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++)
+            bytes[i] = bin.charCodeAt(i);
+        let blob;
+        if (mime.startsWith('audio/L16') || mime.includes('pcm') || !mime) {
+            blob = pcm16ToWav(bytes, rate);
+        }
+        else {
+            const raw = new ArrayBuffer(bytes.length);
+            new Uint8Array(raw).set(bytes);
+            blob = new Blob([raw], { type: mime });
+        }
+        url = URL.createObjectURL(blob);
+        if (ttsCache.size > 40) {
+            const first = ttsCache.keys().next().value;
+            if (first) {
+                URL.revokeObjectURL(ttsCache.get(first));
+                ttsCache.delete(first);
+            }
+        }
+        ttsCache.set(key, url);
+    }
+    const audio = new Audio(url);
+    audio.volume = Math.max(0, Math.min(1, volume));
+    await audio.play();
+    return audio;
+}
 // Extrai o primeiro objeto JSON de um texto (caso o modelo embrulhe em markdown).
 export function parseJsonLoose(text) {
     try {

@@ -15,6 +15,7 @@ urlpatterns = [
     path('ranking/', views.ranking),
     path('elo/', views.elo),
     path('seasons/', views.seasons_list),
+    path('seasons/summary/', views.season_summary),
     path('achievements/', views.achievements_catalog),
     path('settings/season/', views.season_settings),
     path('notifications/', views.notifications),

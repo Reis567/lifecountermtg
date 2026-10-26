@@ -1,5 +1,6 @@
 // ===== Audio Management =====
 import { gameState } from './state.js';
+import { geminiSpeak, isGeminiConfigured } from './aiClient.js';
 // Secure random for fair 50/50 chances
 function secureRandomBool() {
     if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
@@ -797,6 +798,9 @@ class EventNarrator {
         this.volume = 0.8;
         this.synthesis = null;
         this.voice = null;
+        // 'device' = TTS do aparelho; 'gemini' = voz por IA com timbre por persona.
+        this.voiceMode = 'device';
+        this.aiAudio = null;
         if ('speechSynthesis' in window) {
             this.synthesis = window.speechSynthesis;
             // Load voices when ready
@@ -824,10 +828,26 @@ class EventNarrator {
     setVolume(volume) {
         this.volume = Math.max(0, Math.min(1, volume / 100));
     }
+    setVoiceMode(mode) {
+        this.voiceMode = mode;
+    }
     speak(text) {
-        if (!this.enabled || !this.synthesis)
+        if (!this.enabled)
             return;
         if (gameState.getState().settings.silentMode)
+            return;
+        if (this.voiceMode === 'gemini' && isGeminiConfigured()) {
+            this.shutUp();
+            const persona = gameState.getState().settings.narratorPersona || 'classic';
+            geminiSpeak(text, persona, this.volume)
+                .then((a) => { this.aiAudio = a; })
+                .catch((e) => { console.warn('TTS IA falhou, usando o aparelho:', e); this.speakDevice(text); });
+            return;
+        }
+        this.speakDevice(text);
+    }
+    speakDevice(text) {
+        if (!this.synthesis)
             return;
         // Cancel any ongoing speech
         this.synthesis.cancel();
@@ -857,10 +877,17 @@ class EventNarrator {
     }
     // Há fala em andamento ou na fila?
     isBusy() {
-        return !!this.synthesis && (this.synthesis.speaking || this.synthesis.pending);
+        return (!!this.synthesis && (this.synthesis.speaking || this.synthesis.pending)) || (!!this.aiAudio && !this.aiAudio.paused && !this.aiAudio.ended);
     }
     shutUp() {
         this.synthesis?.cancel();
+        if (this.aiAudio) {
+            try {
+                this.aiAudio.pause();
+            }
+            catch { /* ignore */ }
+            this.aiAudio = null;
+        }
     }
     // Announce game events
     announceLifeChange(playerName, amount, newLife) {

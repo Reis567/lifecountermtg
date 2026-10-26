@@ -58,6 +58,16 @@ export interface EloRowDTO {
     history: Array<{ match_id: number; at: string; elo: number }>;
 }
 
+export interface SeasonAwardDTO {
+    key: 'most_kills' | 'most_podiums' | 'most_matches' | 'zebra' | 'longest_streak';
+    label: string;
+    value: number;
+    profile_id: number;
+    name: string;
+    photo_url: string | null;
+    match_id?: number;
+}
+
 export interface SeasonSummaryDTO {
     label: string;
     start: string;
@@ -66,6 +76,26 @@ export interface SeasonSummaryDTO {
     matches: number;
     champion: RankingRowDTO | null;
     top: RankingRowDTO[];
+    awards?: SeasonAwardDTO[];
+}
+
+// Resumo da temporada atual (página de temporada + corrida de pontos).
+export interface SeasonOverviewDTO {
+    label: string;
+    start: string;
+    end: string;
+    days_left: number;
+    days_total: number;
+    progress: number;
+    matches: number;
+    leader: RankingRowDTO | null;
+    runner_up: RankingRowDTO | null;
+    gap: number | null;
+    longest_streak: SeasonAwardDTO | null;
+    longest_match: { match_id: number; duration_ms: number; ended_at: string; winner: string | null; players: number } | null;
+    commander: { name: string; wins: number; matches: number; colors: string; image: string | null; pilot: string | null } | null;
+    awards: SeasonAwardDTO[];
+    race: { matches: Array<{ id: number; ended_at: string }>; series: Array<{ profile_id: number; name: string; photo_url: string | null; color: string; values: number[] }> };
 }
 
 export interface LiveTableDTO {
@@ -351,6 +381,10 @@ export function apiElo(): Promise<{ rows: EloRowDTO[] }> {
 
 export function apiSeasons(): Promise<{ seasons: SeasonSummaryDTO[] }> {
     return apiFetch('/api/seasons/');
+}
+
+export function apiSeasonOverview(): Promise<SeasonOverviewDTO> {
+    return apiFetch('/api/seasons/summary/');
 }
 
 export function apiCreateDeck(profileId: number, data: { name: string; commander?: string; colors?: string; image_url?: string; scryfall_id?: string }): Promise<DeckDTO> {

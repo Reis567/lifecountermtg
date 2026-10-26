@@ -7940,6 +7940,94 @@ body:has(.live-guest) .turn-bar { display: none; }
     .player-footer .player-action-btn span { display: none; }
 }
 
+/* =====================================================================
+   v2.4.0 — barras de comandante no card, linha do tempo da vida, ficha do
+   comandante, foto → deck, página da temporada + corrida, prêmios, voz IA
+   ===================================================================== */
+.cmd-bars { position: absolute; left: 0.35rem; bottom: 0.4rem; z-index: 3; display: flex; flex-direction: column; gap: 3px; width: min(46%, 150px); cursor: pointer; }
+.cmd-bar { display: grid; grid-template-columns: 34px 1fr 18px; align-items: center; gap: 4px; font-size: 0.58rem; font-weight: 700; color: var(--text-secondary); }
+.cmd-bar-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmd-bar-track { display: block; height: 6px; border-radius: 999px; background: rgba(255,255,255,0.1); overflow: hidden; }
+.cmd-bar-fill { display: block; height: 100%; border-radius: 999px; transition: width 200ms; }
+.cmd-bar-val { text-align: right; color: var(--text-primary); }
+.cmd-bar.danger .cmd-bar-val { color: var(--warning); }
+.cmd-bar.lethal .cmd-bar-val { color: var(--danger); }
+.cmd-risk { display: inline-flex; align-items: center; gap: 0.25rem; align-self: flex-start; padding: 0.12rem 0.45rem; border-radius: 999px; background: rgba(239,68,68,0.22); color: #fca5a5; font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; animation: lowLifePulse 1.6s ease-in-out infinite; }
+.cmd-risk .ic { width: 11px; height: 11px; }
+.player-card.sideways .cmd-bars { width: 40%; }
+.players-grid[data-players="5"] .cmd-bar-name, .players-grid[data-players="6"] .cmd-bar-name, .players-grid[data-players="7"] .cmd-bar-name, .players-grid[data-players="8"] .cmd-bar-name { display: none; }
+.players-grid[data-players="5"] .cmd-bar, .players-grid[data-players="6"] .cmd-bar, .players-grid[data-players="7"] .cmd-bar, .players-grid[data-players="8"] .cmd-bar { grid-template-columns: 1fr 16px; }
+/* Linha do tempo no toque longo */
+.life-quick-pop { max-height: min(70vh, 460px); overflow-y: auto; }
+.lq-head { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 0.5rem 0 0.35rem; }
+.lq-timeline { display: flex; flex-direction: column; gap: 0.25rem; }
+.lq-ev { display: grid; grid-template-columns: 26px 44px 1fr 30px; align-items: center; gap: 0.35rem; padding: 0.3rem 0.4rem; background: var(--bg-tertiary); border-radius: var(--border-radius-sm); font-size: 0.74rem; }
+.lq-ev.reverted { opacity: 0.45; text-decoration: line-through; }
+.lq-ev-turn { font-size: 0.6rem; color: var(--text-muted); font-weight: 700; }
+.lq-ev-delta { font-weight: 800; }
+.lq-ev-delta.neg { color: var(--danger); }
+.lq-ev-delta.pos { color: var(--success); }
+.lq-ev-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
+.lq-ev-undo { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--bg-secondary); color: var(--text-primary); }
+.lq-ev-undo .ic { width: 14px; height: 14px; }
+.lq-ev-done { font-size: 0.6rem; color: var(--text-muted); }
+.lq-empty { font-size: 0.75rem; padding: 0.3rem 0; }
+/* Ficha do comandante */
+.cs-sheet { display: flex; flex-direction: column; gap: 0.8rem; }
+.cs-sheet-top { display: flex; gap: 0.8rem; align-items: flex-start; }
+.cs-sheet-img { width: 42%; max-width: 200px; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); flex-shrink: 0; }
+.cs-sheet-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.cs-sheet-name { font-size: 1.05rem; font-weight: 800; line-height: 1.15; }
+.cs-sheet-cost { display: flex; align-items: center; gap: 2px; }
+.cs-sheet-cost .mana-dot { width: 16px; height: 16px; }
+.mana-pip { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 50%; background: #c8c8c8; color: #111; font-size: 0.62rem; font-weight: 800; }
+.cs-sheet-type { font-size: 0.8rem; color: var(--text-secondary); }
+.cs-sheet-meta { font-size: 0.74rem; color: var(--text-muted); }
+.cs-sheet-oracle { font-size: 0.84rem; line-height: 1.45; padding: 0.7rem 0.8rem; background: var(--bg-tertiary); border-radius: var(--border-radius); }
+.cs-sheet-link { text-decoration: none; }
+.deck-photo-btn { display: flex; align-items: center; justify-content: center; gap: 0.4rem; margin: 0.5rem 0; cursor: pointer; }
+/* Página da temporada */
+.season-overview { margin-bottom: 1rem; padding: 0.9rem; border-radius: var(--border-radius-lg); background: linear-gradient(160deg, rgba(99,102,241,0.18), var(--bg-tertiary) 60%); border: 1px solid rgba(99,102,241,0.35); display: flex; flex-direction: column; gap: 0.7rem; }
+.so-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+.so-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+.so-name { font-size: 1.5rem; font-weight: 800; line-height: 1.05; }
+.so-dates { font-size: 0.76rem; color: var(--text-secondary); }
+.so-days { text-align: center; padding: 0.4rem 0.7rem; border-radius: var(--border-radius); background: rgba(0,0,0,0.3); line-height: 1; }
+.so-days b { font-size: 1.6rem; font-weight: 800; display: block; }
+.so-days small { font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.so-progress { height: 6px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.so-progress span { display: block; height: 100%; border-radius: 999px; background: var(--accent-primary); }
+.so-leader { display: flex; align-items: center; gap: 0.7rem; padding: 0.55rem 0.7rem; border-radius: var(--border-radius); background: rgba(245,197,66,0.12); border: 1px solid rgba(245,197,66,0.4); cursor: pointer; }
+.so-leader-avatar { width: 52px; height: 52px; border: 2px solid #f5c542; }
+.so-leader-l { display: flex; align-items: center; gap: 0.3rem; font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: #f5c542; font-weight: 800; }
+.so-leader-l .ic { width: 14px; height: 14px; }
+.so-leader-n { font-size: 1.1rem; font-weight: 800; }
+.so-leader-s { font-size: 0.74rem; color: var(--text-secondary); }
+.so-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; }
+.so-stat { background: rgba(0,0,0,0.28); border-radius: var(--border-radius-sm); padding: 0.5rem 0.4rem; text-align: center; min-width: 0; }
+.so-stat-v { font-size: 1.05rem; font-weight: 800; }
+.so-stat-l { font-size: 0.56rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+.so-stat-s { font-size: 0.68rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.so-cmd { display: flex; align-items: center; gap: 0.7rem; padding: 0.5rem; border-radius: var(--border-radius); background: rgba(0,0,0,0.28); }
+.so-cmd img { width: 64px; height: 48px; object-fit: cover; border-radius: 8px; }
+.so-cmd-n { font-weight: 800; }
+.so-cmd-s { font-size: 0.72rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
+.so-awards-l { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: -0.3rem; }
+.hall-awards { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.45rem; }
+.award-chip { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.6rem 0.25rem 0.4rem; border-radius: 999px; background: var(--bg-secondary); border: 1px solid rgba(245,197,66,0.35); cursor: pointer; max-width: 100%; }
+.award-chip > .ic { width: 14px; height: 14px; color: #f5c542; flex-shrink: 0; }
+.award-chip.partial { border-style: dashed; opacity: 0.9; }
+.award-chip-text { display: flex; flex-direction: column; line-height: 1.1; min-width: 0; }
+.award-chip-text b { font-size: 0.68rem; }
+.award-chip-text small { font-size: 0.62rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.so-race-toggle { display: flex; align-items: center; gap: 0.4rem; width: 100%; padding: 0.5rem 0.6rem; border-radius: var(--border-radius-sm); background: rgba(0,0,0,0.28); color: var(--text-primary); font-weight: 700; font-size: 0.82rem; }
+.so-race-toggle .ic { width: 16px; height: 16px; color: var(--accent-primary); }
+.so-race-toggle .so-chev { margin-left: auto; color: var(--text-muted); }
+.so-race { display: none; }
+.so-race.open { display: block; }
+.race-chart { width: 100%; height: auto; display: block; background: rgba(0,0,0,0.25); border-radius: var(--border-radius-sm); }
+@media (max-width: 480px) { .so-stats { grid-template-columns: repeat(3, 1fr); } .so-stat-v { font-size: 0.9rem; } }
+
 /* ----- Temporada e pontuação ----- */
 .season-body { display: flex; flex-direction: column; gap: 1rem; }
 .season-now { padding: 0.8rem 0.9rem; border-radius: var(--border-radius); background: linear-gradient(135deg, rgba(99,102,241,0.25), var(--bg-tertiary)); border: 1px solid rgba(99,102,241,0.4); }

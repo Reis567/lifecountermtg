@@ -282,6 +282,33 @@ function csDownscaleToJpeg(source, width, height, maxEdge) {
     ctx.drawImage(source, 0, 0, w, h);
     return (canvas.toDataURL('image/jpeg', 0.85).split(',')[1]) ?? '';
 }
+// Usado pelo seletor de comandante: foto -> nome oficial (Scryfall) + dados.
+// Lança erro com mensagem amigável se não der.
+export async function identifyCardFromFile(file) {
+    if (!isGeminiConfigured())
+        throw new Error('IA desligada neste aparelho (sem chave do Gemini).');
+    const url = URL.createObjectURL(file);
+    try {
+        const img = await csLoadImage(url);
+        const base64 = csDownscaleToJpeg(img, img.naturalWidth, img.naturalHeight, 1024);
+        const id = await csCallIdentify(base64);
+        if (id.not_a_card || !id.name_en)
+            throw new Error('Não reconheci uma carta de Magic nessa foto.');
+        const resp = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(id.name_en)}`);
+        if (!resp.ok)
+            throw new Error(`Carta "${id.name_en}" não encontrada no Scryfall.`);
+        const c = await resp.json();
+        return {
+            name: c.name || id.name_en,
+            colors: (c.color_identity || []).join(''),
+            image: c.image_uris?.art_crop || c.card_faces?.[0]?.image_uris?.art_crop || '',
+            id: c.id || '',
+        };
+    }
+    finally {
+        URL.revokeObjectURL(url);
+    }
+}
 // ===== Modo IDENTIFY =====
 async function csIdentify(base64Jpeg) {
     if (!base64Jpeg) {

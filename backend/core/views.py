@@ -393,6 +393,7 @@ def seasons_list(request):
     cur_start, cur_end, cur_label = seasons.season_datetimes(cfg=cfg)
     ref = seasons.season_bounds(ref=timezone.localtime(first.ended_at).date(), cfg=cfg)[0]
     tz = timezone.get_current_timezone()
+    elo_history = scoring.compute_elo()[1]
     guard = 0
     while guard < 400:
         guard += 1
@@ -407,15 +408,98 @@ def seasons_list(request):
                 'current': s_start == cur_start, 'matches': n,
                 'champion': rows[0] if rows else None,
                 'top': rows[:3],
+                'awards': _season_awards(request, s_start, s_end, elo_history),
             })
         ref = s_end.date()
     out.reverse()
     return Response({'seasons': out})
 
 
+AWARD_LABELS = {
+    'most_kills': 'Mais eliminações',
+    'most_podiums': 'Mais pódios',
+    'most_matches': 'Mais partidas',
+    'zebra': 'Zebra',
+    'longest_streak': 'Maior sequência',
+}
+
+
+def _elo_before(history):
+    """{(profile_id, match_id): rating ANTES da partida} a partir do histórico do Elo."""
+    before = {}
+    for pid, items in history.items():
+        prev = scoring.ELO_START
+        for mid, _at, after in items:
+            before[(pid, mid)] = prev
+            prev = after
+    return before
+
+
+def _season_awards(request, s_start, s_end, elo_history=None):
+    """
+    Prêmios automáticos de uma temporada (além do campeão): mais eliminações,
+    mais pódios, mais partidas, zebra (vitória com o menor Elo da mesa, maior
+    diferença) e maior sequência de vitórias. Calculado na hora, sem gravar.
+    """
+    matches = list(Match.objects.filter(ended_at__gte=s_start, ended_at__lt=s_end)
+                   .order_by('ended_at', 'id').prefetch_related('placements__profile'))
+    if not matches:
+        return []
+    profiles = {}
+
+    def meta(p):
+        if p.profile_id and p.profile_id not in profiles:
+            profiles[p.profile_id] = {
+                'profile_id': p.profile_id, 'name': p.profile.name,
+                'photo_url': _abs(request, p.profile.photo.url) if p.profile.photo else None,
+            }
+
+    kills, podiums, played, streak_best, streak_cur = {}, {}, {}, {}, {}
+    zebra = None  # (gap, profile_id, match_id)
+    if elo_history is None:
+        elo_history = scoring.compute_elo()[1]
+    before = _elo_before(elo_history)
+    for m in matches:
+        pls = [p for p in m.placements.all() if p.profile_id]
+        names = {(p.profile.name or '').strip().lower(): p.profile_id for p in pls}
+        for p in pls:
+            meta(p)
+            played[p.profile_id] = played.get(p.profile_id, 0) + 1
+            if p.place <= 3:
+                podiums[p.profile_id] = podiums.get(p.profile_id, 0) + 1
+            if p.place == 1:
+                streak_cur[p.profile_id] = streak_cur.get(p.profile_id, 0) + 1
+                streak_best[p.profile_id] = max(streak_best.get(p.profile_id, 0), streak_cur[p.profile_id])
+            else:
+                streak_cur[p.profile_id] = 0
+            killer = names.get((p.eliminated_by or '').strip().lower())
+            if killer and killer != p.profile_id:
+                kills[killer] = kills.get(killer, 0) + 1
+        winner = next((p for p in pls if p.place == 1), None)
+        if winner and len(pls) >= 3:
+            ratings = {p.profile_id: before.get((p.profile_id, m.id), scoring.ELO_START) for p in pls}
+            gap = max(ratings.values()) - ratings[winner.profile_id]
+            if ratings[winner.profile_id] == min(ratings.values()) and gap > 0 and (zebra is None or gap > zebra[0]):
+                zebra = (gap, winner.profile_id, m.id)
+
+    def best(d):
+        if not d:
+            return None
+        pid = max(d, key=lambda k: (d[k], -k))
+        return pid, d[pid]
+
+    out = []
+    for key, d in (('most_kills', kills), ('most_podiums', podiums), ('most_matches', played), ('longest_streak', streak_best)):
+        b = best(d)
+        if b and b[1] > 0 and (key != 'longest_streak' or b[1] >= 2):
+            out.append({'key': key, 'label': AWARD_LABELS[key], 'value': b[1], **profiles[b[0]]})
+    if zebra:
+        out.append({'key': 'zebra', 'label': AWARD_LABELS['zebra'], 'value': int(zebra[0]), 'match_id': zebra[2], **profiles[zebra[1]]})
+    return out
+
+
 def _trophies_for(request, profile_id):
-    """Temporadas FECHADAS em que o perfil terminou em 1º."""
-    data = seasons_list(request._request if hasattr(request, '_request') else request).data if False else None  # noqa
+    """Temporadas FECHADAS em que o perfil terminou em 1º + prêmios automáticos."""
     cfg = seasons.get_settings()
     mode = scoring.get_mode()
     first = Match.objects.order_by('ended_at').first()
@@ -424,6 +508,7 @@ def _trophies_for(request, profile_id):
     cur_start, _, _ = seasons.season_datetimes(cfg=cfg)
     ref = seasons.season_bounds(ref=timezone.localtime(first.ended_at).date(), cfg=cfg)[0]
     trophies = []
+    elo_history = scoring.compute_elo()[1]
     guard = 0
     while guard < 400:
         guard += 1
@@ -432,9 +517,79 @@ def _trophies_for(request, profile_id):
             break
         rows = _aggregate(request, s_start, s_end, cfg['tiebreak'], mode)
         if rows and rows[0]['profile_id'] == profile_id:
-            trophies.append({'label': label, 'start': s_start.date().isoformat(), 'points': rows[0]['points']})
+            trophies.append({'label': label, 'start': s_start.date().isoformat(), 'points': rows[0]['points'], 'kind': 'champion'})
+        for a in _season_awards(request, s_start, s_end, elo_history):
+            if a['profile_id'] == profile_id:
+                trophies.append({'label': f"{a['label']} · {label}", 'start': s_start.date().isoformat(), 'points': a['value'], 'kind': a['key']})
         ref = s_end.date()
     return trophies
+
+
+@api_view(['GET'])
+def season_summary(request):
+    """
+    Resumo visual da temporada atual: dias restantes, líder, maior sequência,
+    partida mais longa, comandante da temporada, prêmios parciais e a corrida de
+    pontos (acumulado por jogador partida a partida).
+    """
+    cfg = seasons.get_settings()
+    mode = scoring.get_mode()
+    s_start, s_end, label = seasons.season_datetimes(cfg=cfg)
+    now = timezone.now()
+    rows = _aggregate(request, s_start, s_end, cfg['tiebreak'], mode)
+    matches = list(Match.objects.filter(ended_at__gte=s_start, ended_at__lt=s_end)
+                   .order_by('ended_at', 'id').prefetch_related('placements__profile', 'placements__deck'))
+    longest = max(matches, key=lambda m: m.duration_ms, default=None)
+    longest_d = None
+    if longest:
+        w = next((p for p in longest.placements.all() if p.place == 1), None)
+        longest_d = {'match_id': longest.id, 'duration_ms': longest.duration_ms, 'ended_at': longest.ended_at,
+                     'winner': (w.profile.name if w and w.profile else (w.name if w else None)), 'players': longest.player_count}
+    # comandante da temporada: mais vitórias (desempate: mais partidas)
+    cmd = {}
+    for m in matches:
+        for p in m.placements.all():
+            if not p.deck_name:
+                continue
+            c = cmd.setdefault(p.deck_name, {'name': p.deck_name, 'wins': 0, 'matches': 0, 'colors': p.deck_colors,
+                                              'image': (p.deck.image_url if p.deck and p.deck.image_url else None), 'pilot': None})
+            c['matches'] += 1
+            if p.place == 1:
+                c['wins'] += 1
+                c['pilot'] = p.profile.name if p.profile else p.name
+    commander = max(cmd.values(), key=lambda c: (c['wins'], c['matches']), default=None)
+    awards = _season_awards(request, s_start, s_end)
+    streak = next((a for a in awards if a['key'] == 'longest_streak'), None)
+    # corrida de pontos
+    series = {}
+    order = []
+    for m in matches:
+        for p in m.placements.all():
+            if p.profile_id and p.profile_id not in series:
+                series[p.profile_id] = {'profile_id': p.profile_id, 'name': p.profile.name,
+                                        'photo_url': _abs(request, p.profile.photo.url) if p.profile.photo else None,
+                                        'color': p.profile.color, 'values': []}
+                order.append(p.profile_id)
+    totals = {pid: 0 for pid in series}
+    race_matches = []
+    for m in matches:
+        for p in m.placements.all():
+            if p.profile_id:
+                totals[p.profile_id] += scoring.points_for(p.place, m.player_count, mode)
+        for pid in order:
+            series[pid]['values'].append(totals[pid])
+        race_matches.append({'id': m.id, 'ended_at': m.ended_at})
+    days_total = max(1, (s_end.date() - s_start.date()).days)
+    days_left = max(0, (s_end.date() - timezone.localdate()).days)
+    return Response({
+        'label': label, 'start': s_start.date().isoformat(), 'end': s_end.date().isoformat(),
+        'days_left': days_left, 'days_total': days_total, 'progress': round(100.0 * (days_total - days_left) / days_total, 1),
+        'matches': len(matches), 'leader': rows[0] if rows else None, 'runner_up': rows[1] if len(rows) > 1 else None,
+        'gap': (rows[0]['points'] - rows[1]['points']) if len(rows) > 1 else None,
+        'longest_streak': streak, 'longest_match': longest_d, 'commander': commander,
+        'awards': awards, 'race': {'matches': race_matches, 'series': [series[pid] for pid in order]},
+        'now': now,
+    })
 
 
 @api_view(['GET'])
