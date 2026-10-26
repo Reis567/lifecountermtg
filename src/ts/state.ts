@@ -282,8 +282,41 @@ class GameStateManager {
     private loadState(): GameState | null {
         try {
             const saved = localStorage.getItem(this.storageKey);
-            if (saved) {
-                const parsed = JSON.parse(saved);
+            if (saved) return this.normalizeState(JSON.parse(saved));
+        } catch (e) {
+            console.warn('Failed to load state:', e);
+        }
+        return null;
+    }
+
+    // Partida vinda do servidor (retomar em outro aparelho): vira o estado atual.
+    replaceState(snapshot: unknown): void {
+        const parsed = JSON.parse(JSON.stringify(snapshot));
+        if (!parsed || !Array.isArray(parsed.players) || !parsed.settings) throw new Error('snapshot inválido');
+        this.state = this.normalizeState(parsed);
+        this.notify();
+    }
+
+    // Troca dois jogadores de lugar na mesa (e refaz as rotações do modo mesa).
+    swapPlayers(idA: string, idB: string): void {
+        const ia = this.state.players.findIndex(p => p.id === idA);
+        const ib = this.state.players.findIndex(p => p.id === idB);
+        if (ia < 0 || ib < 0 || ia === ib) return;
+        const activeId = this.state.players[this.state.activePlayerIndex]?.id;
+        const arr = this.state.players;
+        [arr[ia], arr[ib]] = [arr[ib], arr[ia]];
+        arr[ia].manualRotation = 0;
+        arr[ib].manualRotation = 0;
+        this.updatePlayerRotations();
+        const ai = arr.findIndex(p => p.id === activeId);
+        if (ai >= 0) this.state.activePlayerIndex = ai;
+        this.notify();
+    }
+
+    // Migração de estados antigos (localStorage ou servidor): garante campos novos.
+    private normalizeState(parsed: any): GameState {
+        {
+            {
                 // Ensure new properties exist
                 if (!parsed.undoStack) parsed.undoStack = [];
                 if (parsed.matchClosed === undefined) parsed.matchClosed = false;
@@ -342,12 +375,9 @@ class GameStateManager {
                     commanderDeaths: p.commanderDeaths ?? 0,
                     teamId: p.teamId ?? null,
                 }));
-                return parsed;
+                return parsed as GameState;
             }
-        } catch (e) {
-            console.warn('Failed to load state:', e);
         }
-        return null;
     }
 
     // Clear saved state

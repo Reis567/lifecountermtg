@@ -18,7 +18,7 @@ import secrets
 from . import achievements as ach
 from . import scoring
 from . import seasons
-from .models import Achievement, AppVersion, Deck, LiveAction, LiveTable, Match, MatchPlacement, Profile, ProfileSound
+from .models import Achievement, AppSetting, AppVersion, Deck, LiveAction, LiveTable, Match, MatchPlacement, Profile, ProfileSound
 from .serializers import AppVersionSerializer, DeckSerializer, MatchSerializer, ProfileSerializer
 
 
@@ -523,6 +523,50 @@ def _trophies_for(request, profile_id):
                 trophies.append({'label': f"{a['label']} · {label}", 'start': s_start.date().isoformat(), 'points': a['value'], 'kind': a['key']})
         ref = s_end.date()
     return trophies
+
+
+# ----- partida em andamento (retomar em outro aparelho) --------------------
+
+@api_view(['GET', 'PUT', 'DELETE'])
+def current_game(request):
+    """
+    A mesa tem UMA partida em andamento salva no servidor (AppSetting
+    'current_game'): o app manda o estado inteiro a cada mudança (debounce) e
+    qualquer aparelho pode retomar. `rev` cresce a cada save; um aparelho que
+    manda um rev velho enquanto OUTRO aparelho já avançou recebe 409 (quem
+    chamou decide se puxa a versão nova ou força a dele).
+    """
+    if request.method == 'GET':
+        g = AppSetting.get('current_game')
+        return Response(g or {'state': None, 'rev': 0})
+    err = _check_key(request)
+    if err:
+        return err
+    device = (request.headers.get('X-LC-Device') or '')[:80]
+    if request.method == 'DELETE':
+        AppSetting.objects.filter(key='current_game').delete()
+        return Response(status=204)
+    state = request.data.get('state')
+    if not isinstance(state, dict) or not isinstance(state.get('players'), list):
+        return Response({'detail': 'state inválido'}, status=400)
+    try:
+        rev = int(request.data.get('rev') or 0)
+    except (TypeError, ValueError):
+        rev = 0
+    force = str(request.data.get('force', '')).lower() in ('1', 'true', 'yes')
+    cur = AppSetting.get('current_game') or {}
+    cur_rev = int(cur.get('rev') or 0)
+    if cur and cur.get('device') and cur.get('device') != device and cur_rev > rev and not force:
+        return Response({'detail': 'conflict', 'rev': cur_rev, 'device': cur.get('device'), 'saved_at': cur.get('saved_at'),
+                         'client_match_id': cur.get('client_match_id') or '', 'state': cur.get('state')}, status=409)
+    new = {
+        'state': state, 'rev': cur_rev + 1, 'device': device,
+        'saved_at': timezone.now().isoformat(),
+        # Sem id na requisição, mantém o da partida já salva (mesma partida continuando).
+        'client_match_id': str(request.data.get('client_match_id') or cur.get('client_match_id') or ''),
+    }
+    AppSetting.set('current_game', new)
+    return Response({'rev': new['rev'], 'saved_at': new['saved_at']})
 
 
 @api_view(['GET'])

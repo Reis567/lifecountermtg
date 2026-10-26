@@ -387,6 +387,24 @@ export function apiSeasonOverview(): Promise<SeasonOverviewDTO> {
     return apiFetch('/api/seasons/summary/');
 }
 
+// Partida em andamento salva no servidor (retomar em outro aparelho).
+export interface CurrentGameDTO {
+    state: unknown | null;
+    rev: number;
+    device?: string;
+    saved_at?: string;
+    client_match_id?: string;
+}
+export function apiGetCurrentGame(): Promise<CurrentGameDTO> {
+    return apiFetch('/api/game/current/');
+}
+export function apiPutCurrentGame(body: { state: unknown; rev: number; client_match_id?: string; force?: boolean }): Promise<{ rev: number; saved_at: string }> {
+    return apiFetch('/api/game/current/', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, true);
+}
+export function apiDeleteCurrentGame(): Promise<void> {
+    return apiFetch('/api/game/current/', { method: 'DELETE' }, true);
+}
+
 export function apiCreateDeck(profileId: number, data: { name: string; commander?: string; colors?: string; image_url?: string; scryfall_id?: string }): Promise<DeckDTO> {
     return apiFetch(`/api/profiles/${profileId}/decks/`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),

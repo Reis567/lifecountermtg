@@ -56,6 +56,8 @@ interface VoiceCommand {
     massSet?: number;
     query?: 'status' | 'life' | 'leader' | 'turn' | 'time';
     queryPlayerId?: string;
+    // Pergunta de regras/carta pro juiz de IA ("como funciona ward").
+    rules?: string;
 }
 
 // Ações de UI que o voiceControl não consegue chamar direto (ficam no ui.ts).
@@ -77,6 +79,7 @@ export interface VoiceActions {
     reset?: () => void;
     celebrate?: (playerName: string) => void;
     revive?: (playerId: string) => void;
+    askRules?: (question: string) => void;
 }
 let vcActions: VoiceActions = {};
 
@@ -280,6 +283,21 @@ function vcCounterType(text: string): 'poison' | 'experience' | 'energy' | 'stor
     return null;
 }
 
+// Pergunta pro juiz. `text` é normalizado (sem acento, minúsculo); a pergunta
+// enviada é o `raw` (nomes de carta em inglês saem melhor como foram ditos).
+const VC_RULES_START = /^(juiz|juiza|me explica|explica|explique|como funciona|como que funciona|como e que funciona|o que faz|o que e que faz|o que e |o que significa|o que acontece|qual a regra|regra d|regras d|pergunta|duvida|posso |pode |eu posso|da pra|da para|tem como|quando )/;
+function vcParseRules(text: string, raw: string): VoiceCommand | null {
+    if (/o que voce faz|quais comandos|\bajuda\b/.test(text)) return null;
+    const isRules = /\bjuiz\b|\bjuiza\b/.test(text) || VC_RULES_START.test(text);
+    if (!isRules) return null;
+    // Perguntas de MESA ("quanto de vida tem o zé", "que turno") não vão pro juiz.
+    if (/quanto de vida|que turno|qual turno|quem (ta|esta) ganhando|como (ta|esta) a mesa|quanto tempo/.test(text)) return null;
+    let q = raw.trim().replace(/^\s*(ju[ií]z[a]?)[\s,:]*/i, '').trim();
+    if (q.length < 3) return null;
+    if (!/[?]$/.test(q)) q += '?';
+    return { rules: q };
+}
+
 // Comandos que não dependem de um jogador específico.
 function vcParseGlobal(text: string): VoiceCommand | null {
     if (/\b(ajuda|help|o que voce faz|quais comandos|comandos)\b/.test(text)) return { action: 'help' };
@@ -337,6 +355,11 @@ function vcParse(raw: string): VoiceCommand | null {
     // Converte palavras-número em dígitos PRIMEIRO (nome "jogador 1"/"jogador um" sai inteiro).
     const text = vcDigitize(vcNorm(raw));
     if (!text) return null;
+
+    // 0) Pergunta de regras/carta: "como funciona ward", "o que faz rhystic study",
+    //    "juiz, posso responder a um counter com outro counter". Vai pro juiz de IA.
+    const rules = vcParseRules(text, raw);
+    if (rules) return rules;
 
     // 1) Comandos globais (sem jogador): tema, música, dado, sorteio, viado, turno, desfazer, massa.
     const global = vcParseGlobal(text);
@@ -474,6 +497,13 @@ function vcStatusText(): string {
 function vcApply(cmd: VoiceCommand): void {
     const players = gameState.getState().players;
     const vib = (ms: number): void => { try { navigator.vibrate?.(ms); } catch { /* ignore */ } };
+
+    // Pergunta de regras: abre a folha do juiz (ui.ts), que responde falando.
+    if (cmd.rules) {
+        if (vcActions.askRules) { vcActions.askRules(cmd.rules); vcToast(`Perguntando ao juiz: ${cmd.rules}`, true); }
+        else vcToast('Juiz indisponível aqui', false);
+        return;
+    }
 
     // Perguntas: responde por voz + toast.
     if (cmd.query) {
@@ -749,6 +779,7 @@ function vcBeep(kind: 'on' | 'off' | 'warn'): void {
 }
 
 function vcCmdKey(cmd: VoiceCommand): string {
+    if (cmd.rules) return `rules:${cmd.rules}`;
     if (cmd.query) return `q:${cmd.query}:${cmd.queryPlayerId || ''}`;
     if (cmd.action) return `ac:${cmd.action}`;
     if (cmd.theme) return `th:${cmd.theme}`;
@@ -1007,6 +1038,7 @@ const VC_HELP: Array<[string, string[]]> = [
     ['Monarca', ['"monarca pro Zé" · "tira o monarca"']],
     ['Mesa', ['"próximo turno" · "desfazer" · "quem começa"', '"sortear viado" · "rola um d20" · "cara ou coroa"', '"reiniciar partida" · "tela cheia" · "timer ligado"']],
     ['Perguntas', ['"como tá a mesa" · "quanto de vida tem o Zé"', '"quem tá ganhando" · "que turno" · "quanto tempo"']],
+    ['Juiz (IA)', ['"como funciona ward" · "o que faz Rhystic Study"', '"juiz, posso responder a um counter com outro counter?"', 'A resposta aparece na mesa e é falada; se for sobre uma carta, mostra a carta.']],
     ['Som e visual', ['"tema escuro/vermelho/streamer"', '"música épica/sombria/parar"', '"som desligado" · "narrador ligado"', '"vitória escandalosa desligada"']],
     ['Telas', ['"ranking" · "histórico" · "perfis"', '"configurações" · "ferramentas" · "atualização"']],
     ['Microfone', ['Segure o botão no meio da mesa, fale e solte (como áudio do WhatsApp).', 'Toque rápido: fica ouvindo até o próximo toque ou até aplicar o comando.', 'Mãos livres: Ferramentas › Comando de voz, aí diga "contador" antes de cada comando.']],

@@ -621,6 +621,41 @@ function csRenderJudgeShot(): void {
     }
 }
 
+// Juiz de regras (texto). Usado pelo modal IA & Cartas e pela pergunta por voz
+// na mesa. Quando a pergunta é sobre uma carta específica, o modelo termina
+// com "CARTA: <nome em inglês>", que a gente separa pra buscar no Scryfall.
+export interface JudgeAnswer { answer: string; cardName: string | null }
+export async function askJudgeText(question: string, opts: { image?: string | null; spoken?: boolean } = {}): Promise<JudgeAnswer> {
+    if (!isGeminiConfigured()) throw new Error('Chave do Gemini não configurada (src/ts/config.ts).');
+    const prompt = [
+        'Você é um juiz oficial de Magic: The Gathering. Responda em português, claro e correto segundo as regras atuais.',
+        'Vá direto ao ponto, sem saudação nem preâmbulo (não comece com "Olá").',
+        opts.spoken
+            ? 'A pergunta foi feita por VOZ numa mesa de Commander e a resposta será LIDA EM VOZ ALTA: no máximo 4 frases curtas, sem listas, sem markdown, sem símbolos de mana por extenso. Nomes de cartas podem vir transcritos errado pelo reconhecimento de voz; interprete pelo nome mais parecido.'
+            : 'Se a pergunta for sobre uma carta específica, explique o que ela faz.',
+        opts.image
+            ? 'A imagem anexada mostra uma carta (pode estar em japonês). Considere-a ao responder.'
+            : (csLastCardName ? `Contexto: a última carta vista pelo jogador foi "${csLastCardName}".` : ''),
+        'Na ÚLTIMA linha, sozinha, escreva "CARTA: <nome oficial em inglês>" se a pergunta for sobre uma carta específica, ou "CARTA: -" se não for.',
+        `Pergunta: ${question}`,
+    ].filter(Boolean).join('\n');
+    const raw = opts.image
+        ? await geminiGenerate([{ text: prompt }, jpegPart(opts.image)], { temperature: 0.3, maxOutputTokens: 1100 })
+        : await geminiText(prompt, { temperature: 0.3, maxOutputTokens: 1100 });
+    let answer = raw.trim();
+    let cardName: string | null = null;
+    const m = answer.match(/\n?\s*\**CARTA\**\s*:\s*\**([^\n*]*)\**\s*$/i);
+    if (m) {
+        const name = m[1].trim();
+        cardName = name && name !== '-' && name !== '—' ? name : null;
+        answer = answer.slice(0, m.index).trim();
+    }
+    return { answer, cardName };
+}
+export function formatJudgeText(text: string): string {
+    return csFormatText(text);
+}
+
 async function csAskJudge(): Promise<void> {
     const input = csEl('cs-judge-input') as HTMLTextAreaElement;
     const answer = csEl('cs-judge-answer');
@@ -644,21 +679,9 @@ async function csAskJudge(): Promise<void> {
     answer.style.display = '';
     answer.innerHTML = '<div class="loading-spinner"></div>';
 
-    const prompt = [
-        'Você é um juiz oficial de Magic: The Gathering. Responda em português, claro e correto segundo as regras atuais.',
-        'Vá direto ao ponto, sem saudação nem preâmbulo (não comece com "Olá").',
-        csJudgeImage
-            ? 'A imagem anexada mostra uma carta (pode estar em japonês). Considere-a ao responder.'
-            : (csLastCardName ? `Contexto: a última carta vista pelo jogador foi "${csLastCardName}".` : ''),
-        'Se a pergunta for sobre uma carta específica, explique o que ela faz.',
-        `Pergunta: ${question}`,
-    ].filter(Boolean).join('\n');
-
     try {
-        const text = csJudgeImage
-            ? await geminiGenerate([{ text: prompt }, jpegPart(csJudgeImage)], { temperature: 0.3, maxOutputTokens: 1100 })
-            : await geminiText(prompt, { temperature: 0.3, maxOutputTokens: 1100 });
-        answer.innerHTML = `<div class="cs-answer">${csFormatText(text.trim())}</div>`;
+        const res = await askJudgeText(question, { image: csJudgeImage });
+        answer.innerHTML = `<div class="cs-answer">${csFormatText(res.answer)}</div>`;
     } catch (e) {
         console.error('Judge error:', e);
         const msg = e instanceof Error ? e.message : 'Erro ao consultar o Gemini.';

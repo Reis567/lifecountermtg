@@ -16,6 +16,7 @@ urlpatterns = [
     path('elo/', views.elo),
     path('seasons/', views.seasons_list),
     path('seasons/summary/', views.season_summary),
+    path('game/current/', views.current_game),
     path('achievements/', views.achievements_catalog),
     path('settings/season/', views.season_settings),
     path('notifications/', views.notifications),

@@ -82,6 +82,34 @@ class Lote4Tests(TestCase):
                                           eliminated_by=(eliminated_by or {}).get(p.id, ''))
         return m
 
+    def test_current_game_resume_and_conflict(self):
+        A = {'HTTP_X_LC_KEY': settings.LC_API_KEY, 'HTTP_X_LC_DEVICE': 'dev-A'}
+        B = {'HTTP_X_LC_KEY': settings.LC_API_KEY, 'HTTP_X_LC_DEVICE': 'dev-B'}
+        state = {'players': [{'id': 'p1', 'life': 40}], 'settings': {}, 'gameStarted': True, 'currentTurn': 3}
+        self.assertIsNone(self.c.get('/api/game/current/').data['state'])
+        r = self.c.put('/api/game/current/', {'state': state, 'rev': 0, 'client_match_id': 'm1'}, format='json', **A)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['rev'], 1)
+        r = self.c.put('/api/game/current/', {'state': state, 'rev': 1}, format='json', **A)
+        self.assertEqual(r.data['rev'], 2)
+        # B retoma com o rev que viu (2) e segue salvando
+        g = self.c.get('/api/game/current/').data
+        self.assertEqual(g['rev'], 2)
+        self.assertEqual(g['state']['currentTurn'], 3)
+        r = self.c.put('/api/game/current/', {'state': {**state, 'currentTurn': 4}, 'rev': 2}, format='json', **B)
+        self.assertEqual(r.data['rev'], 3)
+        # A, com rev velho, leva 409 com o estado novo
+        r = self.c.put('/api/game/current/', {'state': state, 'rev': 2}, format='json', **A)
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual(r.data['state']['currentTurn'], 4)
+        self.assertEqual(r.data['client_match_id'], 'm1')
+        # A força: passa a ser dela
+        r = self.c.put('/api/game/current/', {'state': state, 'rev': 2, 'force': True}, format='json', **A)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(self.c.delete('/api/game/current/', **A).status_code, 204)
+        self.assertIsNone(self.c.get('/api/game/current/').data['state'])
+        self.assertEqual(self.c.put('/api/game/current/', {'state': {'x': 1}}, format='json', **A).status_code, 400)
+
     def test_awards_in_hall_and_profile(self):
         now = timezone.now()
         # partidas no mês passado (temporada fechada)

@@ -8140,3 +8140,33 @@ body:has(.live-guest) .turn-bar { display: none; }
     .rk-pod-1 .lc-avatar { width: 66px; height: 66px; }
     .pp-bar { grid-template-columns: 64px 1fr 50px; }
 }
+
+/* ===== v2.4.1: troca de lugar, retomar partida, juiz por voz ===== */
+.player-info { -webkit-touch-callout: none; user-select: none; }
+body.seat-dragging { cursor: grabbing; }
+body.seat-dragging .player-card { transition: filter 120ms ease, outline-color 120ms ease; }
+.player-card.seat-drag-source { filter: brightness(0.75) saturate(0.7); }
+.player-card.seat-drop-target { outline: 4px solid var(--accent-primary); outline-offset: -4px; filter: brightness(1.2); }
+.seat-drag-ghost { background: var(--player-color); color: #fff; }
+
+.home-resume { margin: 0.6rem 0; padding: 0.75rem 0.85rem; border-radius: var(--border-radius); background: linear-gradient(135deg, rgba(124,92,255,0.22), rgba(124,92,255,0.06)); border: 1px solid rgba(124,92,255,0.5); display: flex; flex-direction: column; gap: 0.6rem; }
+.home-resume-top { display: flex; align-items: flex-start; gap: 0.6rem; }
+.home-resume-top > .ic { width: 26px; height: 26px; flex-shrink: 0; color: var(--accent-primary); margin-top: 0.1rem; }
+.home-resume-title { font-weight: 800; font-size: 0.98rem; }
+.home-resume-meta { font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.1rem; }
+.home-resume-names { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.15rem; }
+.home-resume-actions { display: flex; gap: 0.5rem; }
+.home-resume-actions .primary-btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; margin: 0; padding: 0.6rem; }
+.home-resume-actions .cs-gallery-btn { margin: 0; }
+@media (orientation: landscape) and (max-height: 520px) { .home-resume { grid-column: 1 / -1; } }
+
+.rules-sheet .profile-picker-body { gap: 0.6rem; }
+.rules-q { font-weight: 700; font-size: 0.95rem; padding: 0.55rem 0.75rem; border-left: 3px solid var(--accent-primary); background: var(--bg-secondary); border-radius: 0 8px 8px 0; }
+.rules-a { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; min-height: 48px; }
+.rules-a .cs-answer { align-self: stretch; text-align: left; }
+.rules-card { padding: 0.6rem; border-radius: 10px; background: var(--bg-secondary); border: 1px solid var(--border-color); }
+.rules-card .cs-sheet-img { width: 34%; max-width: 150px; cursor: zoom-in; }
+.rules-card-oracle { font-size: 0.78rem; line-height: 1.35; margin-top: 0.35rem; }
+.seat-drag-ghost { white-space: nowrap; max-width: none; }
+.rules-sym { display: inline-block; min-width: 1.2em; padding: 0 0.3em; border-radius: 999px; background: rgba(255,255,255,0.14); font-size: 0.85em; text-align: center; }
+@media (orientation: landscape) and (max-height: 520px) { .home-resume { margin: 0.3rem 0; } }

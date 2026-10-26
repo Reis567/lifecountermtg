@@ -41,7 +41,8 @@ import { setupNotifications, onNotification, getMyProfileId, setMyProfileId } fr
 import { buildLifeSeries, lifeChartSvg, drawLifeChart } from './chart.js';
 import { liveHostStart, liveHostStop, liveHostSession, liveHostNotify, liveHostSetAllowEdits, onLiveHostChange, liveJoinUrl, liveGuestOpen } from './live.js';
 import { apiCreateDeck, apiDeleteDeck, apiUploadProfileSound, apiDeleteProfileSound, apiElo, apiSeasons, apiSeasonOverview, type DeckDTO, type ScoringMode, type SeasonOverviewDTO, type SeasonAwardDTO } from './api.js';
-import { identifyCardFromFile } from './cardScanner.js';
+import { identifyCardFromFile, askJudgeText, formatJudgeText } from './cardScanner.js';
+import { setupCloudSave, cloudCheckResume, cloudResume, cloudDiscard, cloudIsMine } from './cloudsave.js';
 import { isGeminiConfigured } from './aiClient.js';
 import { setNarratorContext } from './aiNarrator.js';
 import { promptDialog } from './dialogs.js';
@@ -744,6 +745,9 @@ export function initUI(): void {
     setupSync();
     setupUpdater();
     setupWakeLock();
+    // Partida em andamento salva no servidor a cada mudança (retomar em outro aparelho).
+    setupCloudSave((msg, kind) => showSpecialMoment(msg, kind));
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && !gameState.getState().gameStarted) void refreshResumeCard(true); });
     onProfilesChange((list) => {
         audioManager.setServerSounds(list);
         const s = gameState.getState();
@@ -814,6 +818,142 @@ export function initUI(): void {
         fullscreen: () => toggleFullscreen(),
         reset: () => $('reset-game-btn')?.click(),
         revive: (id) => handleRevivePlayer(id),
+        askRules: (q) => { void openRulesSheet(q); },
+    });
+}
+
+// ===== Juiz por voz na mesa =====
+// "como funciona ward" / "o que faz Rhystic Study": o juiz do IA & Cartas
+// responde numa folha por cima da mesa e fala a resposta. Se for sobre uma
+// carta, busca a carta no Scryfall e mostra junto.
+async function openRulesSheet(question: string): Promise<void> {
+    document.getElementById('rules-sheet-dyn')?.remove();
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.id = 'rules-sheet-dyn';
+    modal.style.zIndex = '2080';
+    modal.innerHTML = `
+        <div class="modal-content profile-picker-content rules-sheet">
+            <div class="modal-header">
+                <h2><svg class="ic ic-title"><use href="#ic-book"/></svg>Juiz</h2>
+                <button class="modal-close" type="button">&times;</button>
+            </div>
+            <div class="profile-picker-body cs-sheet" id="rules-sheet-body">
+                <div class="rules-q">${escapeHtml(question)}</div>
+                <div class="rules-a"><div class="loading-spinner"></div><div class="update-muted">Consultando o juiz…</div></div>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+    const close = (): void => { narrator.shutUp(); modal.remove(); };
+    modal.querySelector('.modal-close')?.addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    const body = modal.querySelector('#rules-sheet-body') as HTMLElement;
+    const aEl = body.querySelector('.rules-a') as HTMLElement;
+    try {
+        const res = await askJudgeText(question, { spoken: true });
+        if (!document.body.contains(modal)) return;
+        aEl.innerHTML = `<div class="cs-answer">${formatJudgeText(res.answer)}</div>`;
+        // Fala a resposta (sem markdown), respeitando só o modo silencioso.
+        narrator.say(res.answer.replace(/\*\*/g, '').replace(/\s+/g, ' ').slice(0, 900));
+        const actions = document.createElement('div');
+        actions.className = 'pe-actions';
+        actions.innerHTML = `<button type="button" class="cs-gallery-btn" id="rules-again"><svg class="ic"><use href="#ic-mic"/></svg> Fechar e perguntar outra</button>
+            <button type="button" class="cs-gallery-btn" id="rules-open-judge"><svg class="ic"><use href="#ic-chat"/></svg> Abrir no IA &amp; Cartas</button>`;
+        body.appendChild(actions);
+        actions.querySelector('#rules-again')?.addEventListener('click', () => { close(); showSpecialMoment('Segure o microfone e pergunte.', 'warning'); });
+        actions.querySelector('#rules-open-judge')?.addEventListener('click', () => { close(); openCardScanner('judge'); });
+        if (res.cardName) void appendRulesCard(body, aEl, res.cardName);
+    } catch (e: any) {
+        aEl.innerHTML = `<div class="cs-answer-error">${escapeHtml(String(e?.message || e))}</div>`;
+    }
+}
+
+// Carta citada na resposta: imagem + texto de regras do Scryfall, acima da resposta.
+async function appendRulesCard(body: HTMLElement, before: HTMLElement, name: string): Promise<void> {
+    try {
+        const res = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(name)}`);
+        if (!res.ok) return;
+        const c: any = await res.json();
+        const face = c.card_faces?.[0];
+        const img = c.image_uris?.normal || face?.image_uris?.normal || '';
+        const oracle = c.oracle_text || c.card_faces?.map((f: any) => `${f.name}\n${f.oracle_text || ''}`).join('\n\n') || '';
+        const wrap = document.createElement('div');
+        wrap.className = 'rules-card';
+        wrap.innerHTML = `
+            <div class="cs-sheet-top">
+                ${img ? `<img class="cs-sheet-img rules-card-img" src="${escapeHtml(img)}" alt="">` : ''}
+                <div class="cs-sheet-info">
+                    <div class="cs-sheet-name">${escapeHtml(c.name || name)}</div>
+                    <div class="cs-sheet-cost">${manaCostHtml(c.mana_cost || face?.mana_cost || '')}</div>
+                    <div class="cs-sheet-type">${escapeHtml(c.type_line || face?.type_line || '')}</div>
+                    <div class="cs-sheet-oracle rules-card-oracle">${escapeHtml(oracle).replace(/\n/g, '<br>').replace(/\{([^}]+)\}/g, '<b class="rules-sym">$1</b>')}</div>
+                    <a class="cs-sheet-link update-muted" href="${escapeHtml(c.scryfall_uri || '#')}" target="_blank" rel="noopener">Ver no Scryfall</a>
+                </div>
+            </div>`;
+        if (!document.body.contains(body)) return;
+        body.insertBefore(wrap, before);
+        wrap.querySelector('.rules-card-img')?.addEventListener('click', () => {
+            if (!img) return;
+            document.getElementById('lc-lightbox')?.remove();
+            const lb = document.createElement('div');
+            lb.id = 'lc-lightbox';
+            lb.className = 'lc-lightbox';
+            lb.innerHTML = `<button type="button" class="lc-lightbox-close" aria-label="Fechar">&times;</button><img src="${escapeHtml(img)}" alt="${escapeHtml(c.name || name)}"><div class="lc-lightbox-name">${escapeHtml(c.name || name)}</div>`;
+            lb.addEventListener('click', () => lb.remove());
+            document.body.appendChild(lb);
+        });
+    } catch { /* Scryfall fora: fica só a resposta */ }
+}
+
+// ===== Retomar partida de outro aparelho (home) =====
+let resumeCheckedAt = 0;
+async function refreshResumeCard(force = false): Promise<void> {
+    const start = document.getElementById('start-game-btn');
+    if (!start) return;
+    if (!force && Date.now() - resumeCheckedAt < 20000) return;
+    resumeCheckedAt = Date.now();
+    const g = await cloudCheckResume();
+    document.getElementById('home-resume')?.remove();
+    if (!g || gameState.getState().gameStarted) return;
+    const st: any = g.state;
+    const names = (st.players || []).map((p: any) => p.name).filter(Boolean);
+    const alive = (st.players || []).filter((p: any) => !p.isEliminated).length;
+    const when = g.saved_at ? new Date(g.saved_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+    const mine = cloudIsMine(g);
+    const card = document.createElement('div');
+    card.id = 'home-resume';
+    card.className = 'home-resume';
+    card.innerHTML = `
+        <div class="home-resume-top">
+            <svg class="ic"><use href="#ic-play"/></svg>
+            <div class="home-resume-text">
+                <div class="home-resume-title">${mine ? 'Partida em andamento salva' : 'Partida em andamento em outro aparelho'}</div>
+                <div class="home-resume-meta">Turno ${escapeHtml(String(st.currentTurn ?? '?'))} · ${alive} de ${names.length} vivos${when ? ` · salva às ${when}` : ''}</div>
+                <div class="home-resume-names">${names.map((n: string) => escapeHtml(n)).join(', ')}</div>
+            </div>
+        </div>
+        <div class="home-resume-actions">
+            <button type="button" class="primary-btn" id="home-resume-go"><svg class="ic"><use href="#ic-play"/></svg> Retomar aqui</button>
+            <button type="button" class="cs-gallery-btn" id="home-resume-drop">Descartar</button>
+        </div>`;
+    // Logo abaixo do cabeçalho da home: é a primeira coisa que se vê ao abrir.
+    const top = document.querySelector('#setup-screen .setup-top');
+    if (top) top.insertAdjacentElement('afterend', card);
+    else start.parentElement?.insertBefore(card, start);
+    card.querySelector('#home-resume-go')?.addEventListener('click', () => {
+        try {
+            cloudResume(g);
+            card.remove();
+            showSpecialMoment('Partida retomada deste ponto.', 'success');
+        } catch (e: any) {
+            void alertDialog(`Não deu pra retomar: ${e?.message || e}`);
+        }
+    });
+    card.querySelector('#home-resume-drop')?.addEventListener('click', async () => {
+        const ok = await confirmDialog('Descartar a partida salva no servidor? Quem estiver jogando nela em outro aparelho continua, mas ela não aparece mais aqui.');
+        if (!ok) return;
+        await cloudDiscard();
+        card.remove();
     });
 }
 
@@ -3023,6 +3163,7 @@ function renderSetup(state: GameState): void {
     $('game-screen').classList.remove('active');
     vcSetGameActive(false);
     releaseWakeLock();
+    void refreshResumeCard();
 
     // Update player count button
     document.querySelectorAll('.count-btn').forEach(btn => {
@@ -3943,10 +4084,12 @@ function passTurn(_via: string): void {
     try { navigator.vibrate?.(20); } catch { /* ignore */ }
 }
 
+let cancelTurnSwipe: (() => void) | null = null;
 function setupTurnSwipe(): void {
     const grid = document.getElementById('players-grid');
     if (!grid) return;
     let sx = 0, sy = 0, st = 0, tracking = false;
+    cancelTurnSwipe = () => { tracking = false; };
     const SWIPE_MIN = 90, SWIPE_MAX_OFF = 70, SWIPE_MAX_MS = 700;
     grid.addEventListener('pointerdown', (e) => {
         const t = e.target as HTMLElement;
@@ -4296,6 +4439,94 @@ function setupCommanderDrag(btn: HTMLElement, sourceId: string): void {
     btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); }); // o pointerup já tratou
 }
 
+// ===== Troca de lugar na mesa =====
+// Segurar a foto/nome de um card (~300 ms) e arrastar até outro card troca os
+// dois de posição; as rotações do modo mesa são refeitas pelo estado. Toque
+// curto continua abrindo o perfil.
+let seatDragGhost: HTMLElement | null = null;
+function setupSeatDrag(handle: HTMLElement, playerId: string): void {
+    let pid = -1, sx = 0, sy = 0, armed = false, dragging = false, holdT: number | null = null;
+    let hover: HTMLElement | null = null;
+    const setHover = (c: HTMLElement | null): void => {
+        if (hover === c) return;
+        hover?.classList.remove('seat-drop-target');
+        hover = c;
+        hover?.classList.add('seat-drop-target');
+    };
+    const cardAt = (x: number, y: number): HTMLElement | null => {
+        if (seatDragGhost) seatDragGhost.style.display = 'none';
+        const el = document.elementFromPoint(x, y) as HTMLElement | null;
+        if (seatDragGhost) seatDragGhost.style.display = '';
+        const c = el?.closest('.player-card') as HTMLElement | null;
+        return c && c.dataset.playerId !== playerId ? c : null;
+    };
+    const stopHold = (): void => { if (holdT !== null) { clearTimeout(holdT); holdT = null; } };
+    const cleanup = (): void => {
+        stopHold();
+        dragging = false; armed = false;
+        document.body.classList.remove('seat-dragging');
+        handle.closest('.player-card')?.classList.remove('seat-drag-source');
+        seatDragGhost?.remove(); seatDragGhost = null;
+        setHover(null);
+    };
+    handle.addEventListener('pointerdown', (e) => {
+        if ((e.target as HTMLElement).closest('button')) return; // pílula do comandante tem gesto próprio
+        pid = e.pointerId; sx = e.clientX; sy = e.clientY; armed = false; dragging = false;
+        stopHold();
+        holdT = window.setTimeout(() => {
+            holdT = null; armed = true;
+            try { handle.setPointerCapture(pid); } catch { /* ignore */ }
+            cancelTurnSwipe?.();
+            try { navigator.vibrate?.(25); } catch { /* ignore */ }
+            const me = gameState.getState().players.find(p => p.id === playerId);
+            document.body.classList.add('seat-dragging');
+            handle.closest('.player-card')?.classList.add('seat-drag-source');
+            seatDragGhost = document.createElement('div');
+            seatDragGhost.className = 'cmd-drag-ghost seat-drag-ghost';
+            seatDragGhost.style.setProperty('--player-color', me?.color || '#fff');
+            seatDragGhost.innerHTML = `<svg class="ic"><use href="#ic-shuffle"/></svg> ${escapeHtml(me?.name || '')} troca de lugar com…`;
+            seatDragGhost.style.left = `${sx}px`; seatDragGhost.style.top = `${sy}px`;
+            document.body.appendChild(seatDragGhost);
+        }, 300);
+    });
+    handle.addEventListener('pointermove', (e) => {
+        if (e.pointerId !== pid) return;
+        if (!armed) {
+            // Mexeu antes de armar: não é segurar, é arrasto de turno ou rolagem.
+            if (Math.hypot(e.clientX - sx, e.clientY - sy) > 10) stopHold();
+            return;
+        }
+        dragging = true;
+        if (seatDragGhost) { seatDragGhost.style.left = `${e.clientX}px`; seatDragGhost.style.top = `${e.clientY}px`; }
+        setHover(cardAt(e.clientX, e.clientY));
+    });
+    const end = (e: PointerEvent): void => {
+        if (e.pointerId !== pid) return;
+        pid = -1;
+        const wasArmed = armed;
+        const target = wasArmed && e.type === 'pointerup' ? cardAt(e.clientX, e.clientY) : null;
+        const tapped = !wasArmed && holdT !== null && e.type === 'pointerup' && Math.hypot(e.clientX - sx, e.clientY - sy) <= 10;
+        cleanup();
+        try { handle.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+        if (target?.dataset.playerId) {
+            const other = gameState.getState().players.find(p => p.id === target.dataset.playerId);
+            const me = gameState.getState().players.find(p => p.id === playerId);
+            gameState.swapPlayers(playerId, target.dataset.playerId);
+            audioManager.play('click');
+            showSpecialMoment(`${me?.name || ''} e ${other?.name || ''} trocaram de lugar.`, 'success');
+            cancelTurnSwipe?.();
+            return;
+        }
+        if (tapped) {
+            const p = gameState.getState().players.find(x => x.id === playerId);
+            if (p && p.profileId !== null && p.profileId !== undefined) openProfilePage(p.profileId);
+        }
+    };
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+    handle.addEventListener('contextmenu', (e) => { e.preventDefault(); });
+}
+
 // Popup rápido: quantidade de dano de comandante do atacante no alvo.
 function openCommanderQuickPopup(targetId: string, sourceId: string, x: number, y: number): void {
     document.getElementById('cmd-quick-pop')?.remove();
@@ -4532,11 +4763,9 @@ function bindPlayerCard(card: HTMLElement, playerId: string): void {
         const cmdBtn = card.querySelector('[data-action="commander"]') as HTMLElement | null;
         if (cmdBtn) setupCommanderDrag(cmdBtn, playerId);
 
-        // Toque na foto/nome do card abre o perfil completo (se tiver perfil).
-        card.querySelector('.player-info')?.addEventListener('click', () => {
-            const p = gameState.getState().players.find(x => x.id === playerId);
-            if (p && p.profileId !== null && p.profileId !== undefined) openProfilePage(p.profileId);
-        });
+        // Toque na foto/nome abre o perfil; SEGURAR e arrastar até outro card troca os dois de lugar.
+        const info = card.querySelector('.player-info') as HTMLElement | null;
+        if (info) setupSeatDrag(info, playerId);
 
         card.querySelector('[data-action="rotate"]')?.addEventListener('click', () => {
             const p = gameState.getState().players.find(x => x.id === playerId);

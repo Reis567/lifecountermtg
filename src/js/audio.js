@@ -846,6 +846,18 @@ class EventNarrator {
         }
         this.speakDevice(text);
     }
+    // Fala pedida pelo usuário (resposta do juiz por voz): ignora o toggle do
+    // narrador, respeita só o modo silencioso.
+    say(text) {
+        const was = this.enabled;
+        this.enabled = true;
+        try {
+            this.speak(text);
+        }
+        finally {
+            this.enabled = was;
+        }
+    }
     speakDevice(text) {
         if (!this.synthesis)
             return;

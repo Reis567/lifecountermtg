@@ -125,6 +125,15 @@ export function apiSeasons() {
 export function apiSeasonOverview() {
     return apiFetch('/api/seasons/summary/');
 }
+export function apiGetCurrentGame() {
+    return apiFetch('/api/game/current/');
+}
+export function apiPutCurrentGame(body) {
+    return apiFetch('/api/game/current/', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, true);
+}
+export function apiDeleteCurrentGame() {
+    return apiFetch('/api/game/current/', { method: 'DELETE' }, true);
+}
 export function apiCreateDeck(profileId, data) {
     return apiFetch(`/api/profiles/${profileId}/decks/`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),

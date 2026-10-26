@@ -12,7 +12,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 // Ordem importa: dependências de execução em nível de módulo primeiro,
 // main.js por último (registra o DOMContentLoaded que chama initUI).
-const order = ['aiClient', 'api', 'profiles', 'sync', 'updater', 'notifications', 'dialogs', 'types', 'state', 'chart', 'live', 'audio', 'fingerPicker', 'starters', 'aiNarrator', 'victory', 'mechanics', 'cardScanner', 'voiceControl', 'ranking', 'androidPromo', 'ui', 'main'];
+const order = ['aiClient', 'api', 'profiles', 'sync', 'updater', 'notifications', 'dialogs', 'types', 'state', 'cloudsave', 'chart', 'live', 'audio', 'fingerPicker', 'starters', 'aiNarrator', 'victory', 'mechanics', 'cardScanner', 'voiceControl', 'ranking', 'androidPromo', 'ui', 'main'];
 
 const chunks = [];
 for (const name of order) {
