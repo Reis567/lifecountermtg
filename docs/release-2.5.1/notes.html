@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>LifeCounter 2.5.1</title>
+<style>
+  :root { --ink: #16161a; --muted: #5d5d66; --line: #e3e3ea; --accent: #6366f1; --bg: #ffffff; --soft: #f5f5fa; --bad: #b91c1c; --good: #15803d; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Inter, Arial, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.5; }
+  .page { max-width: 900px; margin: 0 auto; padding: 36px 32px 48px; }
+  header { border-bottom: 3px solid var(--accent); padding-bottom: 16px; margin-bottom: 28px; }
+  .kicker { color: var(--accent); font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; font-size: 12px; }
+  h1 { margin: 4px 0 6px; font-size: 34px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); font-size: 15px; }
+  h2 { font-size: 22px; margin: 36px 0 8px; padding-top: 8px; border-top: 1px solid var(--line); break-after: avoid; }
+  h2 small { color: var(--muted); font-weight: 500; font-size: 13px; margin-left: 8px; }
+  p { margin: 6px 0 10px; }
+  ul { margin: 6px 0 10px; padding-left: 20px; }
+  li { margin: 3px 0; }
+  .lead { font-size: 16px; color: #2b2b33; }
+  .toc { background: var(--soft); border-radius: 12px; padding: 14px 18px; margin: 18px 0 8px; }
+  .toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+  .toc li { break-inside: avoid; }
+  .shots { display: flex; gap: 14px; align-items: flex-start; margin: 12px 0 6px; break-inside: avoid; }
+  .shot { flex: 1; min-width: 0; }
+  .shot img { width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); box-shadow: 0 6px 20px rgba(0,0,0,0.08); display: block; }
+  .shot.phone { flex: 0 0 31%; }
+  .shot.land { flex: 1; }
+  .cap { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .cap b.antes { color: var(--bad); } .cap b.depois { color: var(--good); }
+  .how { background: var(--soft); border-left: 3px solid var(--accent); padding: 8px 12px; border-radius: 0 10px 10px 0; margin: 8px 0 12px; font-size: 14px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0 12px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--soft); }
+  code { background: var(--soft); padding: 1px 5px; border-radius: 5px; font-size: 12.5px; }
+  footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+  @page { size: A4; margin: 14mm 12mm; }
+  @media print { .page { padding: 0; max-width: none; } h2 { page-break-after: avoid; } .shots { page-break-inside: avoid; } }
+</style>
+</head>
+<body>
+<div class="page">
+<header>
+  <div class="kicker">Notas da atualização</div>
+  <h1>LifeCounter 2.5.1</h1>
+  <div class="sub">31 de outubro de 2026 · APK code 26 · site lifecounter.mreis.site · atualização automática pelo app</div>
+</header>
+
+<p class="lead">Versão de acabamento. Os próprios prints das notas da 2.5.0 mostravam defeitos visuais: o pódio deixava a mesa vazar por trás e, deitado, empilhava tudo; a linha do tempo cortava o rótulo do fim; o microfone engolia o nome de quem estava no canto; as barras de comandante entravam embaixo do número da vida. Tudo isso foi corrigido, com antes e depois abaixo.</p>
+
+<div class="toc">
+  <ol>
+    <li>Pódio refeito (em pé e deitado)</li>
+    <li>Linha do tempo sem cortes</li>
+    <li>Microfone não engole mais nomes</li>
+    <li>Dano de comandante no card, sem sobreposição</li>
+    <li>Tira do eliminado em paisagem</li>
+    <li>Pequenos acertos de texto e controles</li>
+    <li>Nos bastidores e como atualizar</li>
+  </ol>
+</div>
+
+<h2>1. Pódio refeito <small>em pé e deitado</small></h2>
+<p>A tela de vitória tinha fundo translúcido demais: o número do card, a barra "Passar a vez" e as tiras dos eliminados apareciam por trás do troféu e do nome do campeão. Deitado era pior: troféu cortado no topo, a faixa "É CAMPEÃO" em cima do título, a linha do tempo por cima das colocações e as bolinhas de baixo fora da tela.</p>
+<ul>
+  <li><b>Fundo opaco com desfoque</b> da mesa. Nada mais vaza, nem no modo escandaloso (o fundo piscante também ficou mais fechado).</li>
+  <li><b>Troféu em ícone sólido</b> (sem emoji), com dois brilhos discretos. "Vitória!" com acento.</li>
+  <li><b>Deitado, duas colunas</b>: troféu, título e nome à esquerda; linha do tempo e botões à direita. Tudo cabe sem rolar.</li>
+  <li>A faixa do modo escandaloso vai pro topo e fica menor em paisagem, sem cobrir o título.</li>
+  <li>Botões em bloco próprio, centralizados, sempre dentro da tela.</li>
+</ul>
+<div class="shots">
+  <div class="shot phone"><img src="./antes-e01-podio-linha-do-tempo.png" alt=""><div class="cap"><b class="antes">Antes.</b> Mesa vazando atrás do "ZÉ", colocações por baixo.</div></div>
+  <div class="shot phone"><img src="./i16-podio-normal-em-pe.png" alt=""><div class="cap"><b class="depois">Depois.</b> Fundo fechado, troféu sólido, linha do tempo inteira.</div></div>
+  <div class="shot phone"><img src="./i06-podio-em-pe.png" alt=""><div class="cap"><b class="depois">Depois,</b> modo escandaloso.</div></div>
+</div>
+<div class="shots">
+  <div class="shot land"><img src="./antes-e02-podio-paisagem.png" alt=""><div class="cap"><b class="antes">Antes, deitado.</b> Troféu cortado, faixa no título, bolinhas fora da tela.</div></div>
+</div>
+<div class="shots">
+  <div class="shot land"><img src="./i17-podio-normal-paisagem.png" alt=""><div class="cap"><b class="depois">Depois, deitado.</b> Duas colunas.</div></div>
+</div>
+<div class="shots">
+  <div class="shot land"><img src="./i07-podio-paisagem.png" alt=""><div class="cap"><b class="depois">Depois, deitado,</b> modo escandaloso: a faixa fica no topo.</div></div>
+</div>
+
+<h2>2. Linha do tempo sem cortes <small>pódio e histórico</small></h2>
+<p>O rótulo da duração ("1 min", "2h05") ficava embaixo da bolinha do vencedor e as bolinhas de baixo encostavam na borda. Agora a régua tem mais folga em cima e embaixo, e o rótulo do fim escolhe sozinho onde cabe: embaixo do eixo, em cima dele ou no topo, conforme as quedas que estiverem perto do fim.</p>
+<div class="shots">
+  <div class="shot phone"><img src="./antes-e03-historico-linha-do-tempo.png" alt=""><div class="cap"><b class="antes">Antes.</b> "1 min" embaixo do Z, R na borda.</div></div>
+  <div class="shot phone"><img src="./i10-historico-linha-do-tempo.png" alt=""><div class="cap"><b class="depois">Depois.</b> Rótulo acima, bolinhas inteiras.</div></div>
+</div>
+
+<h2>3. Microfone não engole mais nomes <small>mesa de 5 e cards estreitos</small></h2>
+<p>Nos cards estreitos (três colunas no celular em pé) o recuo que afastava o conteúdo do recorte do microfone deixava zero pixel pro nome: o Zé e o Cabral ficavam só com foto e engrenagem. Agora, nesses cards, o recuo é menor, a foto some só no lado do recorte e o nome fica. No rodapé, some o botão do meio em vez de espremer os três. O microfone também ficou menor em mesas de 5 ou mais (48 px), e o buraco nos cards acompanha o tamanho real do botão.</p>
+<div class="shots">
+  <div class="shot phone"><img src="./antes-h13-mesa-5-microfone-em-pe.png" alt=""><div class="cap"><b class="antes">Antes.</b> Zé e Cabral sem nome.</div></div>
+  <div class="shot phone"><img src="./i01-mesa-5-em-pe.png" alt=""><div class="cap"><b class="depois">Depois.</b> Todos com nome; microfone menor.</div></div>
+  <div class="shot phone"><img src="./i04-eliminado-em-pe.png" alt=""><div class="cap"><b class="depois">Depois,</b> com um eliminado: nomes intactos.</div></div>
+</div>
+<div class="shots">
+  <div class="shot land"><img src="./i02-mesa-5-paisagem.png" alt=""><div class="cap"><b class="depois">Deitado,</b> mesa de 5.</div></div>
+</div>
+
+<h2>4. Dano de comandante no card, sem sobreposição</h2>
+<p>Com dano marcado, o card acumulava três coisas no mesmo canto: as barras por atacante, o selo "em risco" e a pílula CMD. Deitado, as barras entravam embaixo do número da vida e o selo cobria o botão de menos.</p>
+<ul>
+  <li><b>Selo "em risco" saiu</b>: a pílula já mostra o maior dano com anel de alerta em 15 e vermelha em 21.</li>
+  <li><b>Barras ficam em cima da pílula</b>, não ao lado. Nada se cruza no canto.</li>
+  <li><b>Deitado, as barras somem</b>; a pílula e a folha de dano contam a história. Com 5 ou mais, a pílula fica compacta (só ícone e número) pra não encostar no número da vida.</li>
+</ul>
+<div class="shots">
+  <div class="shot land"><img src="./antes-h04-pilula-cmd-com-dano.png" alt=""><div class="cap"><b class="antes">Antes.</b> Barras e selo em cima do 22 e do botão de menos.</div></div>
+</div>
+<div class="shots">
+  <div class="shot land"><img src="./i03-paisagem-cmd-sem-barras.png" alt=""><div class="cap"><b class="depois">Depois, deitado.</b> Só a pílula, compacta.</div></div>
+</div>
+
+<h2>5. Tira do eliminado em paisagem</h2>
+<p>Deitado, a tira escondia "por Zé · Combo" por falta de altura. Agora quem matou e como aparece na mesma linha do nome.</p>
+<div class="shots">
+  <div class="shot land"><img src="./antes-b03-eliminado-paisagem.png" alt=""><div class="cap"><b class="antes">Antes.</b> Só "5º Maria".</div></div>
+</div>
+<div class="shots">
+  <div class="shot land"><img src="./i05-eliminado-paisagem.png" alt=""><div class="cap"><b class="depois">Depois.</b> "Maria · por Zé · Combo".</div></div>
+</div>
+
+<h2>6. Pequenos acertos de texto e controles</h2>
+<ul>
+  <li><b>"Quem começa?" e "Começa:"</b> com cedilha no sorteio (estavam sem).</li>
+  <li><b>Animação do sorteio</b>: a opção "Destaque em sequência" não cabia no seletor e aparecia cortada. Virou "Sequência" e o seletor não corta mais.</li>
+  <li><b>Botão de tema "Contraste"</b> estava invisível (o próprio tema pintava o botão de preto sobre preto). Ganhou contorno amarelo.</li>
+  <li><b>Modo só vida</b>: o print da 2.5.0 mostrava um "fantasma" atrás do número; era a animação de troca de tamanho capturada no meio. O print novo foi tirado com ela terminada e está limpo.</li>
+</ul>
+<div class="shots">
+  <div class="shot phone"><img src="./antes-d01-sorteio-justo-config.png" alt=""><div class="cap"><b class="antes">Antes.</b> "Destaque em sequêi".</div></div>
+  <div class="shot phone"><img src="./i11-config-animacao.png" alt=""><div class="cap"><b class="depois">Depois.</b> "Sequência".</div></div>
+  <div class="shot phone"><img src="./i12-config-tema.png" alt=""><div class="cap"><b class="depois">Depois.</b> "Contraste" com contorno.</div></div>
+</div>
+<div class="shots">
+  <div class="shot phone"><img src="./antes-d02-sorteio-justo.png" alt=""><div class="cap"><b class="antes">Antes.</b> "Quem comeca?"</div></div>
+  <div class="shot phone"><img src="./i13-sorteio.png" alt=""><div class="cap"><b class="depois">Depois.</b> "Quem começa?"</div></div>
+  <div class="shot phone"><img src="./i14-so-vida-em-pe.png" alt=""><div class="cap"><b class="depois">Só vida,</b> sem fantasma.</div></div>
+</div>
+
+<h2>7. Nos bastidores e como atualizar</h2>
+<table>
+  <tr><th>Onde</th><th>O que mudou</th></tr>
+  <tr><td>Pódio</td><td>HTML do overlay reorganizado em <code>.winner-hero</code> + linha do tempo + <code>.winner-actions</code>; grade de duas colunas em paisagem; fundo 0,985 de opacidade com desfoque; troféu <code>#ic-trophy</code>.</td></tr>
+  <tr><td>Linha do tempo</td><td><code>matchTimelineHtml</code>: altura 112, eixo em 60, rótulo da duração com três posições candidatas conforme as quedas perto do fim.</td></tr>
+  <tr><td>Microfone</td><td><code>syncFabCutRadius</code> lê o tamanho real do botão; regras de <code>data-notch</code> dentro de <code>@container (max-width: 150px)</code>.</td></tr>
+  <tr><td>Card</td><td><code>.cmd-risk</code> oculto; <code>.cmd-bars</code> acima da pílula; em paisagem as barras somem e, com 5+, a pílula fica compacta.</td></tr>
+  <tr><td>Testes</td><td>QA automatizado novo (qa12) com 27 verificações cobrindo cada defeito desta nota, em pé e deitado; suítes anteriores sem regressão; zero erros de JS.</td></tr>
+</table>
+<p><b>Como atualizar.</b> No Android, o app avisa ao abrir e instala com um toque (ou Configurações › Atualização). No navegador basta recarregar; o site já está na 2.5.1.</p>
+
+<footer>LifeCounter 2.5.1 (code 26) · lifecounter.mreis.site · notas geradas em 31/10/2026</footer>
+</div>
+</body>
+</html>

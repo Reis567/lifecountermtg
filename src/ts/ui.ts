@@ -1140,7 +1140,7 @@ type TlPlayer = { id: string; name: string; color: string };
 function matchTimelineHtml(events: GameEvent[], players: TlPlayer[], startedAt: number, endedAt: number, startingLife: number, winnerId?: string | null): string {
     if (!events.length || endedAt <= startedAt) return '';
     const dur = Math.max(60000, endedAt - startedAt);
-    const W = 640, H = 96, L = 16, R = 18, axisY = 52;
+    const W = 640, H = 112, L = 16, R = 18, axisY = 60;
     const x = (t: number): number => L + ((Math.min(Math.max(t, startedAt), endedAt) - startedAt) / dur) * (W - L - R);
     const life = new Map<string, number>(players.map(p => [p.id, startingLife]));
     const dead = new Set<string>();
@@ -1195,6 +1195,10 @@ function matchTimelineHtml(events: GameEvent[], players: TlPlayer[], startedAt: 
     const bg = biggest as { t: number; id: string; amount: number; turn?: number } | null; // (TS não acompanha a atribuição dentro do closure)
     const wx = (W - R).toFixed(1);
     const win = winnerId ? `<g><circle cx="${wx}" cy="${axisY}" r="11" fill="${col(winnerId)}"/><text x="${wx}" y="${axisY + 4}" text-anchor="middle" class="tl-ini">${escapeHtml(ini(winnerId))}</text><title>${escapeHtml(nm(winnerId))} venceu</title></g>` : '';
+    // Rótulo da duração: embaixo do eixo se nenhuma queda "pra baixo" encosta no
+    // fim; senão em cima; senão no topo. (Partidas curtas amontoam tudo no fim.)
+    const nearEnd = (up: boolean): boolean => elims.some((e, i) => (i % 2 === 0) === up && x(e.t) > W - R - 48);
+    const endLblY = !nearEnd(false) ? axisY + 26 : !nearEnd(true) ? axisY - 16 : 12;
     const big = bg && Math.abs(bg.amount) >= 5 ? `<text x="${x(bg.t).toFixed(1)}" y="${H - 2}" text-anchor="middle" class="tl-big" fill="${col(bg.id)}">${bg.amount > 0 ? '+' : ''}${bg.amount}</text>` : '';
     const chips: string[] = [];
     const lastLead = leadChanges.length ? leadChanges[leadChanges.length - 1] : null;
@@ -1206,7 +1210,7 @@ function matchTimelineHtml(events: GameEvent[], players: TlPlayer[], startedAt: 
         <svg viewBox="0 0 ${W} ${H}" class="tl-svg">
             <line x1="${L}" y1="${axisY}" x2="${W - R}" y2="${axisY}" class="tl-axis"/>
             <text x="${L}" y="${axisY + 17}" class="tl-tick-lbl">0</text>
-            <text x="${W - R - 16}" y="${axisY + 17}" class="tl-tick-lbl" text-anchor="end">${fmtDuration(dur)}</text>
+            <text x="${W - R + 11}" y="${endLblY}" class="tl-tick-lbl" text-anchor="end">${fmtDuration(dur)}</text>
             ${ticks}${lead}${el}${win}${big}
         </svg>
         ${chips.length ? `<div class="tl-chips">${chips.map(c => `<span class="tl-chip">${escapeHtml(c)}</span>`).join('')}</div>` : ''}
@@ -4511,7 +4515,13 @@ function setupTurnSwipe(): void {
 // exatamente onde o botão está (convertido pro sistema de coordenadas do card,
 // que pode estar girado). Assim o botão "encaixa" entre os cards sem roubar
 // espaço de ninguém.
-const FAB_CUT_RADIUS = 36; // raio do buraco (botão de 56 px + folga)
+const FAB_CUT_RADIUS_DEFAULT = 36; // raio do buraco (botão de 56 px + folga)
+// O botão encolhe em grades de 5+ (CSS); o buraco acompanha o tamanho real.
+let FAB_CUT_RADIUS = FAB_CUT_RADIUS_DEFAULT;
+function syncFabCutRadius(fab: HTMLElement | null): void {
+    const w = fab?.offsetWidth || 0;
+    FAB_CUT_RADIUS = w > 0 ? Math.round(w / 2) + 8 : FAB_CUT_RADIUS_DEFAULT;
+}
 // Onde o microfone fica: no cruzamento de vãos (entre colunas e entre linhas)
 // mais perto do centro do grid que NÃO cai em cima de um card. Em 2×2 é o
 // centro; em 3+2 (5 jogadores) o centro cai no card de baixo, então ele vai pro
@@ -4561,6 +4571,7 @@ function maskCardsAroundFab(): void {
         cards.forEach((c) => { c.style.maskImage = ''; (c.style as any).webkitMaskImage = ''; delete c.dataset.notch; });
         return;
     }
+    syncFabCutRadius(fab);
     placeVoiceFab(grid, fab!);
     const fr = fab!.getBoundingClientRect();
     const fx = fr.left + fr.width / 2, fy = fr.top + fr.height / 2;
@@ -5694,7 +5705,7 @@ function startRandomStarterAnimation(): void {
         const randomMessage = EASTER_EGG_MESSAGES[secureRandomInt(EASTER_EGG_MESSAGES.length)];
         message.textContent = randomMessage;
     } else {
-        message.textContent = 'Quem comeca?';
+        message.textContent = 'Quem começa?';
     }
 
     overlay.classList.add('active');

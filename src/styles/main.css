@@ -2860,10 +2860,10 @@ select {
 }
 
 @keyframes escandaloBg {
-    0% { background: radial-gradient(circle at center, rgba(234, 179, 8, 0.55), rgba(0, 0, 0, 0.9)); }
-    25% { background: radial-gradient(circle at center, rgba(244, 63, 94, 0.55), rgba(0, 0, 0, 0.9)); }
-    50% { background: radial-gradient(circle at center, rgba(139, 92, 246, 0.55), rgba(0, 0, 0, 0.9)); }
-    75% { background: radial-gradient(circle at center, rgba(34, 197, 94, 0.55), rgba(0, 0, 0, 0.9)); }
+    0% { background: radial-gradient(circle at center, rgba(234, 179, 8, 0.55), rgba(0, 0, 0, 0.975)); }
+    25% { background: radial-gradient(circle at center, rgba(244, 63, 94, 0.55), rgba(0, 0, 0, 0.975)); }
+    50% { background: radial-gradient(circle at center, rgba(139, 92, 246, 0.55), rgba(0, 0, 0, 0.975)); }
+    75% { background: radial-gradient(circle at center, rgba(34, 197, 94, 0.55), rgba(0, 0, 0, 0.975)); }
 }
 
 .winner-overlay.escandaloso .winner-content {
@@ -8338,3 +8338,90 @@ body[data-only-life="on"] .player-card:not(.elim-mini) .life-value { font-size: 
     .player-card:not(.elim-mini) .life-control.plus { padding-bottom: 34px; }
     .player-card:not(.elim-mini) .life-control.minus { padding-bottom: 34px; }
 }
+
+/* ===== 2.5.1: correcoes visuais vistas nos prints da 2.5.0 ===== */
+/* Microfone menor em mesas de 5+ (o buraco acompanha o tamanho real, ver syncFabCutRadius) */
+.players-grid[data-players="5"] .voice-fab, .players-grid[data-players="6"] .voice-fab, .players-grid[data-players="7"] .voice-fab, .players-grid[data-players="8"] .voice-fab { width: 48px; height: 48px; }
+.players-grid[data-players="5"] .voice-fab .ic, .players-grid[data-players="6"] .voice-fab .ic, .players-grid[data-players="7"] .voice-fab .ic, .players-grid[data-players="8"] .voice-fab .ic { width: 20px; height: 20px; }
+/* Card estreito (3 colunas no celular em pe): o recuo de 50px deixava 0px pro nome.
+   Aqui o recuo e menor e a foto/comandante somem no lado do recorte; no rodape some o botao do meio. */
+@container (max-width: 150px) {
+    .player-card[data-notch="tl"] .player-header { padding-left: 32px; }
+    .player-card[data-notch="tr"] .player-header { padding-right: 32px; }
+    .player-card[data-notch="tl"] .player-avatar, .player-card[data-notch="tr"] .player-avatar,
+    .player-card[data-notch="tl"] .player-emoji, .player-card[data-notch="tr"] .player-emoji,
+    .player-card[data-notch="tl"] .player-commander, .player-card[data-notch="tr"] .player-commander { display: none; }
+    .player-card[data-notch="tl"] .player-name, .player-card[data-notch="tr"] .player-name { font-size: 0.72rem; }
+    .player-card[data-notch="bl"] .player-footer { padding-left: 32px; }
+    .player-card[data-notch="br"] .player-footer { padding-right: 32px; }
+    .player-card[data-notch="bl"] .player-footer .player-action-btn:nth-child(2), .player-card[data-notch="br"] .player-footer .player-action-btn:nth-child(2) { display: none; }
+}
+
+/* Podio: fundo opaco (a mesa nao vaza mais por tras), trofeu em SVG, botoes em bloco, paisagem em duas colunas */
+.winner-overlay { padding: 1rem; overflow: auto; }
+.winner-overlay.active { background: radial-gradient(circle at 50% 28%, rgba(34, 197, 94, 0.3), rgba(6, 9, 7, 0.985) 62%); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.winner-content { width: 100%; max-width: 700px; max-height: 100%; overflow-y: auto; display: flex; flex-direction: column; align-items: center; scrollbar-width: none; }
+.winner-content::-webkit-scrollbar { display: none; }
+.winner-hero { display: flex; flex-direction: column; align-items: center; }
+.winner-trophy { font-size: 0; line-height: 0; }
+.winner-trophy .ic { width: 96px; height: 96px; color: #fbbf24; filter: drop-shadow(0 6px 18px rgba(251, 191, 36, 0.45)); }
+.winner-overlay.active .winner-trophy::before, .winner-overlay.active .winner-trophy::after { content: ''; width: 10px; height: 10px; border-radius: 50%; background: #fde68a; box-shadow: 0 0 10px 3px rgba(253, 230, 138, 0.75); font-size: 0; }
+.winner-overlay.active .winner-trophy::before { top: 12px; left: -16px; }
+.winner-overlay.active .winner-trophy::after { top: 30px; right: -18px; }
+.winner-title { margin: 0.4rem 0 0.1rem; }
+.winner-name { margin-bottom: 0.9rem; }
+.winner-actions { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; width: 100%; }
+.winner-actions .primary-btn { width: min(100%, 440px); display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; }
+.winner-overlay.escandaloso .winner-trophy .ic { width: 120px; height: 120px; }
+@media (orientation: landscape) and (max-height: 520px) {
+    .winner-overlay { padding: 0.5rem 1rem; }
+    .winner-content { max-width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.55fr); grid-template-areas: "hero tl" "hero actions"; align-items: center; gap: 0.25rem 1rem; }
+    .winner-hero { grid-area: hero; }
+    .winner-timeline { grid-area: tl; width: 100%; margin: 0; }
+    .winner-actions { grid-area: actions; }
+    .winner-trophy .ic { width: 64px; height: 64px; }
+    .winner-title { font-size: 1.8rem; margin: 0.2rem 0 0; }
+    .winner-name { font-size: 1.4rem; margin-bottom: 0; }
+    .winner-overlay.escandaloso .winner-trophy .ic { width: 72px; height: 72px; }
+    .winner-overlay.escandaloso .winner-title { font-size: 2rem; }
+    .winner-overlay.escandaloso .winner-name { font-size: 1.6rem; }
+    .winner-overlay.escandaloso .winner-content { margin-top: 2.4rem; }
+    .escandalo-banner { top: 0; padding: 0.15rem 0; }
+    .escandalo-marquee { font-size: 1.2rem; }
+}
+
+/* Linha do tempo: mais folga em cima e embaixo (as bolinhas e o rotulo final nao cortam mais) */
+.match-timeline { padding: 0 0.3rem; }
+.tl-svg { overflow: visible; }
+
+/* Paisagem: as barras de comandante no card cobriam o numero da vida; a pilula
+   (maior dano + anel) e a folha de dano ja contam a historia. */
+@media (orientation: landscape) and (max-height: 520px) {
+    .player-card:not(.elim-mini) .cmd-bars { display: none; }
+}
+
+/* Paisagem: a tira do eliminado mostra "por Fulano - Combo" na mesma linha do nome */
+@media (orientation: landscape) and (max-height: 520px) {
+    .elim-mini-info { display: flex; align-items: center; gap: 0.5rem; }
+    .elim-mini-sub { display: block; }
+}
+
+/* Botao de tema "Contraste": o seletor [data-theme] do tema pegava o proprio botao e pintava ele de preto */
+.theme-btn-sm[data-theme="high-contrast"] { background: #000; color: #facc15; box-shadow: inset 0 0 0 1px #facc15; }
+.theme-btn-sm[data-theme="high-contrast"].active { background: #facc15; color: #000; }
+
+/* "Animacao do sorteio": o select nao corta mais o texto */
+.settings-anim-item select { max-width: none; min-width: 8.5rem; }
+
+/* Selo "em risco" saiu do card: a pilula ja mostra o maior dano com anel; e as barras nunca entram embaixo da pilula */
+.player-card .cmd-risk { display: none; }
+.cmd-bars { width: min(40%, 150px); max-width: calc(100% - 118px); }
+/* Paisagem com 5+ jogadores: pilula compacta (so icone + numero) pra nao encostar no numero da vida */
+@media (orientation: landscape) and (max-height: 520px) {
+    .players-grid[data-players="5"] .cmd-fab .cmd-fab-more, .players-grid[data-players="6"] .cmd-fab .cmd-fab-more,
+    .players-grid[data-players="5"] .cmd-fab .cmd-fab-val small, .players-grid[data-players="6"] .cmd-fab .cmd-fab-val small { display: none; }
+    .players-grid[data-players="5"] .cmd-fab, .players-grid[data-players="6"] .cmd-fab { min-width: 0; padding: 0 0.55rem; }
+}
+/* Barras de comandante em cima da pilula (as duas so existem juntas): nada mais se sobrepoe no canto do card */
+.player-card:not(.elim-mini) .cmd-bars { bottom: calc(0.4rem + 46px); width: min(46%, 150px); max-width: none; }
+.players-grid[data-players="5"] .cmd-bars, .players-grid[data-players="6"] .cmd-bars { bottom: calc(0.4rem + 42px); }

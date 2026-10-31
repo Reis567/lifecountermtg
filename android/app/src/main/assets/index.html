@@ -427,12 +427,12 @@
         <!-- Random Starter Overlay -->
         <div id="random-starter-overlay" class="random-starter-overlay">
             <div class="random-starter-content">
-                <h2 id="random-starter-message">Quem comeca?</h2>
+                <h2 id="random-starter-message">Quem começa?</h2>
                 <div id="random-starter-display" class="random-starter-display">
                     <!-- Animation will happen here -->
                 </div>
                 <div id="random-starter-result" class="random-starter-result" style="display: none;">
-                    <span class="result-label">Comeca:</span>
+                    <span class="result-label">Começa:</span>
                     <span id="random-starter-winner" class="result-name"></span>
                 </div>
                 <div id="random-starter-note" class="random-starter-note"></div>
@@ -540,7 +540,7 @@
                         <div class="setting-item settings-anim-item">
                             <label>Animação do "Sorteio"</label>
                             <select id="random-starter-animation">
-                                <option value="highlight">Destaque em sequência</option>
+                                <option value="highlight">Sequência</option>
                                 <option value="roulette">Roleta</option>
                                 <option value="flash">Flash rápido</option>
                             </select>
@@ -1445,13 +1445,17 @@
         <!-- Winner Overlay -->
         <div id="winner-overlay" class="winner-overlay">
             <div class="winner-content">
-                <div class="winner-trophy">🏆</div>
-                <h1 class="winner-title">Vitoria!</h1>
-                <p id="winner-name" class="winner-name"></p>
+                <div class="winner-hero">
+                    <div class="winner-trophy"><svg class="ic"><use href="#ic-trophy"/></svg></div>
+                    <h1 class="winner-title">Vitória!</h1>
+                    <p id="winner-name" class="winner-name"></p>
+                </div>
                 <div class="winner-confetti"></div>
                 <div id="winner-timeline" class="winner-timeline"></div>
-                <button id="end-game-winner-btn" class="primary-btn"><svg class="ic"><use href="#ic-flag"/></svg> Encerrar partida e salvar no ranking</button>
-                <button id="close-winner-btn" class="cs-gallery-btn winner-continue-btn">Continuar jogando (ainda dá pra desfazer)</button>
+                <div class="winner-actions">
+                    <button id="end-game-winner-btn" class="primary-btn"><svg class="ic"><use href="#ic-flag"/></svg> Encerrar partida e salvar no ranking</button>
+                    <button id="close-winner-btn" class="cs-gallery-btn winner-continue-btn">Continuar jogando (ainda dá pra desfazer)</button>
+                </div>
             </div>
         </div>
 
