@@ -95,8 +95,16 @@ export function vcSupported(): boolean {
     return !!vcNativeBridge() || !!vcWebSpeech();
 }
 // O grid reserva uma célula pro microfone só quando ele vai aparecer.
+let vcFabHidden = false;
 export function vcFabVisible(): boolean {
-    return vcGameActive && vcSupported();
+    return vcGameActive && vcSupported() && !vcFabHidden;
+}
+// Configuração "mostrar o botão do microfone na mesa" (setup e Configurações).
+export function vcSetFabHidden(hidden: boolean): void {
+    vcFabHidden = hidden;
+    vcEnsureFab();
+    if (vcFab) vcFab.style.display = vcFabVisible() ? '' : 'none';
+    if (hidden && vcActive && vcMode === 'push') vcStop();
 }
 
 // ----- Normalização / parsing -----
@@ -826,7 +834,7 @@ export function setupVoiceControl(actions: VoiceActions = {}): void {
 export function vcSetGameActive(active: boolean): void {
     vcGameActive = active;
     vcEnsureFab();
-    if (vcFab) vcFab.style.display = active && vcSupported() ? '' : 'none';
+    if (vcFab) vcFab.style.display = active && vcSupported() && !vcFabHidden ? '' : 'none';
     if (!active && vcActive) vcStop();
 }
 

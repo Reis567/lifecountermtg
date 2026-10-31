@@ -105,6 +105,7 @@ export interface GameSettings {
     onlyLife: boolean; // modo "só vida": card só com o número e ±
     collapseEliminated: boolean; // eliminado vira tira fina e os vivos ganham o espaço
     screenRestMinutes: 0 | 1 | 2 | 5; // descanso de tela (relógio) depois de X min sem toque
+    showVoiceFab: boolean; // botão do microfone no meio da mesa
 }
 
 export type NarratorPersona = 'classic' | 'futebol' | 'galvao' | 'novela' | 'caze';

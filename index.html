@@ -135,6 +135,10 @@
                         </label>
                         <div class="setup-casual-hint">Vale pra testar, jogar com visita ou mesa sem perfil: nada vai pro ranking, Elo ou conquistas.</div>
                         <label class="switch-row">
+                            <span class="switch-text"><svg class="ic ic-inline"><use href="#ic-mic"/></svg> Botão do microfone no meio da mesa</span>
+                            <input type="checkbox" id="setup-voice-fab" class="switch" checked>
+                        </label>
+                        <label class="switch-row">
                             <span class="switch-text"><svg class="ic ic-inline"><use href="#ic-live"/></svg> Compartilhar a mesa ao vivo</span>
                             <input type="checkbox" id="live-share-checkbox" class="switch">
                         </label>
@@ -523,11 +527,11 @@
                                 Partida amistosa (não conta pro ranking)
                             </label>
                         </div>
-                        <div class="settings-quick-actions">
-                            <button id="end-game-btn" class="tool-btn end-game-btn"><svg class="ic"><use href="#ic-flag"/></svg>Encerrar partida</button>
+                        <div class="settings-actions">
+                            <button id="end-game-btn" class="primary-btn settings-action-main"><svg class="ic"><use href="#ic-flag"/></svg>Encerrar partida</button>
                             <div class="settings-action-row">
-                                <button id="reset-game-btn" class="danger-btn">Resetar partida</button>
-                                <button id="new-game-btn" class="secondary-btn">Nova partida</button>
+                                <button id="new-game-btn" class="cs-gallery-btn"><svg class="ic"><use href="#ic-play"/></svg>Nova partida</button>
+                                <button id="reset-game-btn" class="cs-gallery-btn settings-action-danger"><svg class="ic"><use href="#ic-rotate"/></svg>Resetar vidas</button>
                             </div>
                         </div>
                     </div>
@@ -545,6 +549,14 @@
                             <button type="button" id="settings-open-bracket" class="tool-btn"><svg class="ic"><use href="#ic-coin"/></svg>Mata-mata na moeda</button>
                             <button id="sortear-viado-btn" class="tool-btn"><svg class="ic"><use href="#ic-dice"/></svg>Sortear o Viado</button>
                         </div>
+                        <div class="setting-item settings-anim-item">
+                            <label>Animação do "Sorteio"</label>
+                            <select id="random-starter-animation">
+                                <option value="highlight">Destaque em sequência</option>
+                                <option value="roulette">Roleta</option>
+                                <option value="flash">Flash rápido</option>
+                            </select>
+                        </div>
                         <div id="viado-result" class="viado-result" style="display: none;">
                             <span class="viado-label">O Viado:</span>
                             <span id="viado-name" class="viado-name"></span>
@@ -561,6 +573,212 @@
                         </div>
                         <div class="settings-quick-actions settings-quick-actions-sub">
                             <button id="rules-keywords-btn" class="tool-btn"><svg class="ic"><use href="#ic-book"/></svg>Regras & Keywords</button>
+                        </div>
+                    </div>
+
+                    <div class="settings-group" data-tab="partida">
+                        <h3><svg class="ic"><use href="#ic-clock"/></svg>Timer por turno</h3>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="turn-timer-enabled">
+                                Ativar Timer
+                            </label>
+                        </div>
+                        <div class="setting-item timer-duration">
+                            <label>Duração (segundos)</label>
+                            <input type="number" id="timer-duration" value="120" min="30" max="600">
+                        </div>
+                    </div>
+
+                    <div class="settings-group" data-tab="mesa">
+                        <h3><svg class="ic"><use href="#ic-layout"/></svg>Layout</h3>
+                        <div id="layout-presets-settings" class="layout-presets-small">
+                            <!-- Layout presets will be injected here -->
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="table-mode-settings" checked>
+                                Modo Mesa
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-group" data-tab="mesa">
+                        <h3><svg class="ic"><use href="#ic-users"/></svg>Lugares</h3>
+                        <div id="seat-map" class="seat-map"></div>
+                    </div>
+
+                    <div class="settings-group" data-tab="mesa">
+                        <h3><svg class="ic"><use href="#ic-swords"/></svg>Comandante</h3>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="show-commander-deaths" checked>
+                                Mostrar contador de mortes
+                            </label>
+                        </div>
+                        <div class="setting-item-info">
+                            <small>Exibe quantas vezes o comandante morreu e o Commander Tax atual (+2 por morte)</small>
+                        </div>
+                    </div>
+
+                    <div class="settings-group" data-tab="mesa">
+                        <h3><svg class="ic"><use href="#ic-touch"/></svg>Toque</h3>
+                        <div class="setting-item setting-item-col">
+                            <label>Toque longo em +/−</label>
+                            <div class="seg-mini" id="settings-hold-step"><button type="button" data-v="5" class="active">±5 / ±10</button><button type="button" data-v="10">±10 / ±20</button></div>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="settings-haptics" checked>
+                                Vibrar a cada mudança de vida
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="settings-voice-fab" checked>
+                                Mostrar o botão do microfone no meio da mesa
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-group" data-tab="visual">
+                        <h3><svg class="ic"><use href="#ic-palette"/></svg>Tema</h3>
+                        <div class="theme-selector-settings">
+                            <button class="theme-btn-sm" data-theme="casual">Casual</button>
+                            <button class="theme-btn-sm" data-theme="dark">Dark</button>
+                            <button class="theme-btn-sm" data-theme="streamer">Streamer</button>
+                            <button class="theme-btn-sm" data-theme="high-contrast">Contraste</button>
+                        </div>
+                        <div class="theme-selector-settings mana-themes-sm">
+                            <button class="theme-btn-sm mana-btn" data-theme="mana-white" title="Branco">W</button>
+                            <button class="theme-btn-sm mana-btn" data-theme="mana-blue" title="Azul">U</button>
+                            <button class="theme-btn-sm mana-btn" data-theme="mana-black" title="Preto">B</button>
+                            <button class="theme-btn-sm mana-btn" data-theme="mana-red" title="Vermelho">R</button>
+                            <button class="theme-btn-sm mana-btn" data-theme="mana-green" title="Verde">G</button>
+                        </div>
+                    </div>
+
+                    <div class="settings-group" data-tab="visual">
+                        <h3><svg class="ic"><use href="#ic-sliders"/></svg>Cards</h3>
+                        <div class="setting-item setting-item-col">
+                            <label>Tamanho do número da vida</label>
+                            <div class="seg-mini" id="settings-life-size"><button type="button" data-v="small">Pequeno</button><button type="button" data-v="normal" class="active">Normal</button><button type="button" data-v="large">Grande</button></div>
+                        </div>
+                        <div class="setting-item setting-item-col">
+                            <label>Botões dos cards</label>
+                            <div class="seg-mini" id="settings-btn-size"><button type="button" data-v="normal" class="active">Normais</button><button type="button" data-v="large">Grandes</button></div>
+                        </div>
+                        <div class="setting-item setting-item-col">
+                            <label>Estilo do card</label>
+                            <div class="seg-mini" id="settings-card-style"><button type="button" data-v="gradient" class="active">Degradê</button><button type="button" data-v="solid">Sólido</button><button type="button" data-v="minimal">Mínimo</button></div>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="settings-avatars" checked>
+                                Foto do perfil no card
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="settings-dim-elim" checked>
+                                Escurecer o card de quem foi eliminado
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="settings-collapse-elim" checked>
+                                Eliminado encolhe: vira uma tira embaixo e os vivos ganham o espaço
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="settings-only-life">
+                                Modo só vida: card só com o número e os botões de mais e menos
+                            </label>
+                        </div>
+                        <div class="setting-item setting-item-col">
+                            <label>Descanso de tela (relógio depois de X min sem toque)</label>
+                            <div class="seg-mini" id="settings-screen-rest"><button type="button" data-v="0">Off</button><button type="button" data-v="1">1 min</button><button type="button" data-v="2" class="active">2 min</button><button type="button" data-v="5">5 min</button></div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group" data-tab="visual">
+                        <h3><svg class="ic"><use href="#ic-palette"/></svg>Visual</h3>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="animations-enabled" checked>
+                                Animações
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>Intensidade</label>
+                            <select id="animation-intensity">
+                                <option value="subtle">Sutil</option>
+                                <option value="normal" selected>Normal</option>
+                                <option value="intense">Intensa</option>
+                            </select>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="show-special-moments" checked>
+                                Momentos Especiais
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="easter-eggs-enabled" checked>
+                                Easter Eggs
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="escandalosa-enabled" checked>
+                                Vitória escandalosa (sirene, flash, 8 s de grito)
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="animated-bg-enabled">
+                                Background Animado
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>Estilo do Background</label>
+                            <select id="animated-bg-style">
+                                <option value="none">Nenhum</option>
+                                <option value="stars">Estrelas</option>
+                                <option value="mana">Partículas de Mana</option>
+                                <option value="sparks">Faíscas</option>
+                                <option value="bubbles">Bolhas</option>
+                                <option value="matrix">Matrix</option>
+                            </select>
+                        </div>
+                        <div class="setting-item">
+                            <label>Fonte</label>
+                            <select id="font-style">
+                                <option value="default">Padrão</option>
+                                <option value="beleren">Beleren (MTG)</option>
+                                <option value="pixel">Pixel</option>
+                                <option value="gothic">Gótica</option>
+                                <option value="elegant">Elegante</option>
+                                <option value="rounded">Arredondada</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="settings-group" data-tab="visual">
+                        <h3><svg class="ic"><use href="#ic-image"/></svg>GIFs</h3>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="gif-paused">
+                                Pausar GIFs
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="gif-fps-reduced">
+                                Reduzir FPS (performance)
+                            </label>
                         </div>
                     </div>
 
@@ -646,213 +864,6 @@
                         </div>
                     </div>
 
-                    <div class="settings-group" data-tab="visual">
-                        <h3><svg class="ic"><use href="#ic-palette"/></svg>Visual</h3>
-                        <div class="setting-item">
-                            <label>
-                                <input type="checkbox" id="animations-enabled" checked>
-                                Animações
-                            </label>
-                        </div>
-                        <div class="setting-item">
-                            <label>Intensidade</label>
-                            <select id="animation-intensity">
-                                <option value="subtle">Sutil</option>
-                                <option value="normal" selected>Normal</option>
-                                <option value="intense">Intensa</option>
-                            </select>
-                        </div>
-                        <div class="setting-item">
-                            <label>
-                                <input type="checkbox" id="show-special-moments" checked>
-                                Momentos Especiais
-                            </label>
-                        </div>
-                        <div class="setting-item">
-                            <label>
-                                <input type="checkbox" id="easter-eggs-enabled" checked>
-                                Easter Eggs
-                            </label>
-                        </div>
-                        <div class="setting-item">
-                            <label>
-                                <input type="checkbox" id="escandalosa-enabled" checked>
-                                Vitória escandalosa (sirene, flash, 8 s de grito)
-                            </label>
-                        </div>
-                        <div class="setting-item">
-                            <label>
-                                <input type="checkbox" id="animated-bg-enabled">
-                                Background Animado
-                            </label>
-                        </div>
-                        <div class="setting-item">
-                            <label>Estilo do Background</label>
-                            <select id="animated-bg-style">
-                                <option value="none">Nenhum</option>
-                                <option value="stars">Estrelas</option>
-                                <option value="mana">Partículas de Mana</option>
-                                <option value="sparks">Faíscas</option>
-                                <option value="bubbles">Bolhas</option>
-                                <option value="matrix">Matrix</option>
-                            </select>
-                        </div>
-                        <div class="setting-item">
-                            <label>Fonte</label>
-                            <select id="font-style">
-                                <option value="default">Padrão</option>
-                                <option value="beleren">Beleren (MTG)</option>
-                                <option value="pixel">Pixel</option>
-                                <option value="gothic">Gótica</option>
-                                <option value="elegant">Elegante</option>
-                                <option value="rounded">Arredondada</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="settings-group" data-tab="mesa">
-                        <h3><svg class="ic"><use href="#ic-swords"/></svg>Comandante</h3>
-                        <div class="setting-item">
-                            <label>
-                                <input type="checkbox" id="show-commander-deaths" checked>
-                                Mostrar contador de mortes
-                            </label>
-                        </div>
-                        <div class="setting-item-info">
-                            <small>Exibe quantas vezes o comandante morreu e o Commander Tax atual (+2 por morte)</small>
-                        </div>
-                    </div>
-
-                    <div class="settings-group" data-tab="visual">
-                        <h3><svg class="ic"><use href="#ic-image"/></svg>GIFs</h3>
-                        <div class="setting-item">
-                            <label>
-                                <input type="checkbox" id="gif-paused">
-                                Pausar GIFs
-                            </label>
-                        </div>
-                        <div class="setting-item">
-                            <label>
-                                <input type="checkbox" id="gif-fps-reduced">
-                                Reduzir FPS (performance)
-                            </label>
-                        </div>
-                    </div>
-
-                    <div class="settings-group" data-tab="visual">
-                        <h3><svg class="ic"><use href="#ic-palette"/></svg>Tema</h3>
-                        <div class="theme-selector-settings">
-                            <button class="theme-btn-sm" data-theme="casual">Casual</button>
-                            <button class="theme-btn-sm" data-theme="dark">Dark</button>
-                            <button class="theme-btn-sm" data-theme="streamer">Streamer</button>
-                            <button class="theme-btn-sm" data-theme="high-contrast">Contraste</button>
-                        </div>
-                        <div class="theme-selector-settings mana-themes-sm">
-                            <button class="theme-btn-sm mana-btn" data-theme="mana-white" title="Branco">W</button>
-                            <button class="theme-btn-sm mana-btn" data-theme="mana-blue" title="Azul">U</button>
-                            <button class="theme-btn-sm mana-btn" data-theme="mana-black" title="Preto">B</button>
-                            <button class="theme-btn-sm mana-btn" data-theme="mana-red" title="Vermelho">R</button>
-                            <button class="theme-btn-sm mana-btn" data-theme="mana-green" title="Verde">G</button>
-                        </div>
-                    </div>
-
-                    <div class="settings-group" data-tab="mesa">
-                        <h3><svg class="ic"><use href="#ic-layout"/></svg>Layout</h3>
-                        <div id="layout-presets-settings" class="layout-presets-small">
-                            <!-- Layout presets will be injected here -->
-                        </div>
-                        <div class="setting-item">
-                            <label>
-                                <input type="checkbox" id="table-mode-settings" checked>
-                                Modo Mesa
-                            </label>
-                        </div>
-                    </div>
-
-                    <div class="settings-group" data-tab="mesa">
-                        <h3><svg class="ic"><use href="#ic-clock"/></svg>Timer por turno</h3>
-                        <div class="setting-item">
-                            <label>
-                                <input type="checkbox" id="turn-timer-enabled">
-                                Ativar Timer
-                            </label>
-                        </div>
-                        <div class="setting-item timer-duration">
-                            <label>Duração (segundos)</label>
-                            <input type="number" id="timer-duration" value="120" min="30" max="600">
-                        </div>
-                    </div>
-
-                    <div class="settings-group" data-tab="mesa">
-                        <h3><svg class="ic"><use href="#ic-shuffle"/></svg>Sorteio inicial</h3>
-                        <div class="setting-item">
-                            <label>Animação do sorteio</label>
-                            <select id="random-starter-animation">
-                                <option value="highlight">Destaque em sequência</option>
-                                <option value="roulette">Roleta</option>
-                                <option value="flash">Flash rápido</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="settings-group" data-tab="visual">
-                        <h3><svg class="ic"><use href="#ic-sliders"/></svg>Cards</h3>
-                        <div class="setting-item setting-item-col">
-                            <label>Tamanho do número da vida</label>
-                            <div class="seg-mini" id="settings-life-size"><button type="button" data-v="small">Pequeno</button><button type="button" data-v="normal" class="active">Normal</button><button type="button" data-v="large">Grande</button></div>
-                        </div>
-                        <div class="setting-item setting-item-col">
-                            <label>Botões dos cards</label>
-                            <div class="seg-mini" id="settings-btn-size"><button type="button" data-v="normal" class="active">Normais</button><button type="button" data-v="large">Grandes</button></div>
-                        </div>
-                        <div class="setting-item setting-item-col">
-                            <label>Estilo do card</label>
-                            <div class="seg-mini" id="settings-card-style"><button type="button" data-v="gradient" class="active">Degradê</button><button type="button" data-v="solid">Sólido</button><button type="button" data-v="minimal">Mínimo</button></div>
-                        </div>
-                        <div class="setting-item">
-                            <label>
-                                <input type="checkbox" id="settings-avatars" checked>
-                                Foto do perfil no card
-                            </label>
-                        </div>
-                        <div class="setting-item">
-                            <label>
-                                <input type="checkbox" id="settings-dim-elim" checked>
-                                Escurecer o card de quem foi eliminado
-                            </label>
-                        </div>
-                        <div class="setting-item">
-                            <label>
-                                <input type="checkbox" id="settings-collapse-elim" checked>
-                                Eliminado encolhe: vira uma tira embaixo e os vivos ganham o espaço
-                            </label>
-                        </div>
-                        <div class="setting-item">
-                            <label>
-                                <input type="checkbox" id="settings-only-life">
-                                Modo só vida: card só com o número e os botões de mais e menos
-                            </label>
-                        </div>
-                        <div class="setting-item setting-item-col">
-                            <label>Descanso de tela (relógio depois de X min sem toque)</label>
-                            <div class="seg-mini" id="settings-screen-rest"><button type="button" data-v="0">Off</button><button type="button" data-v="1">1 min</button><button type="button" data-v="2" class="active">2 min</button><button type="button" data-v="5">5 min</button></div>
-                        </div>
-                    </div>
-
-                    <div class="settings-group" data-tab="mesa">
-                        <h3><svg class="ic"><use href="#ic-touch"/></svg>Toque</h3>
-                        <div class="setting-item setting-item-col">
-                            <label>Toque longo em +/−</label>
-                            <div class="seg-mini" id="settings-hold-step"><button type="button" data-v="5" class="active">±5 / ±10</button><button type="button" data-v="10">±10 / ±20</button></div>
-                        </div>
-                        <div class="setting-item">
-                            <label>
-                                <input type="checkbox" id="settings-haptics" checked>
-                                Vibrar a cada mudança de vida
-                            </label>
-                        </div>
-                    </div>
-
                 </div>
             </div>
         </div>
@@ -875,6 +886,10 @@
                     <div class="ps-identity-actions">
                         <button type="button" id="change-profile-btn" class="cs-gallery-btn"><svg class="ic"><use href="#ic-users"/></svg>Trocar perfil</button>
                         <button type="button" id="change-deck-btn" class="cs-gallery-btn"><svg class="ic"><use href="#ic-deck"/></svg>Comandante</button>
+                    </div>
+                    <div class="ps-seat">
+                        <div class="podium-section-label">Trocar de lugar com</div>
+                        <div class="death-chips" id="ps-seat-chips"></div>
                     </div>
                     <div class="form-group">
                         <label>Nome (apelido nesta mesa)</label>

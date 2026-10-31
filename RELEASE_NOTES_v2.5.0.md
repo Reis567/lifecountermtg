@@ -1,5 +1,5 @@
 # LifeCounter 2.5.0
-## Notas da atualização · 31/10/2026 · APK code 24
+## Notas da atualização · 31/10/2026 · APK code 25
 
 Versão feita pra mesa de verdade: 4 ou 5 pessoas, 40 de vida, partidas de duas horas. Quem cai continua na tela sem roubar espaço, o app pergunta quem matou e como (e isso vira estatística), o sorteio de quem começa lembra das últimas partidas, a mesa vira relógio quando ninguém mexe, e o pódio conta a história da partida numa linha do tempo.
 
@@ -58,7 +58,7 @@ A tela de vitória ganhou uma **régua da partida**, de 0 até a duração final
 
 ## 5. Descanso de tela com relógio (toque desbloqueia)
 
-Sem toque por 1, 2 ou 5 minutos, a mesa vira **tela preta** (boa pra bateria em OLED) com a hora em números enormes, tempo de partida, turno, de quem é a vez e a vida de cada um. Qualquer toque volta, e o toque de desbloqueio **não vaza** pro card de baixo.
+Sem toque por 1, 2 ou 5 minutos, a mesa vira **tela preta** (boa pra bateria em OLED) com o **tempo de partida** em números enormes, a hora pequena, turno, de quem é a vez e a vida de cada um. Qualquer toque volta, e o toque de desbloqueio **não vaza** pro card de baixo.
 
 Configurações › Visual › "Descanso de tela": Off, 1, 2 (padrão) ou 5 minutos. Não aparece com modal, sorteio ou pódio abertos; mudança por voz ou pela mesa ao vivo conta como atividade.
 
@@ -86,14 +86,50 @@ Na ficha do comandante, na carta do juiz e na resposta do juiz, as palavras-chav
 
 Duas barras novas no perfil: **Como você morre** e **Como você elimina**, mais **quantas partidas você começou** (com porcentagem). Calculado no servidor; partidas antigas sem motivo não entram.
 
-## 9. Nos bastidores
+## 9. Dano de comandante: pílula e folha
+
+A bolinha CMD virou uma **pílula larga** que já mostra o maior dano de comandante recebido, na cor de quem bate (anel de alerta com 15+, vermelha com 21). O toque abre a **folha de dano**: uma linha por oponente com barra até 21 e botões −, +1, +3, +5, em dois modos: **Recebido** e **Causado pelo comandante dele** (quem ataca marca na própria folha). Arrastar a pílula até outro card continua como atalho.
+
+![](docs/release-2.5.0/h01-mesa-paisagem-cmd.png)
+![](docs/release-2.5.0/h02-folha-dano-recebido.png)
+
+## 10. Trocar de lugar: engrenagem e Lugares
+
+O arrasto pela foto saiu. Na **engrenagem do card** há "Trocar de lugar com" (um toque troca) e em **Configurações › Mesa › Lugares** o mapa da mesa (toque em um jogador e depois no lugar de outro). As rotações do modo mesa são refeitas.
+
+![](docs/release-2.5.0/h05-engrenagem-trocar-lugar.png)
+![](docs/release-2.5.0/h06-lugares-mapa.png)
+
+## 11. Configurações reorganizadas
+
+- **Partida**: tempo, amistosa, Encerrar partida em destaque (Nova partida e Resetar vidas ao lado), Quem começa (sorteios, histórico de quem começou, animação), Modo de jogo, Timer por turno.
+- **Mesa**: Layout, **Lugares**, Comandante, Toque (toque longo, vibrar, mostrar microfone).
+- **Visual**: Tema, Cards (tamanhos, só vida, eliminado encolhe, descanso de tela), Visual, GIFs.
+- **Som**: áudio, música, narrador, escandalosa.
+
+"Encerrar partida" ganhou "Encerrar sem contar pro ranking", que encerra a mesa de verdade (antes só fechava a janela). O X volta pra mesa.
+
+![](docs/release-2.5.0/h07-abas-partida.png)
+![](docs/release-2.5.0/h08-abas-mesa.png)
+
+## 12. Microfone fora dos cards e opção de ocultar
+
+Em mesas de 5 o microfone ficava sobre a foto de alguém. Agora ele procura o cruzamento de vãos mais perto do centro que não cai em card nenhum (preferindo o encontro de quatro cantos). E dá pra ocultá-lo no setup ("Botão do microfone no meio da mesa") e em Configurações › Mesa › Toque, no meio da partida.
+
+![](docs/release-2.5.0/h12-mesa-5-microfone.png)
+
+| Em pé | Oculto |
+|---|---|
+| ![](docs/release-2.5.0/h13-mesa-5-microfone-em-pe.png) | ![](docs/release-2.5.0/h14-mesa-5-sem-microfone.png) |
+
+## 13. Nos bastidores
 
 | Onde | O que mudou |
 |---|---|
 | Partida (servidor) | `starter_profile_id` na partida e `death_cause` em cada colocação (migração 0004). O perfil devolve `death_causes`, `kill_causes`, `starts` e `starts_rate`. |
 | Estado da mesa | `starterPlayerId`, `cause` no evento de eliminação, configurações `onlyLife`, `collapseEliminated` e `screenRestMinutes`. Estados antigos migram sozinhos. |
 | Voz | "modo só vida" / "modo completo". "Fulano matou o sicrano" pré-preenche a pergunta ao cair. |
-| Correção | Mudança de vida que elimina o jogador não dispara mais a animação no card que acabou de virar tira (erro de JS silencioso). |
+| Correções | Mudança de vida que elimina o jogador não dispara mais a animação no card que virou tira. "Encerrar sem contar pro ranking" encerra a mesa de verdade. Publicação do APK não quebra com avisos do gradle. |
 | Testes | 27 testes do servidor; QA automatizado da mesa com 19 verificações novas, zero erros de JS. |
 
 **Como atualizar.** No Android, o app avisa ao abrir e instala com um toque (ou Configurações › Atualização). No navegador basta recarregar.

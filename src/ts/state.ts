@@ -212,6 +212,7 @@ export function createDefaultSettings(playerCount: number = 4): GameSettings {
         onlyLife: false,
         collapseEliminated: true,
         screenRestMinutes: 2,
+        showVoiceFab: true,
     };
 }
 
@@ -383,6 +384,7 @@ class GameStateManager {
                 if (parsed.settings.onlyLife === undefined) parsed.settings.onlyLife = false;
                 if (parsed.settings.collapseEliminated === undefined) parsed.settings.collapseEliminated = true;
                 if (parsed.settings.screenRestMinutes === undefined) parsed.settings.screenRestMinutes = 2;
+                if (parsed.settings.showVoiceFab === undefined) parsed.settings.showVoiceFab = true;
                 // Ensure all players have new properties (migration for older saves)
                 parsed.players = parsed.players.map((p: Player) => ({
                     ...p,

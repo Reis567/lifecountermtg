@@ -7,7 +7,7 @@ import { audioManager, ambientMusic, narrator } from './audio.js';
 import { openCardScanner, setupCardScanner } from './cardScanner.js';
 import { openFingerPicker } from './fingerPicker.js';
 import { openRouletteStarter, openDiceStarter, openReflexStarter, openTapRaceStarter, openBracketStarter } from './starters.js';
-import { setupVoiceControl, vcSetGameActive, vcFabVisible } from './voiceControl.js';
+import { setupVoiceControl, vcSetGameActive, vcFabVisible, vcSetFabHidden } from './voiceControl.js';
 import { narrateElimination, narrateWinner } from './aiNarrator.js';
 import { startEscandalosa, stopEscandalosa, isEscandalosaEnabled } from './victory.js';
 import {
@@ -1047,6 +1047,41 @@ function renderStarterFairness(): void {
     if (el) el.textContent = starterFairnessText(gameState.getState().players);
 }
 
+// ===== Lugares (Configurações › Mesa): mapa da mesa, toque em dois pra trocar =====
+let seatPick: string | null = null;
+function renderSeatMap(): void {
+    const el = document.getElementById('seat-map');
+    if (!el) return;
+    const s = gameState.getState();
+    const eff = effectiveLayout(s);
+    const seatBtn = (p: Player): string =>
+        `<button type="button" class="seat-btn ${seatPick === p.id ? 'picked' : ''} ${p.isEliminated ? 'dead' : ''}" data-seat="${p.id}" style="--player-color:${escapeHtml(p.color)}">${avatarHtml({ name: p.name, photo_url: p.avatar, color: p.color }, 'lc-avatar lc-avatar-xs')}<span>${escapeHtml(p.name)}</span></button>`;
+    let i = 0;
+    const rowsHtml = eff.rows.map(n => {
+        const cells = eff.players.slice(i, i + n);
+        i += n;
+        return `<div class="seat-row">${cells.map(seatBtn).join('')}</div>`;
+    }).join('');
+    const elim = eff.eliminated.length ? `<div class="seat-row seat-row-elim">${eff.eliminated.map(seatBtn).join('')}</div>` : '';
+    el.innerHTML = rowsHtml + elim + `<div class="update-muted seat-hint">${seatPick ? 'Agora toque no lugar pra onde ele vai.' : 'Toque em um jogador e depois no lugar de outro pra trocar os dois.'}</div>`;
+}
+function setupSeatMap(): void {
+    document.getElementById('seat-map')?.addEventListener('click', (e) => {
+        const b = (e.target as HTMLElement).closest('.seat-btn') as HTMLElement | null;
+        if (!b) return;
+        const id = b.dataset.seat!;
+        if (!seatPick) { seatPick = id; renderSeatMap(); return; }
+        if (seatPick === id) { seatPick = null; renderSeatMap(); return; }
+        const s = gameState.getState();
+        const a = s.players.find(p => p.id === seatPick), c = s.players.find(p => p.id === id);
+        gameState.swapPlayers(seatPick, id);
+        seatPick = null;
+        audioManager.play('click');
+        renderSeatMap();
+        showSpecialMoment(`${a?.name || ''} e ${c?.name || ''} trocaram de lugar.`, 'success');
+    });
+}
+
 // ===== Descanso de tela (relógio) =====
 // Sem toque por X minutos na mesa: tela preta com hora, tempo de partida, turno e
 // vidas em números grandes. Qualquer toque volta (e não vaza pro card de baixo).
@@ -1070,9 +1105,11 @@ function showScreenRest(): void {
         const now = new Date();
         const elapsed = s.gameStartTime ? Date.now() - s.gameStartTime : 0;
         const ap = s.players[s.activePlayerIndex];
+        const h = Math.floor(elapsed / 3600000), m = Math.floor((elapsed % 3600000) / 60000);
         el.innerHTML = `
-            <div class="sr-clock">${now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
-            <div class="sr-sub">${fmtDuration(elapsed)} de partida · turno ${s.currentTurn}${ap ? ` · vez de ${escapeHtml(ap.name)}` : ''}</div>
+            <div class="sr-label">tempo de partida</div>
+            <div class="sr-clock">${h}:${String(m).padStart(2, '0')}</div>
+            <div class="sr-sub">${now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · turno ${s.currentTurn}${ap ? ` · vez de ${escapeHtml(ap.name)}` : ''}</div>
             <div class="sr-lives">${s.players.map(p => `<div class="sr-life ${p.isEliminated ? 'dead' : ''}" style="--player-color:${escapeHtml(p.color)}"><span class="sr-dot"></span><span class="sr-name">${escapeHtml(p.name)}</span><span class="sr-val">${p.isEliminated ? '—' : p.life}</span></div>`).join('')}</div>
             <div class="sr-hint">toque pra voltar</div>`;
     };
@@ -1420,6 +1457,7 @@ function setupSetupScreenListeners(): void {
         });
     };
     swListen('setup-haptics', 'hapticsEnabled');
+    swListen('setup-voice-fab', 'showVoiceFab');
     swListen('setup-avatars', 'showAvatarsOnCards');
     swListen('setup-dim-elim', 'dimEliminated');
 
@@ -1540,6 +1578,8 @@ function setupGameScreenListeners(): void {
     // Menu button
     $('menu-btn')?.addEventListener('click', () => {
         renderStarterFairness();
+        seatPick = null;
+        renderSeatMap();
         openModal($('settings-modal'));
     });
 
@@ -1787,9 +1827,9 @@ function setupSettingsTabs(): void {
     nav.className = 'settings-tabs-nav';
     const tabs: Array<[string, string, string]> = [
         ['partida', 'Partida', 'ic-swords'],
-        ['som', 'Som', 'ic-speaker'],
-        ['visual', 'Visual', 'ic-palette'],
         ['mesa', 'Mesa', 'ic-layout'],
+        ['visual', 'Visual', 'ic-palette'],
+        ['som', 'Som', 'ic-speaker'],
     ];
     tabs.forEach(([key, label, icon], i) => {
         const btn = document.createElement('button');
@@ -1842,6 +1882,8 @@ function setupSettingsTabs(): void {
     swListen('settings-avatars', 'showAvatarsOnCards');
     swListen('settings-dim-elim', 'dimEliminated');
     swListen('settings-only-life', 'onlyLife');
+    swListen('settings-voice-fab', 'showVoiceFab');
+    setupSeatMap();
     $('settings-collapse-elim')?.addEventListener('change', (e) => {
         gameState.updateSettings({ collapseEliminated: (e.target as HTMLInputElement).checked });
         gameState.refreshRotations(); // os vivos voltam/vão pro layout de N-1
@@ -1909,7 +1951,13 @@ function finishMatch(onDone?: () => void): void {
             showSpecialMoment('🏁 Partida encerrada e salva no ranking', 'success');
             onDone?.();
         },
-        () => onDone?.(),
+        () => {
+            // "Encerrar sem salvar": a mesa encerra mesmo, só não entra no ranking.
+            gameState.closeMatch();
+            showSpecialMoment('🏁 Partida encerrada sem contar pro ranking', 'warning');
+            onDone?.();
+        },
+        { skipLabel: 'Encerrar sem contar pro ranking', onCancel: () => onDone?.() },
     );
 }
 
@@ -1956,11 +2004,15 @@ function maybeAskPodium(state: GameState, onContinue: () => void): void {
 
 type PodiumPlayer = { id: string; name: string; profileId: number | null; deckId?: number | null; deckName?: string | null; deckColors?: string | null; life: number; commanderDeaths: number; avatar: string | null; color: string };
 
+// onSkip: botão "sem salvar" (no Encerrar partida, encerra a mesa sem ranking);
+// onCancel: fechar pelo X / fundo (volta pra mesa como estava). Sem onCancel, X = onSkip.
 function openPodiumModal(
     players: PodiumPlayer[],
     onSave: (ordered: PodiumPlayer[]) => void,
     onSkip: () => void,
+    opts: { skipLabel?: string; onCancel?: () => void } = {},
 ): void {
+    const onCancel = opts.onCancel || onSkip;
     const N = players.length;
     let slots: Array<PodiumPlayer | null> = Array(N).fill(null);
     let chips: PodiumPlayer[] = players.slice();
@@ -1980,7 +2032,7 @@ function openPodiumModal(
                 <div class="podium-section-label">Jogadores</div>
                 <div class="podium-chips"></div>
                 <div class="podium-actions">
-                    <button class="cs-gallery-btn" id="podium-skip" type="button">Pular (não salvar)</button>
+                    <button class="cs-gallery-btn" id="podium-skip" type="button">${escapeHtml(opts.skipLabel || 'Pular (não salvar)')}</button>
                     <button class="primary-btn" id="podium-save" type="button" disabled>Salvar pódio</button>
                 </div>
             </div>
@@ -2028,7 +2080,7 @@ function openPodiumModal(
         chips = chips.filter((c) => c.id !== id);
         render();
     });
-    modal.querySelector('.modal-close')?.addEventListener('click', () => { close(); onSkip(); });
+    modal.querySelector('.modal-close')?.addEventListener('click', () => { close(); onCancel(); });
     modal.querySelector('#podium-skip')?.addEventListener('click', () => { close(); onSkip(); });
     modal.querySelector('#podium-save')?.addEventListener('click', () => {
         const ordered = slots.filter((s): s is PodiumPlayer => s !== null);
@@ -2036,7 +2088,7 @@ function openPodiumModal(
         onSave(ordered);
     });
     modal.addEventListener('click', (e) => {
-        if (e.target === modal) { close(); onSkip(); }
+        if (e.target === modal) { close(); onCancel(); }
     });
 
     render();
@@ -3517,6 +3569,7 @@ function renderSetup(state: GameState): void {
     cb('table-mode-checkbox', state.settings.layout.tableMode);
     cb('casual-checkbox', !!state.casual);
     cb('setup-haptics', state.settings.hapticsEnabled !== false);
+    cb('setup-voice-fab', state.settings.showVoiceFab !== false);
     cb('setup-avatars', state.settings.showAvatarsOnCards !== false);
     cb('setup-dim-elim', state.settings.dimEliminated !== false);
     const seg = (id: string, v: string): void => {
@@ -4188,6 +4241,7 @@ function renderGame(state: GameState): void {
 
     // Botão de microfone (push-to-talk) só aparece na mesa.
     vcSetGameActive(true);
+    vcSetFabHidden(state.settings.showVoiceFab === false);
     // Tela acesa durante a partida (site/PWA; no APK o nativo já segura).
     void requestWakeLock();
     // Sons prontos antes do primeiro dano (o WebView atrasa o primeiro play).
@@ -4458,6 +4512,45 @@ function setupTurnSwipe(): void {
 // que pode estar girado). Assim o botão "encaixa" entre os cards sem roubar
 // espaço de ninguém.
 const FAB_CUT_RADIUS = 36; // raio do buraco (botão de 56 px + folga)
+// Onde o microfone fica: no cruzamento de vãos (entre colunas e entre linhas)
+// mais perto do centro do grid que NÃO cai em cima de um card. Em 2×2 é o
+// centro; em 3+2 (5 jogadores) o centro cai no card de baixo, então ele vai pro
+// cruzamento da primeira coluna. Ignora a tira dos eliminados.
+function placeVoiceFab(grid: HTMLElement, fab: HTMLElement): void {
+    const state = gameState.getState();
+    const eff = effectiveLayout(state);
+    const rows = eff.rows.length, cols = Math.max(...eff.rows);
+    const gr = grid.getBoundingClientRect();
+    const cs = getComputedStyle(grid);
+    const padL = parseFloat(cs.paddingLeft) || 0, padT = parseFloat(cs.paddingTop) || 0, padR = parseFloat(cs.paddingRight) || 0;
+    const strip = document.getElementById('elim-strip');
+    const usableBottom = strip ? strip.getBoundingClientRect().top - gr.top : gr.height - padT;
+    const W = gr.width - padL - padR, H = usableBottom - padT;
+    const xs = cols > 1 ? Array.from({ length: cols - 1 }, (_, i) => padL + W * (i + 1) / cols) : [padL + W / 2];
+    const ys = rows > 1 ? Array.from({ length: rows - 1 }, (_, i) => padT + H * (i + 1) / rows) : [padT + H / 2];
+    const cands: Array<{ x: number; y: number }> = [];
+    xs.forEach(x => ys.forEach(y => cands.push({ x, y })));
+    const cards = Array.from(grid.querySelectorAll<HTMLElement>(':scope > .player-card'));
+    const inside = (x: number, y: number): boolean => cards.some(c => {
+        const r = c.getBoundingClientRect();
+        return x > r.left - gr.left + 6 && x < r.right - gr.left - 6 && y > r.top - gr.top + 6 && y < r.bottom - gr.top - 6;
+    });
+    const cx = padL + W / 2, cy = padT + H / 2;
+    const free = cands.filter(c => !inside(c.x, c.y));
+    // Prefere cruzamento de 4 cards (o recorte cai nos cantos) a um "T" (cai no meio da borda de um card).
+    const touching = (x: number, y: number): number => cards.filter(c => {
+        const r = c.getBoundingClientRect();
+        const dx = Math.max(r.left - gr.left - x, 0, x - (r.right - gr.left)), dy = Math.max(r.top - gr.top - y, 0, y - (r.bottom - gr.top));
+        return Math.hypot(dx, dy) <= FAB_CUT_RADIUS;
+    }).length;
+    const pool = (free.length ? free : cands)
+        .map(c => ({ ...c, n: touching(c.x, c.y), d: Math.hypot(c.x - cx, c.y - cy) }))
+        .sort((a, b) => (b.n - a.n) || (a.d - b.d));
+    const best = pool[0] || { x: cx, y: cy };
+    fab.style.left = `${Math.round(best.x)}px`;
+    fab.style.top = `${Math.round(best.y)}px`;
+}
+
 function maskCardsAroundFab(): void {
     const grid = document.getElementById('players-grid');
     const fab = document.getElementById('voice-fab');
@@ -4465,9 +4558,10 @@ function maskCardsAroundFab(): void {
     const cards = grid.querySelectorAll<HTMLElement>('.player-card');
     const visible = !!fab && vcFabVisible() && getComputedStyle(fab).display !== 'none';
     if (!visible) {
-        cards.forEach((c) => { c.style.maskImage = ''; (c.style as any).webkitMaskImage = ''; });
+        cards.forEach((c) => { c.style.maskImage = ''; (c.style as any).webkitMaskImage = ''; delete c.dataset.notch; });
         return;
     }
+    placeVoiceFab(grid, fab!);
     const fr = fab!.getBoundingClientRect();
     const fx = fr.left + fr.width / 2, fy = fr.top + fr.height / 2;
     cards.forEach((card) => {
@@ -4611,6 +4705,20 @@ function fitRotatedCards(): void {
 window.addEventListener('resize', () => fitRotatedCards());
 window.addEventListener('orientationchange', () => setTimeout(fitRotatedCards, 150));
 
+// Botão CMD do card: pílula larga que já mostra o maior dano de comandante
+// recebido (cor do atacante) — não precisa abrir nada pra ver. Toque abre a
+// folha; arrastar até outro card aplica dano direto.
+function cmdPillHtml(player: Player, state: GameState): string {
+    const entries = Object.entries(player.commanderDamage || {}).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+    const top = entries[0];
+    const src = top ? state.players.find(p => p.id === top[0]) : null;
+    const maxD = top ? top[1] : 0;
+    const cls = maxD >= COMMANDER_DAMAGE_LETHAL ? 'lethal' : maxD >= CMD_RISK_FROM ? 'danger' : maxD > 0 ? 'has' : '';
+    return `<button class="cmd-fab commander-drag-btn ${cls}" data-action="commander" title="Dano de comandante: toque abre, arraste até outro card pra aplicar"${src ? ` style="--cmd-src:${escapeHtml(src.color)}"` : ''}>
+        <svg class="ic"><use href="#ic-swords"/></svg><span class="cmd-fab-lbl">CMD</span>${maxD ? `<span class="cmd-fab-val">${maxD}<small>/21</small></span>` : ''}${entries.length > 1 ? `<span class="cmd-fab-more">+${entries.length - 1}</span>` : ''}
+    </button>`;
+}
+
 // Posição no grid: índice entre os VIVOS (com "eliminado encolhe") ou o índice normal.
 function cardArea(player: Player, index: number, state: GameState): string {
     const i = effectiveLayout(state).players.indexOf(player);
@@ -4720,7 +4828,7 @@ function renderPlayerCardHtml(player: Player, index: number, state: GameState): 
                 <div class="player-life-container">
                     <div class="player-counters-float ${countersCollapsed ? 'collapsed' : ''}" data-player-id="${player.id}">${countersHtml}</div>
                     ${commanderBarsHtml(player, state)}
-                    <button class="cmd-fab commander-drag-btn" data-action="commander" title="Dano de comandante: toque abre, ARRASTE até o alvo pra aplicar"><svg class="ic"><use href="#ic-swords"/></svg><span>CMD</span></button>
+                    ${cmdPillHtml(player, state)}
                     <button class="life-control minus" data-action="life" data-amount="-1">−</button>
                     <div class="life-display">
                         <div class="life-value-row">
@@ -4815,93 +4923,7 @@ function setupCommanderDrag(btn: HTMLElement, sourceId: string): void {
     btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); }); // o pointerup já tratou
 }
 
-// ===== Troca de lugar na mesa =====
-// Segurar a foto/nome de um card (~300 ms) e arrastar até outro card troca os
-// dois de posição; as rotações do modo mesa são refeitas pelo estado. Toque
-// curto continua abrindo o perfil.
-let seatDragGhost: HTMLElement | null = null;
-function setupSeatDrag(handle: HTMLElement, playerId: string): void {
-    let pid = -1, sx = 0, sy = 0, armed = false, dragging = false, holdT: number | null = null;
-    let hover: HTMLElement | null = null;
-    const setHover = (c: HTMLElement | null): void => {
-        if (hover === c) return;
-        hover?.classList.remove('seat-drop-target');
-        hover = c;
-        hover?.classList.add('seat-drop-target');
-    };
-    const cardAt = (x: number, y: number): HTMLElement | null => {
-        if (seatDragGhost) seatDragGhost.style.display = 'none';
-        const el = document.elementFromPoint(x, y) as HTMLElement | null;
-        if (seatDragGhost) seatDragGhost.style.display = '';
-        const c = el?.closest('.player-card') as HTMLElement | null;
-        return c && c.dataset.playerId !== playerId ? c : null;
-    };
-    const stopHold = (): void => { if (holdT !== null) { clearTimeout(holdT); holdT = null; } };
-    const cleanup = (): void => {
-        stopHold();
-        dragging = false; armed = false;
-        document.body.classList.remove('seat-dragging');
-        handle.closest('.player-card')?.classList.remove('seat-drag-source');
-        seatDragGhost?.remove(); seatDragGhost = null;
-        setHover(null);
-    };
-    handle.addEventListener('pointerdown', (e) => {
-        if ((e.target as HTMLElement).closest('button')) return; // pílula do comandante tem gesto próprio
-        pid = e.pointerId; sx = e.clientX; sy = e.clientY; armed = false; dragging = false;
-        stopHold();
-        holdT = window.setTimeout(() => {
-            holdT = null; armed = true;
-            try { handle.setPointerCapture(pid); } catch { /* ignore */ }
-            cancelTurnSwipe?.();
-            try { navigator.vibrate?.(25); } catch { /* ignore */ }
-            const me = gameState.getState().players.find(p => p.id === playerId);
-            document.body.classList.add('seat-dragging');
-            handle.closest('.player-card')?.classList.add('seat-drag-source');
-            seatDragGhost = document.createElement('div');
-            seatDragGhost.className = 'cmd-drag-ghost seat-drag-ghost';
-            seatDragGhost.style.setProperty('--player-color', me?.color || '#fff');
-            seatDragGhost.innerHTML = `<svg class="ic"><use href="#ic-shuffle"/></svg> ${escapeHtml(me?.name || '')} troca de lugar com…`;
-            seatDragGhost.style.left = `${sx}px`; seatDragGhost.style.top = `${sy}px`;
-            document.body.appendChild(seatDragGhost);
-        }, 300);
-    });
-    handle.addEventListener('pointermove', (e) => {
-        if (e.pointerId !== pid) return;
-        if (!armed) {
-            // Mexeu antes de armar: não é segurar, é arrasto de turno ou rolagem.
-            if (Math.hypot(e.clientX - sx, e.clientY - sy) > 10) stopHold();
-            return;
-        }
-        dragging = true;
-        if (seatDragGhost) { seatDragGhost.style.left = `${e.clientX}px`; seatDragGhost.style.top = `${e.clientY}px`; }
-        setHover(cardAt(e.clientX, e.clientY));
-    });
-    const end = (e: PointerEvent): void => {
-        if (e.pointerId !== pid) return;
-        pid = -1;
-        const wasArmed = armed;
-        const target = wasArmed && e.type === 'pointerup' ? cardAt(e.clientX, e.clientY) : null;
-        const tapped = !wasArmed && holdT !== null && e.type === 'pointerup' && Math.hypot(e.clientX - sx, e.clientY - sy) <= 10;
-        cleanup();
-        try { handle.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
-        if (target?.dataset.playerId) {
-            const other = gameState.getState().players.find(p => p.id === target.dataset.playerId);
-            const me = gameState.getState().players.find(p => p.id === playerId);
-            gameState.swapPlayers(playerId, target.dataset.playerId);
-            audioManager.play('click');
-            showSpecialMoment(`${me?.name || ''} e ${other?.name || ''} trocaram de lugar.`, 'success');
-            cancelTurnSwipe?.();
-            return;
-        }
-        if (tapped) {
-            const p = gameState.getState().players.find(x => x.id === playerId);
-            if (p && p.profileId !== null && p.profileId !== undefined) openProfilePage(p.profileId);
-        }
-    };
-    handle.addEventListener('pointerup', end);
-    handle.addEventListener('pointercancel', end);
-    handle.addEventListener('contextmenu', (e) => { e.preventDefault(); });
-}
+// (o arrasto de "trocar de lugar" pela foto foi removido na 2.5.0: agora é pela engrenagem do card ou Configurações › Mesa › Lugares)
 
 // Popup rápido: quantidade de dano de comandante do atacante no alvo.
 function openCommanderQuickPopup(targetId: string, sourceId: string, x: number, y: number): void {
@@ -5139,9 +5161,12 @@ function bindPlayerCard(card: HTMLElement, playerId: string): void {
         const cmdBtn = card.querySelector('[data-action="commander"]') as HTMLElement | null;
         if (cmdBtn) setupCommanderDrag(cmdBtn, playerId);
 
-        // Toque na foto/nome abre o perfil; SEGURAR e arrastar até outro card troca os dois de lugar.
-        const info = card.querySelector('.player-info') as HTMLElement | null;
-        if (info) setupSeatDrag(info, playerId);
+        // Toque na foto/nome abre o perfil. (Trocar de lugar: engrenagem do card ou Configurações › Mesa › Lugares.)
+        card.querySelector('.player-info')?.addEventListener('click', (e) => {
+            if ((e.target as HTMLElement).closest('button')) return;
+            const p = gameState.getState().players.find(x => x.id === playerId);
+            if (p && p.profileId !== null && p.profileId !== undefined) openProfilePage(p.profileId);
+        });
 
         card.querySelector('[data-action="rotate"]')?.addEventListener('click', () => {
             const p = gameState.getState().players.find(x => x.id === playerId);
@@ -5362,8 +5387,10 @@ function updateSettingsControls(state: GameState): void {
     cbx('settings-avatars', state.settings.showAvatarsOnCards !== false);
     cbx('settings-dim-elim', state.settings.dimEliminated !== false);
     cbx('settings-only-life', !!state.settings.onlyLife);
+    cbx('settings-voice-fab', state.settings.showVoiceFab !== false);
     cbx('settings-collapse-elim', state.settings.collapseEliminated !== false);
     renderStarterFairness();
+    renderSeatMap();
     const segS = (id: string, v: string): void => {
         document.querySelectorAll<HTMLElement>(`#${id} button[data-v]`).forEach((b) => b.classList.toggle('active', b.dataset.v === v));
     };
@@ -5864,54 +5891,89 @@ function closeViadoOverlay(): void {
 }
 
 // Commander Damage Modal
-function openCommanderDamageModal(playerId: string): void {
+// Folha de dano de comandante: uma linha por oponente com barra até 21 e botões
+// grandes (−, +1, +3, +5). Dois modos: "Recebido" (quanto cada comandante já
+// bateu neste jogador) e "Causado" (quanto o comandante DESTE jogador bateu nos
+// outros) — assim quem ataca marca na própria folha, sem precisar arrastar.
+let cmdSheetMode: 'in' | 'out' = 'in';
+function openCommanderDamageModal(playerId: string, mode: 'in' | 'out' = 'in'): void {
     currentCommanderDamagePlayerId = playerId;
-    const state = gameState.getState();
-    renderCommanderDamageModal(state, playerId);
-    openModal($('commander-damage-modal'));
-}
-
-function renderCommanderDamageModal(state: GameState, playerId: string): void {
-    const player = state.players.find(p => p.id === playerId);
-    if (!player) return;
-
-    const otherPlayers = state.players.filter(p => p.id !== playerId);
-
-    $('commander-damage-grid').innerHTML = otherPlayers.map(source => {
-        const damage = player.commanderDamage[source.id] || 0;
-        const isLethal = damage >= COMMANDER_DAMAGE_LETHAL;
-        const isDanger = damage >= SPECIAL_MOMENTS.COMMANDER_DANGER && !isLethal;
-
-        return `
-            <div class="commander-damage-item ${isLethal ? 'lethal' : isDanger ? 'danger' : ''}" data-source-id="${source.id}">
-                <div class="commander-color-indicator" style="background: ${source.color}"></div>
-                <div class="commander-damage-info">
-                    <div class="commander-name">${escapeHtml(source.name)}</div>
-                    <div class="commander-damage-label">Dano de Comandante</div>
-                </div>
-                <div class="commander-damage-controls">
-                    <button class="damage-btn" data-action="decrease">−</button>
-                    <span class="commander-damage-value ${isLethal ? 'lethal' : isDanger ? 'danger' : ''}">${damage}</span>
-                    <button class="damage-btn" data-action="increase">+</button>
-                </div>
+    cmdSheetMode = mode;
+    document.getElementById('cmd-dmg-dyn')?.remove();
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.id = 'cmd-dmg-dyn';
+    modal.style.zIndex = '2070';
+    modal.innerHTML = `
+        <div class="modal-content profile-picker-content cmd-dmg-content">
+            <div class="modal-header">
+                <h2><svg class="ic ic-title"><use href="#ic-swords"/></svg><span id="cmd-dmg-title">Dano de comandante</span></h2>
+                <button class="modal-close" type="button">&times;</button>
             </div>
-        `;
-    }).join('');
-
-    // Add event listeners
-    $('commander-damage-grid').querySelectorAll('.commander-damage-item').forEach(item => {
-        const sourceId = (item as HTMLElement).dataset.sourceId!;
-
-        item.querySelector('[data-action="decrease"]')?.addEventListener('click', () => {
-            gameState.addCommanderDamage(playerId, sourceId, -1);
-        });
-
-        item.querySelector('[data-action="increase"]')?.addEventListener('click', () => {
-            gameState.addCommanderDamage(playerId, sourceId, 1);
-            audioManager.play('commander_damage', playerId);
-        });
+            <div class="profile-picker-body">
+                <div class="seg-mini cmd-dmg-seg" id="cmd-dmg-seg"><button type="button" data-v="in">Recebido</button><button type="button" data-v="out">Causado pelo comandante dele</button></div>
+                <div id="cmd-dmg-rows" class="cmd-dmg-rows"></div>
+                <div class="update-muted cmd-dmg-hint">21 de dano do mesmo comandante elimina. Arrastar o botão CMD de um card até outro também aplica.</div>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+    const close = (): void => { unsub(); modal.remove(); currentCommanderDamagePlayerId = null; };
+    modal.querySelector('.modal-close')?.addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    modal.querySelector('#cmd-dmg-seg')?.addEventListener('click', (e) => {
+        const b = (e.target as HTMLElement).closest('button[data-v]') as HTMLElement | null;
+        if (!b) return;
+        cmdSheetMode = b.dataset.v === 'out' ? 'out' : 'in';
+        render();
     });
+    const rows = modal.querySelector('#cmd-dmg-rows') as HTMLElement;
+    rows.addEventListener('click', (e) => {
+        const b = (e.target as HTMLElement).closest('button[data-d]') as HTMLButtonElement | null;
+        if (!b || b.disabled) return;
+        const other = b.dataset.p!;
+        const d = Number(b.dataset.d);
+        const target = cmdSheetMode === 'in' ? playerId : other;
+        const source = cmdSheetMode === 'in' ? other : playerId;
+        gameState.addCommanderDamage(target, source, d);
+        if (d > 0) {
+            audioManager.play('commander_damage', target);
+            createParticles(target, 'fire', Math.min(d * 2, 15));
+            const s = gameState.getState();
+            narrator.announceCommanderDamage(s.players.find(p => p.id === target)?.name || '', s.players.find(p => p.id === source)?.name || '', d);
+        }
+    });
+    const render = (): void => {
+        const s = gameState.getState();
+        const me = s.players.find(p => p.id === playerId);
+        if (!me) { close(); return; }
+        modal.querySelectorAll<HTMLElement>('#cmd-dmg-seg button').forEach(b => b.classList.toggle('active', b.dataset.v === cmdSheetMode));
+        const title = modal.querySelector('#cmd-dmg-title');
+        if (title) title.textContent = cmdSheetMode === 'in' ? `Dano de comandante em ${me.name}` : `Dano do comandante de ${me.name}`;
+        const others = s.players.filter(p => p.id !== playerId);
+        rows.innerHTML = others.map(o => {
+            const v = cmdSheetMode === 'in' ? (me.commanderDamage[o.id] || 0) : (o.commanderDamage[playerId] || 0);
+            const pct = Math.min(100, Math.round(100 * v / COMMANDER_DAMAGE_LETHAL));
+            const cls = v >= COMMANDER_DAMAGE_LETHAL ? 'lethal' : v >= CMD_RISK_FROM ? 'danger' : '';
+            const attacker = cmdSheetMode === 'in' ? o : me; // a cor da barra é a de quem bate
+            const deck = (cmdSheetMode === 'in' ? o.deckName : me.deckName) || '';
+            return `<div class="cmd-dmg-row ${cls} ${o.isEliminated ? 'dead' : ''}" style="--player-color:${escapeHtml(attacker.color)}">
+                <div class="cmd-dmg-who">${avatarHtml({ name: o.name, photo_url: o.avatar, color: o.color }, 'lc-avatar lc-avatar-sm')}<div class="cmd-dmg-names"><b>${escapeHtml(o.name)}</b>${deck ? `<small>${escapeHtml(deck)}</small>` : ''}</div></div>
+                <div class="cmd-dmg-meter"><div class="cmd-dmg-bar"><span style="width:${pct}%"></span></div><div class="cmd-dmg-val">${v}<small>/21</small></div></div>
+                <div class="cmd-dmg-btns">
+                    <button type="button" data-p="${o.id}" data-d="-1" ${v <= 0 ? 'disabled' : ''}>−</button>
+                    <button type="button" data-p="${o.id}" data-d="1" class="plus">+1</button>
+                    <button type="button" data-p="${o.id}" data-d="3" class="plus">+3</button>
+                    <button type="button" data-p="${o.id}" data-d="5" class="plus">+5</button>
+                </div>
+            </div>`;
+        }).join('');
+    };
+    const unsub = gameState.subscribe(() => { if (document.body.contains(modal)) render(); });
+    render();
 }
+
+// (modal antigo #commander-damage-modal não é mais usado; a folha acima se atualiza sozinha)
+function renderCommanderDamageModal(_state: GameState, _playerId: string): void { /* nada */ }
 
 // Counters Modal
 function openCountersModal(playerId: string): void {
@@ -6059,6 +6121,20 @@ function openPlayerSettings(playerId: string): void {
     if (idDeck) idDeck.innerHTML = player.deckName
         ? `${player.deckImage ? `<img src="${escapeHtml(player.deckImage)}" alt="">` : ''}<span>${escapeHtml(player.deckName)}</span> ${colorsHtml(player.deckColors || '')}`
         : '<span class="update-muted">Sem comandante marcado</span>';
+
+    // Trocar de lugar na mesa (chips com os outros jogadores).
+    const seatChips = document.getElementById('ps-seat-chips');
+    if (seatChips) {
+        const others = state.players.filter(p => p.id !== playerId);
+        seatChips.innerHTML = others.map(o => `<button type="button" class="death-chip" data-swap="${o.id}" style="--player-color:${escapeHtml(o.color)}">${avatarHtml({ name: o.name, photo_url: o.avatar, color: o.color }, 'lc-avatar lc-avatar-xs')}${escapeHtml(o.name)}</button>`).join('');
+        seatChips.querySelectorAll<HTMLElement>('[data-swap]').forEach(b => b.addEventListener('click', () => {
+            const other = state.players.find(p => p.id === b.dataset.swap);
+            gameState.swapPlayers(playerId, b.dataset.swap!);
+            closeModal($('player-settings-modal'));
+            audioManager.play('click');
+            showSpecialMoment(`${player.name} e ${other?.name || ''} trocaram de lugar.`, 'success');
+        }));
+    }
 
     // Select current color
     document.querySelectorAll('.color-option').forEach(btn => {

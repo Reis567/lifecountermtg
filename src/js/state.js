@@ -182,6 +182,7 @@ export function createDefaultSettings(playerCount = 4) {
         onlyLife: false,
         collapseEliminated: true,
         screenRestMinutes: 2,
+        showVoiceFab: true,
     };
 }
 // Create initial game state
@@ -383,6 +384,8 @@ class GameStateManager {
                     parsed.settings.collapseEliminated = true;
                 if (parsed.settings.screenRestMinutes === undefined)
                     parsed.settings.screenRestMinutes = 2;
+                if (parsed.settings.showVoiceFab === undefined)
+                    parsed.settings.showVoiceFab = true;
                 // Ensure all players have new properties (migration for older saves)
                 parsed.players = parsed.players.map((p) => ({
                     ...p,

@@ -8264,3 +8264,77 @@ body[data-only-life="on"] .player-card:not(.elim-mini) .life-control { font-size
 body[data-only-life="on"] .player-card:not(.elim-mini) .life-control { flex: 0 0 2.4rem; font-size: 1.9rem; }
 body[data-only-life="on"] .player-card:not(.elim-mini) .life-display { flex: 1; min-width: 0; }
 body[data-only-life="on"] .player-card:not(.elim-mini) .life-value { font-size: clamp(2.6rem, 34cqw, 11rem); }
+
+/* ===== 2.5.0 (ajustes): CMD como pilula, folha de dano, lugares, abas, descanso ===== */
+.cmd-fab { width: auto; height: 40px; min-width: 88px; padding: 0 0.7rem 0 0.55rem; border-radius: 999px; flex-direction: row; gap: 0.35rem; border-color: var(--cmd-src, var(--player-color, var(--accent-primary))); }
+.cmd-fab .ic { width: 18px; height: 18px; }
+.cmd-fab .cmd-fab-lbl { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em; margin: 0; }
+.cmd-fab .cmd-fab-val { font-size: 1.05rem; font-weight: 900; line-height: 1; color: var(--cmd-src, #fff); }
+.cmd-fab .cmd-fab-val small { font-size: 0.6rem; font-weight: 700; color: rgba(255,255,255,0.55); margin-left: 1px; }
+.cmd-fab .cmd-fab-more { font-size: 0.6rem; font-weight: 800; padding: 0.05rem 0.3rem; border-radius: 999px; background: rgba(255,255,255,0.15); }
+.cmd-fab.has { background: rgba(0,0,0,0.6); }
+.cmd-fab.danger { border-width: 3px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--cmd-src, var(--danger)) 35%, transparent), 0 4px 14px rgba(0,0,0,0.5); }
+.cmd-fab.lethal { background: var(--danger); }
+.players-grid[data-players="5"] .cmd-fab, .players-grid[data-players="6"] .cmd-fab { width: auto; height: 36px; min-width: 76px; }
+@media (orientation: landscape) and (max-height: 520px) {
+    .cmd-fab { width: auto; height: 36px; min-width: 80px; }
+    .cmd-fab .cmd-fab-lbl { display: none; }
+    .cmd-fab .cmd-fab-val { font-size: 0.95rem; }
+}
+/* em cards estreitos (3 colunas no celular em pe) a pilula vira so icone + numero */
+@container (max-width: 150px) {
+    .cmd-fab { min-width: 0; padding: 0 0.5rem; }
+    .cmd-fab .cmd-fab-lbl { display: none; }
+}
+
+/* folha de dano de comandante */
+.cmd-dmg-seg { display: flex; margin-bottom: 0.7rem; }
+.cmd-dmg-rows { display: flex; flex-direction: column; gap: 0.45rem; }
+.cmd-dmg-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "who meter" "btns btns"; gap: 0.4rem 0.6rem; align-items: center; padding: 0.55rem 0.65rem; border-radius: 12px; background: var(--bg-tertiary); border-left: 4px solid var(--player-color); }
+.cmd-dmg-row.dead { opacity: 0.55; }
+.cmd-dmg-row.danger { background: color-mix(in srgb, var(--danger) 12%, var(--bg-tertiary)); }
+.cmd-dmg-row.lethal { background: color-mix(in srgb, var(--danger) 30%, var(--bg-tertiary)); }
+.cmd-dmg-who { grid-area: who; display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.cmd-dmg-names { display: flex; flex-direction: column; min-width: 0; }
+.cmd-dmg-names b { font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmd-dmg-names small { font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmd-dmg-meter { grid-area: meter; display: flex; align-items: center; gap: 0.5rem; }
+.cmd-dmg-bar { width: 90px; height: 8px; border-radius: 999px; background: rgba(255,255,255,0.1); overflow: hidden; }
+.cmd-dmg-bar span { display: block; height: 100%; background: var(--player-color); border-radius: 999px; transition: width 160ms ease; }
+.cmd-dmg-val { font-size: 1.35rem; font-weight: 900; min-width: 2.6rem; text-align: right; font-variant-numeric: tabular-nums; }
+.cmd-dmg-val small { font-size: 0.65rem; font-weight: 700; color: var(--text-muted); }
+.cmd-dmg-btns { grid-area: btns; display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 0.35rem; }
+.cmd-dmg-btns button { height: 44px; border-radius: 10px; background: var(--bg-secondary); color: var(--text-primary); font-size: 1.1rem; font-weight: 800; }
+.cmd-dmg-btns button.plus { background: color-mix(in srgb, var(--player-color) 28%, var(--bg-secondary)); }
+.cmd-dmg-btns button:disabled { opacity: 0.35; }
+.cmd-dmg-hint { margin-top: 0.7rem; font-size: 0.75rem; }
+@media (min-width: 520px) { .cmd-dmg-row { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "who meter btns"; } .cmd-dmg-btns { grid-template-columns: repeat(4, 48px); } }
+
+/* lugares (mapa da mesa) e trocar de lugar no modal do jogador */
+.seat-map { display: flex; flex-direction: column; gap: 0.4rem; }
+.seat-row { display: flex; gap: 0.4rem; }
+.seat-row-elim { opacity: 0.7; border-top: 1px dashed var(--border-color); padding-top: 0.4rem; }
+.seat-btn { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 0.35rem; padding: 0.5rem 0.4rem; border-radius: 10px; background: var(--bg-tertiary); border: 2px solid color-mix(in srgb, var(--player-color) 50%, transparent); color: var(--text-primary); font-weight: 700; font-size: 0.85rem; }
+.seat-btn span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.seat-btn.picked { border-color: var(--player-color); background: color-mix(in srgb, var(--player-color) 28%, var(--bg-tertiary)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--player-color) 30%, transparent); }
+.seat-btn.dead { filter: grayscale(0.8); }
+.seat-hint { font-size: 0.75rem; margin-top: 0.2rem; }
+.ps-seat { margin: 0.2rem 0 0.9rem; }
+.ps-seat .death-chips { margin-bottom: 0; }
+
+/* acoes da partida (aba Partida) */
+.settings-actions { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.6rem 0 0.4rem; }
+.settings-action-main { display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; width: 100%; margin: 0; padding: 0.8rem; font-size: 1rem; }
+.settings-actions .settings-action-row { display: flex; gap: 0.5rem; margin: 0; }
+.settings-actions .settings-action-row .cs-gallery-btn { flex: 1; margin: 0; display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; }
+.settings-action-danger { color: var(--danger); }
+.settings-anim-item { margin-top: 0.5rem; }
+
+/* descanso de tela: tempo de partida grande, hora pequena */
+.sr-label { font-size: 0.8rem; letter-spacing: 0.14em; text-transform: uppercase; color: #777; }
+/* paisagem: a pilula CMD fica mais baixa e o "+" sobe um pouco pra nao ficar embaixo dela */
+@media (orientation: landscape) and (max-height: 520px) {
+    .cmd-fab { height: 32px; min-width: 72px; right: 0.3rem; bottom: 0.3rem; }
+    .player-card:not(.elim-mini) .life-control.plus { padding-bottom: 34px; }
+    .player-card:not(.elim-mini) .life-control.minus { padding-bottom: 34px; }
+}

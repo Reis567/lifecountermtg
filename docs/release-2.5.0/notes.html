@@ -45,7 +45,7 @@
 <header>
   <div class="kicker">Notas da atualização</div>
   <h1>LifeCounter 2.5.0</h1>
-  <div class="sub">31 de outubro de 2026 · APK code 24 · site lifecounter.mreis.site · atualização automática pelo app</div>
+  <div class="sub">31 de outubro de 2026 · APK code 25 · site lifecounter.mreis.site · atualização automática pelo app</div>
 </header>
 
 <p class="lead">Esta versão foi feita pra mesa de verdade: 4 ou 5 pessoas, 40 de vida, partidas de duas horas. Quem cai continua na tela sem roubar espaço, o app pergunta quem matou e como (e isso vira estatística), o sorteio de quem começa lembra das últimas partidas, a mesa vira relógio quando ninguém mexe, e o pódio conta a história da partida numa linha do tempo.</p>
@@ -60,6 +60,10 @@
     <li>Modo só vida</li>
     <li>Glossário no toque</li>
     <li>Perfil: como você morre e como elimina</li>
+    <li>Dano de comandante: pílula e folha</li>
+    <li>Trocar de lugar: engrenagem e Lugares</li>
+    <li>Configurações reorganizadas</li>
+    <li>Microfone: fora dos cards e com opção de ocultar</li>
     <li>Nos bastidores e como atualizar</li>
   </ol>
 </div>
@@ -110,10 +114,10 @@
 </div>
 
 <h2>5. Descanso de tela com relógio <small>toque desbloqueia</small></h2>
-<p>Partida de duas horas, celular no meio da mesa, ninguém mexe por um tempo: a mesa vira uma <b>tela preta</b> (boa pra bateria em tela OLED) com a hora em números enormes, o tempo de partida, o turno, de quem é a vez e a vida de cada jogador. Qualquer toque volta pra mesa, e o toque de desbloqueio <b>não vaza</b> pro card que estava embaixo.</p>
+<p>Partida de duas horas, celular no meio da mesa, ninguém mexe por um tempo: a mesa vira uma <b>tela preta</b> (boa pra bateria em tela OLED) com o <b>tempo de partida</b> em números enormes, a hora atual pequena, o turno, de quem é a vez e a vida de cada jogador. Qualquer toque volta pra mesa, e o toque de desbloqueio <b>não vaza</b> pro card que estava embaixo.</p>
 <div class="how"><b>Onde:</b> Configurações › Visual › "Descanso de tela": Off, 1, 2 (padrão) ou 5 minutos sem toque. Não aparece com um modal, sorteio ou pódio aberto; mudança de vida por voz ou pela mesa ao vivo conta como atividade.</div>
 <div class="shots">
-  <div class="shot phone"><img src="./g01-descanso-de-tela.png" alt=""><div class="cap">Relógio, tempo de partida, turno e vidas.</div></div>
+  <div class="shot phone"><img src="./g01-descanso-de-tela.png" alt=""><div class="cap">Tempo de partida em destaque, hora pequena, turno e vidas.</div></div>
   <div class="shot land"><img src="./g02-descanso-paisagem.png" alt=""><div class="cap">Em paisagem.</div></div>
 </div>
 
@@ -135,18 +139,69 @@
 <h2>8. Perfil: como você morre e como elimina</h2>
 <p>Com o motivo das mortes registrado, o perfil ganha duas barras novas: <b>Como você morre</b> (combate, comandante, combo…) e <b>Como você elimina</b>. Também mostra <b>quantas partidas você começou</b> e a porcentagem. Tudo calculado no servidor a partir das partidas salvas; partidas antigas sem motivo não entram.</p>
 
-<h2>9. Nos bastidores e como atualizar</h2>
+
+<h2>9. Dano de comandante: pílula e folha <small>no lugar da bolinha</small></h2>
+<p>A bolinha "CMD" virou uma <b>pílula larga</b> que já mostra o maior dano de comandante recebido, na cor de quem está batendo (com "+1" quando há mais de um atacante). Com 15 ou mais ela ganha um anel de alerta; com 21 fica vermelha. Não precisa abrir nada pra saber como está.</p>
+<p>O toque abre a <b>folha de dano</b>: uma linha por oponente com a barra até 21 e botões grandes <b>−, +1, +3, +5</b>. Ela tem dois modos: <b>Recebido</b> (quanto cada comandante já bateu neste jogador) e <b>Causado pelo comandante dele</b> (quanto o comandante deste jogador bateu em cada um). Assim quem ataca marca na própria folha, sem precisar arrastar nada. A folha se atualiza sozinha e a vida cai junto. Arrastar a pílula até outro card continua funcionando como atalho.</p>
+<div class="shots">
+  <div class="shot land"><img src="./h01-mesa-paisagem-cmd.png" alt=""><div class="cap">A pílula CMD em cada card (paisagem).</div></div>
+</div>
+<div class="shots">
+  <div class="shot land"><img src="./h02-folha-dano-recebido.png" alt=""><div class="cap">Folha de dano, modo Recebido: Reis já bateu 15 no Zé.</div></div>
+</div>
+<div class="shots">
+  <div class="shot land"><img src="./h04-pilula-cmd-com-dano.png" alt=""><div class="cap">Depois: a pílula do Zé mostra 15/21 com o anel de alerta.</div></div>
+</div>
+
+<h2>10. Trocar de lugar: engrenagem e Lugares</h2>
+<p>O arrasto pela foto saiu. Agora tem dois jeitos claros: na <b>engrenagem do card</b>, o bloco "Trocar de lugar com" lista os outros jogadores, um toque troca; e em <b>Configurações › Mesa › Lugares</b> aparece o mapa da mesa como ela está na tela, toque em um jogador e depois no lugar de outro. Nos dois casos as rotações do modo mesa são refeitas.</p>
+<div class="shots">
+  <div class="shot land"><img src="./h05-engrenagem-trocar-lugar.png" alt=""><div class="cap">Engrenagem do card: "Trocar de lugar com".</div></div>
+</div>
+<div class="shots">
+  <div class="shot land"><img src="./h06-lugares-mapa.png" alt=""><div class="cap">Configurações › Mesa › Lugares, com um jogador marcado.</div></div>
+</div>
+
+<h2>11. Configurações reorganizadas</h2>
+<p>As quatro abas foram redistribuídas pelo que você faz com elas:</p>
+<table>
+  <tr><th>Aba</th><th>O que tem</th></tr>
+  <tr><td>Partida</td><td>Tempo de partida, amistosa, <b>Encerrar partida</b> em destaque com "Nova partida" e "Resetar vidas" ao lado; Quem começa (todos os sorteios, quem começou nas últimas partidas e a animação do sorteio); Modo de jogo; Timer por turno.</td></tr>
+  <tr><td>Mesa</td><td>Layout e modo mesa; <b>Lugares</b> (novo); Comandante; Toque (toque longo, vibrar, mostrar o microfone).</td></tr>
+  <tr><td>Visual</td><td>Tema primeiro, depois Cards (tamanhos, só vida, eliminado encolhe, descanso de tela), Visual e GIFs.</td></tr>
+  <tr><td>Som</td><td>Áudio, música, narrador, escandalosa.</td></tr>
+</table>
+<p><b>Encerrar partida</b> também ganhou um caminho explícito pra fechar sem salvar: no pódio manual, o botão virou "Encerrar sem contar pro ranking" e de fato encerra a mesa (antes só fechava a janela e a partida continuava aberta). O X volta pra mesa como estava.</p>
+<div class="shots">
+  <div class="shot land"><img src="./h07-abas-partida.png" alt=""><div class="cap">Aba Partida com os sorteios.</div></div>
+</div>
+<div class="shots">
+  <div class="shot land"><img src="./h08-abas-mesa.png" alt=""><div class="cap">Aba Mesa: Lugares, Comandante e Toque.</div></div>
+</div>
+
+<h2>12. Microfone: fora dos cards e com opção de ocultar</h2>
+<p>Em mesas de 5 (3 em cima, 2 embaixo) o centro da tela cai em cima de um card, e o microfone ficava sobre a foto de alguém. Agora ele procura o <b>cruzamento de vãos</b> mais perto do centro que não cai em card nenhum, preferindo o encontro de quatro cantos. Em 2×2 continua no centro.</p>
+<p>E dá pra <b>ocultar o microfone</b>: no setup ("Botão do microfone no meio da mesa") e em Configurações › Mesa › Toque, no meio da partida. Sem ele, os cards ficam inteiros, sem recorte; o comando de voz mãos livres continua em Ferramentas.</p>
+<div class="shots">
+  <div class="shot land"><img src="./h12-mesa-5-microfone.png" alt=""><div class="cap">Mesa de 5 em paisagem: o microfone no cruzamento, fora das fotos.</div></div>
+</div>
+<div class="shots">
+  <div class="shot phone"><img src="./h13-mesa-5-microfone-em-pe.png" alt=""><div class="cap">Em pé.</div></div>
+  <div class="shot phone"><img src="./h14-mesa-5-sem-microfone.png" alt=""><div class="cap">Com o microfone oculto.</div></div>
+</div>
+
+<h2>13. Nos bastidores e como atualizar</h2>
 <table>
   <tr><th>Onde</th><th>O que mudou</th></tr>
   <tr><td>Partida (servidor)</td><td><code>starter_profile_id</code> na partida e <code>death_cause</code> em cada colocação (migração 0004). O perfil devolve <code>death_causes</code>, <code>kill_causes</code>, <code>starts</code> e <code>starts_rate</code>.</td></tr>
   <tr><td>Estado da mesa</td><td><code>starterPlayerId</code>, motivo (<code>cause</code>) no evento de eliminação, configurações <code>onlyLife</code>, <code>collapseEliminated</code> e <code>screenRestMinutes</code>. Estados antigos migram sozinhos.</td></tr>
   <tr><td>Voz</td><td>"modo só vida" / "modo completo". "Fulano matou o sicrano" já pré-preenche a pergunta ao cair.</td></tr>
-  <tr><td>Correções</td><td>Mudança de vida que elimina o jogador não dispara mais a animação no card que acabou de virar tira (erro de JS silencioso).</td></tr>
-  <tr><td>Testes</td><td>27 testes do servidor; QA automatizado da mesa com 19 verificações novas, zero erros de JS.</td></tr>
+  <tr><td>Correções</td><td>Mudança de vida que elimina o jogador não dispara mais a animação no card que acabou de virar tira (erro de JS silencioso). "Encerrar sem contar pro ranking" encerra a mesa de verdade. Publicação do APK não quebra mais com avisos do gradle.</td></tr>
+  <tr><td>Testes</td><td>27 testes do servidor; QA automatizado da mesa com 50 verificações novas (lote e ajustes), zero erros de JS.</td></tr>
 </table>
 <p><b>Como atualizar.</b> No Android, o app avisa ao abrir e instala com um toque (ou Configurações › Atualização). No navegador basta recarregar; o site já está na 2.5.0.</p>
 
-<footer>LifeCounter 2.5.0 · lifecounter.mreis.site · notas geradas em 31/10/2026</footer>
+<footer>LifeCounter 2.5.0 (code 25) · lifecounter.mreis.site · notas geradas em 31/10/2026</footer>
 </div>
 </body>
 </html>
