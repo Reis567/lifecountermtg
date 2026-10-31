@@ -108,8 +108,14 @@ if ($Apk) {
     if (-not $SkipBuild) {
         $gradleBin = Get-ChildItem "$env:USERPROFILE\.gradle\wrapper\dists\gradle-8.11.1-bin\*\gradle-8.11.1\bin\gradle.bat" | Select-Object -First 1
         if (-not $gradleBin) { throw 'gradle 8.11.1 não encontrado no cache (~/.gradle). Builde pelo Android Studio e rode com -SkipBuild.' }
-        & $gradleBin.FullName -p "$Root\android" assembleDebug --console=plain -q
-        if ($LASTEXITCODE -ne 0) { throw 'gradle falhou' }
+        # O gradle escreve avisos no stderr (ex.: "SDK XML version 4") e, com ErrorActionPreference=Stop,
+        # o PowerShell 5.1 transformava isso em erro fatal. Aqui so o codigo de saida decide.
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        & $gradleBin.FullName -p "$Root\android" assembleDebug --console=plain -q 2>&1 | ForEach-Object { Write-Host ("  " + "$_") }
+        $gradleExit = $LASTEXITCODE
+        $ErrorActionPreference = $prevEap
+        if ($gradleExit -ne 0) { throw 'gradle falhou' }
     }
     if (-not (Test-Path $apkPath)) { throw "APK não encontrado em $apkPath" }
     $remoteApk = "apk/LifeCounter-v$name.apk"
