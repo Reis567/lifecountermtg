@@ -170,6 +170,11 @@ export interface ProfileStatsDTO {
     place_dist?: Array<{ place: number; count: number }>;
     weekday?: Array<{ day: number; label: string; matches: number; wins: number }>;
     kills?: number;
+    // v2.5.0: como morre / como mata (chave + rótulo + contagem) e quantas partidas começou
+    death_causes?: Array<{ cause: string; label: string; count: number }>;
+    kill_causes?: Array<{ cause: string; label: string; count: number }>;
+    starts?: number;
+    starts_rate?: number;
     commander_deaths_total?: number;
     avg_final_life_wins?: number | null;
     longest_ms?: number;
@@ -211,6 +216,7 @@ export interface PlacementDTO {
     deck_image?: string | null; // só na leitura (arte do comandante)
     final_life?: number | null;
     eliminated_by?: string;
+    death_cause?: string;
     commander_deaths?: number;
     photo_url?: string | null;
 }
@@ -246,6 +252,7 @@ export interface MatchPayload {
     device: string;
     events: unknown[];
     placements: PlacementDTO[];
+    starter_profile_id?: number | null;
 }
 
 export interface RankingRowDTO {

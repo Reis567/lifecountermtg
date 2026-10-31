@@ -431,6 +431,7 @@
                     <span class="result-label">Comeca:</span>
                     <span id="random-starter-winner" class="result-name"></span>
                 </div>
+                <div id="random-starter-note" class="random-starter-note"></div>
                 <div class="random-starter-actions">
                     <button id="random-starter-again-btn" class="secondary-btn" style="display: none;">Sortear Novamente</button>
                     <button id="random-starter-close-btn" class="primary-btn" style="display: none;">Continuar</button>
@@ -522,6 +523,7 @@
                     <div class="settings-group" data-tab="partida">
                         <h3><svg class="ic"><use href="#ic-shuffle"/></svg>Quem começa?</h3>
                         <div class="settings-starters">
+                            <div class="update-muted starter-fairness" id="starter-fairness"></div>
                             <button type="button" id="settings-open-randomstarter" class="tool-btn"><svg class="ic"><use href="#ic-shuffle"/></svg>Sorteio</button>
                             <button type="button" id="settings-open-fingerpicker" class="tool-btn"><svg class="ic"><use href="#ic-touch"/></svg>Pelos dedos</button>
                             <button type="button" id="settings-open-reflex" class="tool-btn"><svg class="ic"><use href="#ic-bolt"/></svg>Reflexo</button>
@@ -806,6 +808,22 @@
                                 <input type="checkbox" id="settings-dim-elim" checked>
                                 Escurecer o card de quem foi eliminado
                             </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="settings-collapse-elim" checked>
+                                Eliminado encolhe: vira uma tira embaixo e os vivos ganham o espaço
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="settings-only-life">
+                                Modo só vida: card só com o número e os botões de mais e menos
+                            </label>
+                        </div>
+                        <div class="setting-item setting-item-col">
+                            <label>Descanso de tela (relógio depois de X min sem toque)</label>
+                            <div class="seg-mini" id="settings-screen-rest"><button type="button" data-v="0">Off</button><button type="button" data-v="1">1 min</button><button type="button" data-v="2" class="active">2 min</button><button type="button" data-v="5">5 min</button></div>
                         </div>
                     </div>
 
@@ -1416,6 +1434,7 @@
                 <h1 class="winner-title">Vitoria!</h1>
                 <p id="winner-name" class="winner-name"></p>
                 <div class="winner-confetti"></div>
+                <div id="winner-timeline" class="winner-timeline"></div>
                 <button id="end-game-winner-btn" class="primary-btn"><svg class="ic"><use href="#ic-flag"/></svg> Encerrar partida e salvar no ranking</button>
                 <button id="close-winner-btn" class="cs-gallery-btn winner-continue-btn">Continuar jogando (ainda dá pra desfazer)</button>
             </div>

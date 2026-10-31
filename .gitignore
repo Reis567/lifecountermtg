@@ -56,3 +56,8 @@ __pycache__/
 # Android WebView bundle: artefato gerado que EMBUTE a chave do Gemini.
 # Não versionar (a chave não pode ir pro git). Gere com: npm run build:android
 android/app/src/main/assets/src/js/bundle.js
+
+# Memoria do Antigravity e pedidos vindos do celular: contem detalhe de
+# producao (servidor, caminho, usuario) e nao pode ir pro git.
+GEMINI.md
+.omni-pedido.txt

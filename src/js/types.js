@@ -1,4 +1,13 @@
 // ===== Type Definitions =====
+export const DEATH_CAUSES = [
+    { key: 'combat', label: 'Combate' },
+    { key: 'commander', label: 'Dano de comandante' },
+    { key: 'combo', label: 'Combo' },
+    { key: 'poison', label: 'Veneno' },
+    { key: 'mill', label: 'Mill (deck acabou)' },
+    { key: 'concede', label: 'Desistiu' },
+    { key: 'other', label: 'Outro' },
+];
 // Default colors for players
 export const DEFAULT_PLAYER_COLORS = [
     '#6366f1', // Indigo

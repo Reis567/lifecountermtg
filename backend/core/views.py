@@ -415,6 +415,24 @@ def seasons_list(request):
     return Response({'seasons': out})
 
 
+DEATH_CAUSE_LABELS = {
+    'combat': 'Combate', 'commander': 'Dano de comandante', 'combo': 'Combo', 'poison': 'Veneno',
+    'mill': 'Mill', 'concede': 'Desistiu', 'other': 'Outro',
+}
+
+
+def _cause_dist(items):
+    """Distribuição de motivos (lista de strings) -> [{cause, label, count}] ordenada."""
+    counts = {}
+    for c in items:
+        c = (c or '').strip()
+        if c:
+            counts[c] = counts.get(c, 0) + 1
+    out = [{'cause': c, 'label': DEATH_CAUSE_LABELS.get(c, c), 'count': n} for c, n in counts.items()]
+    out.sort(key=lambda r: (-r['count'], r['label']))
+    return out
+
+
 AWARD_LABELS = {
     'most_kills': 'Mais eliminações',
     'most_podiums': 'Mais pódios',
@@ -809,6 +827,11 @@ def profile_stats(request, pk):
     weekday = [wd[i] for i in range(7)]
 
     kills = sum(1 for o in all_pl if (o.eliminated_by or '').strip().lower() == me_name and o.profile_id != profile.id)
+    # v2.5.0: como este perfil morre, como elimina, e quantas partidas começou
+    death_causes = _cause_dist(p.death_cause for p in placements if p.place > 1)
+    kill_causes = _cause_dist(o.death_cause for o in all_pl if (o.eliminated_by or '').strip().lower() == me_name and o.profile_id != profile.id)
+    starts = Match.objects.filter(id__in=match_ids, starter_profile=profile).count()
+    starts_rate = round(100.0 * starts / matches_n, 1) if matches_n else 0.0
     commander_deaths_total = sum(p.commander_deaths or 0 for p in placements)
     win_lives = [p.final_life for p in placements if p.place == 1 and p.final_life is not None]
     avg_final_life_wins = round(sum(win_lives) / len(win_lives), 1) if win_lives else None
@@ -826,6 +849,10 @@ def profile_stats(request, pk):
         'place_dist': place_dist,
         'weekday': weekday,
         'kills': kills,
+        'death_causes': death_causes,
+        'kill_causes': kill_causes,
+        'starts': starts,
+        'starts_rate': starts_rate,
         'commander_deaths_total': commander_deaths_total,
         'avg_final_life_wins': avg_final_life_wins,
         'longest_ms': max(durations) if durations else 0,

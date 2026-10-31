@@ -109,6 +109,21 @@ function calculatePlayerRotation(index, totalPlayers) {
     return 0;
 }
 // Get default layout for player count
+// Layout EFETIVO da mesa: com "eliminado encolhe" ligado, os vivos ocupam o
+// layout padrão de N-1 (o de N, enquanto ninguém caiu) e os eliminados vão
+// pra tira de baixo. Usado pelo grid (ui.ts) e pelas rotações (modo mesa).
+export function effectiveLayout(state) {
+    const all = state.players;
+    const collapse = state.settings.collapseEliminated !== false && state.gameStarted;
+    const alive = collapse ? all.filter(p => !p.isEliminated) : all;
+    const eliminated = collapse ? all.filter(p => p.isEliminated) : [];
+    if (!collapse || alive.length === all.length || alive.length === 0) {
+        return { rows: state.settings.layout.rows, players: alive.length ? alive : all, eliminated };
+    }
+    const preset = LAYOUT_PRESETS[alive.length]?.[0];
+    const rows = preset ? preset.rows : [alive.length];
+    return { rows, players: alive, eliminated };
+}
 function getDefaultLayout(playerCount) {
     const presets = LAYOUT_PRESETS[playerCount];
     if (presets && presets.length > 0) {
@@ -164,6 +179,9 @@ export function createDefaultSettings(playerCount = 4) {
         showAvatarsOnCards: true,
         dimEliminated: true,
         cardStyle: 'gradient',
+        onlyLife: false,
+        collapseEliminated: true,
+        screenRestMinutes: 2,
     };
 }
 // Create initial game state
@@ -177,6 +195,7 @@ export function createInitialState() {
         activePlayerIndex: 0,
         turnStartTime: null,
         gameStartTime: null,
+        starterPlayerId: null,
         gameStarted: false,
         winner: null,
         matchClosed: false,
@@ -342,6 +361,8 @@ class GameStateManager {
                     parsed.settings.soundPack = 'default';
                 if (parsed.casual === undefined)
                     parsed.casual = false;
+                if (parsed.starterPlayerId === undefined)
+                    parsed.starterPlayerId = null;
                 if (!parsed.settings.lifeFontSize)
                     parsed.settings.lifeFontSize = 'normal';
                 if (!parsed.settings.buttonSize)
@@ -356,6 +377,12 @@ class GameStateManager {
                     parsed.settings.dimEliminated = true;
                 if (!parsed.settings.cardStyle)
                     parsed.settings.cardStyle = 'gradient';
+                if (parsed.settings.onlyLife === undefined)
+                    parsed.settings.onlyLife = false;
+                if (parsed.settings.collapseEliminated === undefined)
+                    parsed.settings.collapseEliminated = true;
+                if (parsed.settings.screenRestMinutes === undefined)
+                    parsed.settings.screenRestMinutes = 2;
                 // Ensure all players have new properties (migration for older saves)
                 parsed.players = parsed.players.map((p) => ({
                     ...p,
@@ -558,31 +585,61 @@ class GameStateManager {
         }
     }
     updatePlayerRotations() {
-        const { layout, playerCount } = this.state.settings;
+        const { layout } = this.state.settings;
         if (!layout.tableMode) {
             this.state.players.forEach(p => p.rotation = 0);
             return;
         }
+        // Com "eliminado encolhe", os vivos se reorganizam no layout de N-1 (ver effectiveLayout).
+        const eff = effectiveLayout(this.state);
+        this.state.players.forEach(p => { if (!eff.players.includes(p))
+            p.rotation = 0; });
         let playerIndex = 0;
-        for (let rowIdx = 0; rowIdx < layout.rows.length; rowIdx++) {
-            const playersInRow = layout.rows[rowIdx];
+        for (let rowIdx = 0; rowIdx < eff.rows.length; rowIdx++) {
+            const playersInRow = eff.rows[rowIdx];
             for (let i = 0; i < playersInRow; i++) {
-                if (playerIndex < this.state.players.length) {
-                    // Top row: 180°, Bottom row: 0°
+                if (playerIndex < eff.players.length) {
+                    // Top row: 180, Bottom row: 0
                     if (rowIdx === 0) {
-                        this.state.players[playerIndex].rotation = 180;
+                        eff.players[playerIndex].rotation = 180;
                     }
-                    else if (rowIdx === layout.rows.length - 1) {
-                        this.state.players[playerIndex].rotation = 0;
+                    else if (rowIdx === eff.rows.length - 1) {
+                        eff.players[playerIndex].rotation = 0;
                     }
                     else {
                         // Middle rows: could be sides
-                        this.state.players[playerIndex].rotation = 0;
+                        eff.players[playerIndex].rotation = 0;
                     }
                     playerIndex++;
                 }
             }
         }
+    }
+    // Sorteio de quem começa feito fora (sorteio justo no ui.ts): aplica e registra no log.
+    setRandomStarterIndex(index) {
+        if (index < 0 || index >= this.state.players.length)
+            return;
+        this.state.activePlayerIndex = index;
+        this.state.turnStartTime = Date.now();
+        this.addEvent('random_starter', this.state.players[index].id, {});
+        this.notify();
+    }
+    // Recalcula as rotações do modo mesa (ex.: ligou/desligou "eliminado encolhe").
+    refreshRotations() {
+        this.updatePlayerRotations();
+        this.notify();
+    }
+    // Quem matou / como: completa o evento de eliminacao (pergunta ao cair).
+    setEliminationInfo(playerId, killerId, cause) {
+        const ev = this.state.history.find(e => e.type === 'player_eliminated' && e.playerId === playerId);
+        if (!ev)
+            return;
+        const killer = killerId ? this.state.players.find(p => p.id === killerId) : null;
+        ev.details.fromPlayerId = killer?.id;
+        ev.details.fromPlayerName = killer?.name;
+        ev.details.cause = cause;
+        ev.details.message = killer ? 'morto por ' + killer.name : (ev.details.message || 'eliminado');
+        this.notify();
     }
     // ===== Theme Actions =====
     setTheme(theme) {
@@ -769,6 +826,7 @@ class GameStateManager {
         this.updatePlayerRotations();
         this.state.gameStarted = true;
         this.state.gameStartTime = Date.now();
+        this.state.starterPlayerId = null;
         this.state.currentTurn = 1;
         this.state.turnStartTime = Date.now();
         this.state.winner = null;
@@ -810,6 +868,7 @@ class GameStateManager {
         this.state.activePlayerIndex = 0;
         this.state.turnStartTime = Date.now();
         this.state.gameStartTime = Date.now(); // Reset game timer
+        this.state.starterPlayerId = null;
         this.state.winner = null;
         this.state.matchClosed = false;
         this.state.viadoPlayerId = null; // Clear viado marker
@@ -1115,6 +1174,9 @@ class GameStateManager {
         const currentPos = order.indexOf(currentIndex);
         const nextPos = order.indexOf(nextIndex);
         if (nextPos <= currentPos) {
+            // Fim do turno 1: quem estava na vez e quem COMECOU a partida (sorteio justo + estatistica).
+            if (this.state.currentTurn === 1 && !this.state.starterPlayerId)
+                this.state.starterPlayerId = this.state.players[currentIndex]?.id || null;
             this.state.currentTurn++;
         }
         this.state.activePlayerIndex = nextIndex;
@@ -1161,7 +1223,12 @@ class GameStateManager {
             if (!internal)
                 this.addUndoAction('eliminate', playerId, {}, `${player.name} eliminado`);
             player.isEliminated = true;
-            this.addEvent('player_eliminated', playerId, { message: reason, fromPlayerId: byPlayerId });
+            this.addEvent('player_eliminated', playerId, {
+                message: reason, fromPlayerId: byPlayerId,
+                cause: reason === 'commander' ? 'commander' : reason === 'poison' ? 'poison' : reason === 'life' ? 'combat' : undefined,
+            });
+            if (this.state.settings.collapseEliminated)
+                this.updatePlayerRotations();
             const alivePlayers = this.state.players.filter(p => !p.isEliminated);
             if (alivePlayers.length === 1) {
                 this.declareWinner(alivePlayers[0].id);
@@ -1192,6 +1259,8 @@ class GameStateManager {
             }
             this.state.winner = null;
             this.addEvent('revive', playerId, { message: `${player.name} voltou ao jogo` });
+            if (this.state.settings.collapseEliminated)
+                this.updatePlayerRotations();
             this.notify();
         }
     }

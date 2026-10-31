@@ -102,6 +102,9 @@ export interface GameSettings {
     showAvatarsOnCards: boolean; // foto do perfil no cabeçalho do card
     dimEliminated: boolean; // card do eliminado fica acinzentado
     cardStyle: 'gradient' | 'solid' | 'minimal'; // visual do cabeçalho do card
+    onlyLife: boolean; // modo "só vida": card só com o número e ±
+    collapseEliminated: boolean; // eliminado vira tira fina e os vivos ganham o espaço
+    screenRestMinutes: 0 | 1 | 2 | 5; // descanso de tela (relógio) depois de X min sem toque
 }
 
 export type NarratorPersona = 'classic' | 'futebol' | 'galvao' | 'novela' | 'caze';
@@ -127,6 +130,7 @@ export interface GameState {
     winner: string | null;
     matchClosed: boolean; // partida encerrada explicitamente (resultado já salvo no ranking)
     casual: boolean; // partida amistosa: nunca entra no ranking (escolhido no setup)
+    starterPlayerId: string | null; // quem começou (jogador da vez quando o turno 1 acabou)
     history: GameEvent[];
     undoStack: UndoAction[];
     gameMode: GameMode;
@@ -209,7 +213,20 @@ export interface EventDetails {
     newValue?: number;
     message?: string;
     source?: 'tap' | 'hold' | 'voice' | 'shortcut' | 'commander' | 'modal' | 'auto';
+    cause?: DeathCause; // como foi eliminado (player_eliminated)
 }
+
+// Motivo da eliminação (pergunta ao cair; vai pro ranking e pro perfil).
+export type DeathCause = 'combat' | 'commander' | 'combo' | 'poison' | 'mill' | 'concede' | 'other';
+export const DEATH_CAUSES: Array<{ key: DeathCause; label: string }> = [
+    { key: 'combat', label: 'Combate' },
+    { key: 'commander', label: 'Dano de comandante' },
+    { key: 'combo', label: 'Combo' },
+    { key: 'poison', label: 'Veneno' },
+    { key: 'mill', label: 'Mill (deck acabou)' },
+    { key: 'concede', label: 'Desistiu' },
+    { key: 'other', label: 'Outro' },
+];
 
 export interface TablePreset {
     id: string;

@@ -54,7 +54,7 @@ class PlacementSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MatchPlacement
-        fields = ['profile_id', 'name', 'place', 'points', 'final_life', 'eliminated_by', 'commander_deaths', 'photo_url',
+        fields = ['profile_id', 'name', 'place', 'points', 'final_life', 'eliminated_by', 'death_cause', 'commander_deaths', 'photo_url',
                   'deck_id', 'deck_name', 'deck_colors', 'deck_image']
 
     def get_deck_image(self, obj):
@@ -75,13 +75,16 @@ class MatchSerializer(serializers.ModelSerializer):
     ended_at_ms = serializers.IntegerField(write_only=True, required=False)
     started_at = serializers.DateTimeField(required=False)
     ended_at = serializers.DateTimeField(required=False)
+    starter_profile_id = serializers.PrimaryKeyRelatedField(
+        source='starter_profile', queryset=Profile.objects.all(), allow_null=True, required=False
+    )
 
     class Meta:
         model = Match
         fields = [
             'id', 'client_id', 'started_at', 'ended_at', 'started_at_ms', 'ended_at_ms',
             'duration_ms', 'mode', 'manual', 'player_count', 'starting_life', 'source',
-            'device', 'events', 'placements', 'created_at',
+            'device', 'events', 'placements', 'starter_profile_id', 'created_at',
         ]
         read_only_fields = ['id', 'created_at']
 

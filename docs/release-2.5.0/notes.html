@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>LifeCounter 2.5.0</title>
+<style>
+  :root { --ink: #16161a; --muted: #5d5d66; --line: #e3e3ea; --accent: #6366f1; --bg: #ffffff; --soft: #f5f5fa; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Inter, Arial, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.5; }
+  .page { max-width: 900px; margin: 0 auto; padding: 36px 32px 48px; }
+  header { border-bottom: 3px solid var(--accent); padding-bottom: 16px; margin-bottom: 28px; }
+  .kicker { color: var(--accent); font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; font-size: 12px; }
+  h1 { margin: 4px 0 6px; font-size: 34px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); font-size: 15px; }
+  h2 { font-size: 22px; margin: 36px 0 8px; padding-top: 8px; border-top: 1px solid var(--line); break-after: avoid; }
+  h2 small { color: var(--muted); font-weight: 500; font-size: 13px; margin-left: 8px; }
+  h3 { font-size: 15px; margin: 18px 0 6px; }
+  p { margin: 6px 0 10px; }
+  ul { margin: 6px 0 10px; padding-left: 20px; }
+  li { margin: 3px 0; }
+  .lead { font-size: 16px; color: #2b2b33; }
+  .toc { background: var(--soft); border-radius: 12px; padding: 14px 18px; margin: 18px 0 8px; }
+  .toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+  .toc li { break-inside: avoid; }
+  .shots { display: flex; gap: 14px; align-items: flex-start; margin: 12px 0 6px; break-inside: avoid; }
+  .shot { flex: 1; min-width: 0; }
+  .shot img { width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); box-shadow: 0 6px 20px rgba(0,0,0,0.08); display: block; }
+  .shot.phone { flex: 0 0 31%; }
+  .shot.land { flex: 1; }
+  .cap { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .how { background: var(--soft); border-left: 3px solid var(--accent); padding: 8px 12px; border-radius: 0 10px 10px 0; margin: 8px 0 12px; font-size: 14px; }
+  .how b { color: var(--accent); }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #eef; color: #4346c9; margin-left: 6px; vertical-align: middle; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0 12px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--soft); }
+  code { background: var(--soft); padding: 1px 5px; border-radius: 5px; font-size: 12.5px; }
+  footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+  @page { size: A4; margin: 14mm 12mm; }
+  @media print { .page { padding: 0; max-width: none; } h2 { page-break-after: avoid; } .shots { page-break-inside: avoid; } }
+</style>
+</head>
+<body>
+<div class="page">
+<header>
+  <div class="kicker">Notas da atualização</div>
+  <h1>LifeCounter 2.5.0</h1>
+  <div class="sub">31 de outubro de 2026 · APK code 24 · site lifecounter.mreis.site · atualização automática pelo app</div>
+</header>
+
+<p class="lead">Esta versão foi feita pra mesa de verdade: 4 ou 5 pessoas, 40 de vida, partidas de duas horas. Quem cai continua na tela sem roubar espaço, o app pergunta quem matou e como (e isso vira estatística), o sorteio de quem começa lembra das últimas partidas, a mesa vira relógio quando ninguém mexe, e o pódio conta a história da partida numa linha do tempo.</p>
+
+<div class="toc">
+  <ol>
+    <li>Quem começa com justiça</li>
+    <li>Quem matou e como (pergunta ao cair)</li>
+    <li>Card de eliminado encolhe</li>
+    <li>Pódio com linha do tempo</li>
+    <li>Descanso de tela com relógio</li>
+    <li>Modo só vida</li>
+    <li>Glossário no toque</li>
+    <li>Perfil: como você morre e como elimina</li>
+    <li>Nos bastidores e como atualizar</li>
+  </ol>
+</div>
+
+<h2>1. Quem começa com justiça <small>sorteio e roleta</small></h2>
+<p>O app passa a guardar quem começou cada partida (o jogador da vez quando o turno 1 termina). O <b>Sorteio</b> e a <b>Roleta</b> pesam o resultado contra quem começou mais nas últimas 10 partidas da mesa: quem nunca começou tem peso cheio, quem começou uma vez tem um terço, duas vezes um quinto, e assim por diante. Os sorteios de habilidade (reflexo, corrida de toques, dado de cada um, mata-mata) continuam puros.</p>
+<div class="how"><b>Onde:</b> Configurações › Mesa › Quem começa mostra "Quem começou nas últimas N partidas: Zé 3× · Reis 1× …". A nota aparece também embaixo do resultado do sorteio. No perfil, o número "começou" com a porcentagem.</div>
+<div class="shots">
+  <div class="shot phone"><img src="./d01-sorteio-justo-config.png" alt=""><div class="cap">Configurações › Mesa: o histórico de quem começou.</div></div>
+  <div class="shot phone"><img src="./d02-sorteio-justo.png" alt=""><div class="cap">Resultado do sorteio com a nota do peso.</div></div>
+</div>
+
+<h2>2. Quem matou e como <small>pergunta ao cair</small></h2>
+<p>Quando alguém chega a zero (ou 21 de comandante, 10 de veneno, ou é marcado como morto), abre uma pergunta curta: <b>quem matou?</b> (os outros jogadores, ou "ninguém / ele mesmo") e <b>como?</b> (combate, dano de comandante, combo, veneno, mill, desistiu, outro). O app já pré-seleciona o que sabe: dano de comandante marca o atacante e o motivo, veneno marca veneno, "o Reis matou o Zé" por voz marca o Reis.</p>
+<ul>
+  <li>Dá pra responder "Depois" e corrigir a qualquer momento tocando na tira do eliminado.</li>
+  <li>A resposta vai pro log da partida, pro ranking (eliminado por, motivo) e pras estatísticas do perfil.</li>
+  <li>Só pergunta pra quedas recentes: ao retomar uma partida antiga de outro aparelho não fica perguntando sobre mortes velhas.</li>
+</ul>
+<div class="shots">
+  <div class="shot phone"><img src="./b01-pergunta-ao-cair.png" alt=""><div class="cap">A pergunta no momento da queda.</div></div>
+  <div class="shot phone"><img src="./f01-perfil-causas.png" alt=""><div class="cap">No perfil: "Como você morre" e "Como você elimina".</div></div>
+</div>
+
+<h2>3. Card de eliminado encolhe <small>continua visível</small></h2>
+<p>Quem cai vira uma <b>tira fina embaixo da mesa</b> com foto, colocação (5º, 4º…), quem matou e como. Os vivos passam pro layout de uma pessoa a menos: numa mesa de 5, os 4 que sobraram ficam em 2×2 com o dobro do espaço. No modo mesa as rotações são refeitas sozinhas. A tira tem dois botões: corrigir a morte (caveira) e reviver (coração), que devolve o card ao tamanho normal e o layout de antes.</p>
+<div class="how"><b>Onde:</b> ligado por padrão. Configurações › Visual › "Eliminado encolhe" desliga (volta ao card acinzentado inteiro).</div>
+<div class="shots">
+  <div class="shot phone"><img src="./a01-mesa-5.png" alt=""><div class="cap">Mesa de 5 antes da primeira queda.</div></div>
+  <div class="shot phone"><img src="./b02-eliminado-encolhe.png" alt=""><div class="cap">Maria caiu: tira embaixo, 4 vivos em 2×2.</div></div>
+</div>
+<div class="shots">
+  <div class="shot land"><img src="./b03-eliminado-paisagem.png" alt=""><div class="cap">Em paisagem a tira fica mais baixa ainda.</div></div>
+</div>
+
+<h2>4. Pódio com linha do tempo</h2>
+<p>A tela de vitória ganhou uma <b>régua da partida</b>, de 0 até a duração final, com marcas a cada 30 minutos. Nela aparecem cada queda (bolinha com a inicial e a cor do jogador; o toque mostra colocação, turno e hora), as trocas de líder (losangos na cor de quem assumiu a ponta) e o maior swing de vida. Embaixo, os resumos: "Virada: Zé assumiu a ponta no turno 9 (1h12)", "1ª queda: Maria aos 38 min", "3 trocas de líder", "Maior swing: Laura −18 no turno 9".</p>
+<ul>
+  <li>A mesma linha do tempo aparece no <b>detalhe da partida</b> no Histórico, pra qualquer partida já salva com log.</li>
+  <li>A <b>imagem compartilhada</b> (botão de compartilhar na vitória) ganhou a linha das quedas.</li>
+</ul>
+<div class="shots">
+  <div class="shot phone"><img src="./e01-podio-linha-do-tempo.png" alt=""><div class="cap">Vitória com a linha do tempo.</div></div>
+  <div class="shot phone"><img src="./e03-historico-linha-do-tempo.png" alt=""><div class="cap">Detalhe da partida no Histórico.</div></div>
+</div>
+<div class="shots">
+  <div class="shot land"><img src="./e02-podio-paisagem.png" alt=""><div class="cap">Em paisagem.</div></div>
+</div>
+
+<h2>5. Descanso de tela com relógio <small>toque desbloqueia</small></h2>
+<p>Partida de duas horas, celular no meio da mesa, ninguém mexe por um tempo: a mesa vira uma <b>tela preta</b> (boa pra bateria em tela OLED) com a hora em números enormes, o tempo de partida, o turno, de quem é a vez e a vida de cada jogador. Qualquer toque volta pra mesa, e o toque de desbloqueio <b>não vaza</b> pro card que estava embaixo.</p>
+<div class="how"><b>Onde:</b> Configurações › Visual › "Descanso de tela": Off, 1, 2 (padrão) ou 5 minutos sem toque. Não aparece com um modal, sorteio ou pódio aberto; mudança de vida por voz ou pela mesa ao vivo conta como atividade.</div>
+<div class="shots">
+  <div class="shot phone"><img src="./g01-descanso-de-tela.png" alt=""><div class="cap">Relógio, tempo de partida, turno e vidas.</div></div>
+  <div class="shot land"><img src="./g02-descanso-paisagem.png" alt=""><div class="cap">Em paisagem.</div></div>
+</div>
+
+<h2>6. Modo só vida</h2>
+<p>Pra mesa rápida, gente nova ou quando só interessa o número: o card fica só com o <b>número gigante</b> e os botões de mais e menos. Somem contadores, comandante, barras de dano, rodapé e sombras. O resto continua funcionando por trás (dano de comandante por voz, por exemplo).</p>
+<div class="how"><b>Onde:</b> Configurações › Visual › "Modo só vida", ou por voz: "modo só vida" e "modo completo".</div>
+<div class="shots">
+  <div class="shot phone"><img src="./a03-so-vida.png" alt=""><div class="cap">Mesa de 5 em modo só vida.</div></div>
+  <div class="shot land"><img src="./a04-so-vida-paisagem.png" alt=""><div class="cap">Em paisagem.</div></div>
+</div>
+
+<h2>7. Glossário no toque</h2>
+<p>Na ficha do comandante, na carta mostrada pelo juiz e na resposta do juiz, as palavras-chave (<i>ward, flash, menace, deathtouch, trample, hexproof…</i>, em inglês ou em português) ficam sublinhadas. O toque abre a explicação em português na hora, sem internet e sem IA, a partir da base de 49 keywords que já existia no app. Se precisar de mais, o botão "Perguntar ao juiz" manda a pergunta pro juiz de IA.</p>
+<div class="shots">
+  <div class="shot phone"><img src="./c01-glossario.png" alt=""><div class="cap">Ward explicado com um toque na ficha de Atraxa.</div></div>
+  <div class="shot phone"><img src="./a02-config-visual.png" alt=""><div class="cap">Os controles novos em Configurações › Visual.</div></div>
+</div>
+
+<h2>8. Perfil: como você morre e como elimina</h2>
+<p>Com o motivo das mortes registrado, o perfil ganha duas barras novas: <b>Como você morre</b> (combate, comandante, combo…) e <b>Como você elimina</b>. Também mostra <b>quantas partidas você começou</b> e a porcentagem. Tudo calculado no servidor a partir das partidas salvas; partidas antigas sem motivo não entram.</p>
+
+<h2>9. Nos bastidores e como atualizar</h2>
+<table>
+  <tr><th>Onde</th><th>O que mudou</th></tr>
+  <tr><td>Partida (servidor)</td><td><code>starter_profile_id</code> na partida e <code>death_cause</code> em cada colocação (migração 0004). O perfil devolve <code>death_causes</code>, <code>kill_causes</code>, <code>starts</code> e <code>starts_rate</code>.</td></tr>
+  <tr><td>Estado da mesa</td><td><code>starterPlayerId</code>, motivo (<code>cause</code>) no evento de eliminação, configurações <code>onlyLife</code>, <code>collapseEliminated</code> e <code>screenRestMinutes</code>. Estados antigos migram sozinhos.</td></tr>
+  <tr><td>Voz</td><td>"modo só vida" / "modo completo". "Fulano matou o sicrano" já pré-preenche a pergunta ao cair.</td></tr>
+  <tr><td>Correções</td><td>Mudança de vida que elimina o jogador não dispara mais a animação no card que acabou de virar tira (erro de JS silencioso).</td></tr>
+  <tr><td>Testes</td><td>27 testes do servidor; QA automatizado da mesa com 19 verificações novas, zero erros de JS.</td></tr>
+</table>
+<p><b>Como atualizar.</b> No Android, o app avisa ao abrir e instala com um toque (ou Configurações › Atualização). No navegador basta recarregar; o site já está na 2.5.0.</p>
+
+<footer>LifeCounter 2.5.0 · lifecounter.mreis.site · notas geradas em 31/10/2026</footer>
+</div>
+</body>
+</html>

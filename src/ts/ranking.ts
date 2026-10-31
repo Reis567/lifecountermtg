@@ -23,6 +23,7 @@ export interface MatchPlacement {
     finalLife?: number | null;
     commanderDeaths?: number;
     eliminatedBy?: string;
+    deathCause?: string; // combat | commander | combo | poison | mill | concede | other
 }
 
 export interface MatchResult {
@@ -36,6 +37,7 @@ export interface MatchResult {
     startingLife?: number;
     events?: unknown[];
     synced?: boolean;
+    starterProfileId?: number | null; // quem começou (perfil)
 }
 
 export interface AggregateRow {
@@ -80,6 +82,7 @@ function toPayload(r: MatchResult): MatchPayload {
         starting_life: r.startingLife || 40,
         source: apiSource(),
         device: deviceId(),
+        starter_profile_id: r.starterProfileId ?? null,
         events: Array.isArray(r.events) ? r.events.slice(0, 500) : [],
         placements: r.placements.map((p) => ({
             profile_id: p.profileId ?? null,
@@ -88,6 +91,7 @@ function toPayload(r: MatchResult): MatchPayload {
             points: p.points,
             final_life: p.finalLife ?? null,
             eliminated_by: p.eliminatedBy || '',
+            death_cause: p.deathCause || '',
             commander_deaths: p.commanderDeaths || 0,
             deck_id: p.deckId ?? null,
             deck_name: p.deckName || '',
@@ -216,13 +220,14 @@ interface ResultPlayer {
 interface ResultState {
     winner: string | null;
     players: ResultPlayer[];
-    history: Array<{ type: string; playerId?: string; timestamp?: number; details?: { fromPlayerId?: string; message?: string } }>;
+    history: Array<{ type: string; playerId?: string; timestamp?: number; details?: { fromPlayerId?: string; message?: string; cause?: string } }>;
     gameStartTime: number | null;
+    starterPlayerId?: string | null;
     gameMode?: string;
     settings?: { startingLife?: number };
 }
 
-function placementFor(p: ResultPlayer | undefined, idx: number, N: number, eliminatedBy?: string): MatchPlacement {
+function placementFor(p: ResultPlayer | undefined, idx: number, N: number, eliminatedBy?: string, deathCause?: string): MatchPlacement {
     const place = idx + 1;
     return {
         name: p ? p.name : `Jogador ${idx + 1}`,
@@ -235,7 +240,30 @@ function placementFor(p: ResultPlayer | undefined, idx: number, N: number, elimi
         finalLife: p?.life ?? null,
         commanderDeaths: p?.commanderDeaths || 0,
         eliminatedBy: eliminatedBy || '',
+        deathCause: deathCause || '',
     };
+}
+
+// Perfil de quem começou (jogador da vez quando o turno 1 acabou).
+function starterProfileOf(state: ResultState): number | null {
+    const id = state.starterPlayerId;
+    if (!id) return null;
+    const p = state.players.find((x) => x.id === id);
+    return p?.profileId ?? null;
+}
+
+// Preenche "eliminado por" e "como" a partir do log (pódio manual também ganha isso).
+function applyDeathInfo(placements: MatchPlacement[], state: ResultState, ids: string[]): void {
+    const elims = (state.history || []).filter((e) => e.type === 'player_eliminated' && e.playerId);
+    placements.forEach((pl, i) => {
+        const ev = elims.find((e) => e.playerId === ids[i]);
+        if (!ev) return;
+        if (!pl.eliminatedBy && ev.details?.fromPlayerId) {
+            const killer = state.players.find((p) => p.id === ev.details!.fromPlayerId);
+            if (killer) pl.eliminatedBy = killer.name;
+        }
+        if (!pl.deathCause && ev.details?.cause) pl.deathCause = ev.details.cause;
+    });
 }
 
 // Constrói o resultado automaticamente quando há um vencedor no estado.
@@ -266,6 +294,7 @@ export function buildAutoResult(state: ResultState): MatchResult | null {
     for (const p of state.players) if (!order.includes(p.id)) order.push(p.id);
 
     const placements: MatchPlacement[] = order.map((id, idx) => placementFor(state.players.find((x) => x.id === id), idx, N, eliminatedBy[id]));
+    applyDeathInfo(placements, state, order);
 
     const startedAt = state.gameStartTime || Date.now();
     return {
@@ -278,6 +307,7 @@ export function buildAutoResult(state: ResultState): MatchResult | null {
         manual: false,
         startingLife: state.settings?.startingLife,
         events: (state.history || []).slice().reverse(), // cronológico
+        starterProfileId: starterProfileOf(state),
     };
 }
 
@@ -287,6 +317,7 @@ export function buildManualResult(
     state: ResultState,
 ): MatchResult {
     const startedAt = state.gameStartTime || Date.now();
+    applyDeathInfo(placements, state, placements.map((pl) => state.players.find((p) => p.name === pl.name && (p.profileId ?? null) === (pl.profileId ?? null))?.id || ''));
     return {
         id: 'mm_' + startedAt + '_' + Date.now(),
         startedAt,
@@ -297,6 +328,7 @@ export function buildManualResult(
         manual: true,
         startingLife: state.settings?.startingLife,
         events: (state.history || []).slice().reverse(),
+        starterProfileId: starterProfileOf(state),
     };
 }
 

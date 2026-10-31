@@ -70,7 +70,9 @@ function stMarkActive(p) {
         gameState.setActivePlayer(idx);
 }
 // ---------------------------------------------------------------- Roleta
-export function openRouletteStarter() {
+// `pick`: quem escolhe o setor vencedor (o app passa o sorteio JUSTO, que pesa
+// contra quem começou as últimas partidas); sem ele, uniforme.
+export function openRouletteStarter(opts = {}) {
     const players = stPlayers();
     if (players.length < 2)
         return;
@@ -110,7 +112,7 @@ export function openRouletteStarter() {
         spinning = true;
         out.innerHTML = '';
         sub.textContent = 'Girando…';
-        const winner = stRand(n);
+        const winner = Math.min(n - 1, Math.max(0, opts.pick ? opts.pick(n) : stRand(n)));
         // Ângulo final: o centro do setor vencedor tem que ficar embaixo do ponteiro (topo).
         const sectorDeg = 360 / n;
         const target = 360 - (winner * sectorDeg + sectorDeg / 2) + (stRand(Math.floor(sectorDeg * 0.6)) - sectorDeg * 0.3);

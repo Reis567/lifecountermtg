@@ -41,6 +41,7 @@ function toPayload(r) {
         starting_life: r.startingLife || 40,
         source: apiSource(),
         device: deviceId(),
+        starter_profile_id: r.starterProfileId ?? null,
         events: Array.isArray(r.events) ? r.events.slice(0, 500) : [],
         placements: r.placements.map((p) => ({
             profile_id: p.profileId ?? null,
@@ -49,6 +50,7 @@ function toPayload(r) {
             points: p.points,
             final_life: p.finalLife ?? null,
             eliminated_by: p.eliminatedBy || '',
+            death_cause: p.deathCause || '',
             commander_deaths: p.commanderDeaths || 0,
             deck_id: p.deckId ?? null,
             deck_name: p.deckName || '',
@@ -164,7 +166,7 @@ export async function deleteMatchRemote(serverId, clientId) {
     if (clientId)
         deleteResult(clientId);
 }
-function placementFor(p, idx, N, eliminatedBy) {
+function placementFor(p, idx, N, eliminatedBy, deathCause) {
     const place = idx + 1;
     return {
         name: p ? p.name : `Jogador ${idx + 1}`,
@@ -177,7 +179,32 @@ function placementFor(p, idx, N, eliminatedBy) {
         finalLife: p?.life ?? null,
         commanderDeaths: p?.commanderDeaths || 0,
         eliminatedBy: eliminatedBy || '',
+        deathCause: deathCause || '',
     };
+}
+// Perfil de quem começou (jogador da vez quando o turno 1 acabou).
+function starterProfileOf(state) {
+    const id = state.starterPlayerId;
+    if (!id)
+        return null;
+    const p = state.players.find((x) => x.id === id);
+    return p?.profileId ?? null;
+}
+// Preenche "eliminado por" e "como" a partir do log (pódio manual também ganha isso).
+function applyDeathInfo(placements, state, ids) {
+    const elims = (state.history || []).filter((e) => e.type === 'player_eliminated' && e.playerId);
+    placements.forEach((pl, i) => {
+        const ev = elims.find((e) => e.playerId === ids[i]);
+        if (!ev)
+            return;
+        if (!pl.eliminatedBy && ev.details?.fromPlayerId) {
+            const killer = state.players.find((p) => p.id === ev.details.fromPlayerId);
+            if (killer)
+                pl.eliminatedBy = killer.name;
+        }
+        if (!pl.deathCause && ev.details?.cause)
+            pl.deathCause = ev.details.cause;
+    });
 }
 // Constrói o resultado automaticamente quando há um vencedor no estado.
 // Ordem: vencedor = 1º; eliminados em ORDEM INVERSA (último eliminado = 2º, ...,
@@ -211,6 +238,7 @@ export function buildAutoResult(state) {
         if (!order.includes(p.id))
             order.push(p.id);
     const placements = order.map((id, idx) => placementFor(state.players.find((x) => x.id === id), idx, N, eliminatedBy[id]));
+    applyDeathInfo(placements, state, order);
     const startedAt = state.gameStartTime || Date.now();
     return {
         id: 'm_' + startedAt,
@@ -222,11 +250,13 @@ export function buildAutoResult(state) {
         manual: false,
         startingLife: state.settings?.startingLife,
         events: (state.history || []).slice().reverse(), // cronológico
+        starterProfileId: starterProfileOf(state),
     };
 }
 // Versão "manual" (vinda do modal de pódio quando a partida foi resetada sem vencedor).
 export function buildManualResult(placements, state) {
     const startedAt = state.gameStartTime || Date.now();
+    applyDeathInfo(placements, state, placements.map((pl) => state.players.find((p) => p.name === pl.name && (p.profileId ?? null) === (pl.profileId ?? null))?.id || ''));
     return {
         id: 'mm_' + startedAt + '_' + Date.now(),
         startedAt,
@@ -237,6 +267,7 @@ export function buildManualResult(placements, state) {
         manual: true,
         startingLife: state.settings?.startingLife,
         events: (state.history || []).slice().reverse(),
+        starterProfileId: starterProfileOf(state),
     };
 }
 // Atribui pontos a uma ordem de jogadores: posição 1..N.

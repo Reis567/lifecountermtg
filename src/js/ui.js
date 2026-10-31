@@ -1,7 +1,7 @@
 // ===== UI Management =====
 // secureRandom* vêm de state.js: duplicar as funções aqui quebrava o bundle do
 // Android (script único = um só escopo, identificador declarado duas vezes).
-import { gameState, secureRandomInt } from './state.js';
+import { gameState, secureRandom, secureRandomInt, effectiveLayout } from './state.js';
 import { audioManager, ambientMusic, narrator } from './audio.js';
 import { openCardScanner, setupCardScanner } from './cardScanner.js';
 import { openFingerPicker } from './fingerPicker.js';
@@ -21,11 +21,12 @@ import { buildLifeSeries, lifeChartSvg, drawLifeChart } from './chart.js';
 import { liveHostStart, liveHostStop, liveHostSession, liveHostNotify, liveHostSetAllowEdits, onLiveHostChange, liveJoinUrl, liveGuestOpen } from './live.js';
 import { apiCreateDeck, apiUploadProfileSound, apiDeleteProfileSound, apiElo, apiSeasons, apiSeasonOverview } from './api.js';
 import { identifyCardFromFile, askJudgeText, formatJudgeText } from './cardScanner.js';
+import { glossaryHtml, setupGlossary } from './glossary.js';
 import { setupCloudSave, cloudCheckResume, cloudResume, cloudDiscard, cloudIsMine } from './cloudsave.js';
 import { isGeminiConfigured } from './aiClient.js';
 import { setNarratorContext } from './aiNarrator.js';
 import { promptDialog } from './dialogs.js';
-import { DEFAULT_PLAYER_COLORS, PRESET_COUNTERS, COMMANDER_DAMAGE_LETHAL, LAYOUT_PRESETS, THEMES, EASTER_EGG_MESSAGES, SPECIAL_MOMENTS, TAUNT_PHRASES, MANUAL_TAUNTS, MTG_KEYWORDS, } from './types.js';
+import { DEFAULT_PLAYER_COLORS, PRESET_COUNTERS, COMMANDER_DAMAGE_LETHAL, LAYOUT_PRESETS, DEATH_CAUSES, THEMES, EASTER_EGG_MESSAGES, SPECIAL_MOMENTS, TAUNT_PHRASES, MANUAL_TAUNTS, MTG_KEYWORDS, } from './types.js';
 // ===== Secure Random Functions =====
 // Secure random integer from min to max (inclusive)
 function secureRandomRange(min, max) {
@@ -611,6 +612,11 @@ export function initUI() {
     setupWakeLock();
     // Partida em andamento salva no servidor a cada mudança (retomar em outro aparelho).
     setupCloudSave((msg, kind) => showSpecialMoment(msg, kind));
+    // v2.5.0: glossário no toque, descanso de tela, pergunta ao cair, memória de quem começou.
+    setupGlossary((q) => { void openRulesSheet(q); });
+    setupScreenRest();
+    setupDeathPrompts();
+    setupStarterMemory();
     document.addEventListener('visibilitychange', () => { if (!document.hidden && !gameState.getState().gameStarted)
         void refreshResumeCard(true); });
     onProfilesChange((list) => {
@@ -721,7 +727,7 @@ async function openRulesSheet(question) {
         const res = await askJudgeText(question, { spoken: true });
         if (!document.body.contains(modal))
             return;
-        aEl.innerHTML = `<div class="cs-answer">${formatJudgeText(res.answer)}</div>`;
+        aEl.innerHTML = `<div class="cs-answer">${glossaryHtml(formatJudgeText(res.answer))}</div>`;
         // Fala a resposta (sem markdown), respeitando só o modo silencioso.
         narrator.say(res.answer.replace(/\*\*/g, '').replace(/\s+/g, ' ').slice(0, 900));
         const actions = document.createElement('div');
@@ -757,7 +763,7 @@ async function appendRulesCard(body, before, name) {
                     <div class="cs-sheet-name">${escapeHtml(c.name || name)}</div>
                     <div class="cs-sheet-cost">${manaCostHtml(c.mana_cost || face?.mana_cost || '')}</div>
                     <div class="cs-sheet-type">${escapeHtml(c.type_line || face?.type_line || '')}</div>
-                    <div class="cs-sheet-oracle rules-card-oracle">${escapeHtml(oracle).replace(/\n/g, '<br>').replace(/\{([^}]+)\}/g, '<b class="rules-sym">$1</b>')}</div>
+                    <div class="cs-sheet-oracle rules-card-oracle">${glossaryHtml(escapeHtml(oracle)).replace(/\n/g, '<br>').replace(/\{([^}]+)\}/g, '<b class="rules-sym">$1</b>')}</div>
                     <a class="cs-sheet-link update-muted" href="${escapeHtml(c.scryfall_uri || '#')}" target="_blank" rel="noopener">Ver no Scryfall</a>
                 </div>
             </div>`;
@@ -777,6 +783,371 @@ async function appendRulesCard(body, before, name) {
         });
     }
     catch { /* Scryfall fora: fica só a resposta */ }
+}
+// ===== Pergunta ao cair: quem matou e como =====
+function openDeathDialog(playerId) {
+    const s = gameState.getState();
+    const victim = s.players.find(p => p.id === playerId);
+    const ev = s.history.find(e => e.type === 'player_eliminated' && e.playerId === playerId);
+    if (!victim || !ev)
+        return;
+    document.getElementById('death-dialog-dyn')?.remove();
+    let killerId = ev.details.fromPlayerId || null;
+    let cause = ev.details.cause || 'combat';
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.id = 'death-dialog-dyn';
+    modal.dataset.playerId = playerId;
+    modal.style.zIndex = '3300';
+    const others = s.players.filter(p => p.id !== playerId);
+    modal.innerHTML = `
+        <div class="modal-content profile-picker-content death-content">
+            <div class="modal-header">
+                <h2><svg class="ic ic-title"><use href="#ic-skull"/></svg>${escapeHtml(victim.name)} caiu</h2>
+                <button class="modal-close" type="button">&times;</button>
+            </div>
+            <div class="profile-picker-body">
+                <div class="podium-section-label">Quem matou?</div>
+                <div class="death-chips" id="death-killers">
+                    ${others.map(p => `<button type="button" class="death-chip ${p.id === killerId ? 'active' : ''}" data-k="${p.id}" style="--player-color:${escapeHtml(p.color)}">${avatarHtml({ name: p.name, photo_url: p.avatar, color: p.color }, 'lc-avatar lc-avatar-xs')}${escapeHtml(p.name)}</button>`).join('')}
+                    <button type="button" class="death-chip ${!killerId ? 'active' : ''}" data-k="">Ninguém / ele mesmo</button>
+                </div>
+                <div class="podium-section-label">Como?</div>
+                <div class="death-chips" id="death-causes">
+                    ${DEATH_CAUSES.map(c => `<button type="button" class="death-chip ${c.key === cause ? 'active' : ''}" data-c="${c.key}">${escapeHtml(c.label)}</button>`).join('')}
+                </div>
+                <div class="pe-actions">
+                    <button type="button" class="cs-gallery-btn" id="death-later">Depois</button>
+                    <button type="button" class="primary-btn" id="death-save"><svg class="ic"><use href="#ic-check"/></svg> Salvar</button>
+                </div>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+    const close = () => modal.remove();
+    modal.querySelector('.modal-close')?.addEventListener('click', close);
+    modal.querySelector('#death-killers')?.addEventListener('click', (e) => {
+        const b = e.target.closest('.death-chip');
+        if (!b)
+            return;
+        killerId = b.dataset.k || null;
+        modal.querySelectorAll('#death-killers .death-chip').forEach(x => x.classList.toggle('active', x === b));
+    });
+    modal.querySelector('#death-causes')?.addEventListener('click', (e) => {
+        const b = e.target.closest('.death-chip');
+        if (!b)
+            return;
+        cause = b.dataset.c || 'other';
+        modal.querySelectorAll('#death-causes .death-chip').forEach(x => x.classList.toggle('active', x === b));
+    });
+    modal.querySelector('#death-later')?.addEventListener('click', close);
+    modal.querySelector('#death-save')?.addEventListener('click', () => {
+        gameState.setEliminationInfo(playerId, killerId, cause);
+        close();
+    });
+    modal.addEventListener('click', (e) => { if (e.target === modal)
+        close(); });
+}
+// Abre a pergunta sozinho quando alguém cai (só pra quedas recentes: ao retomar
+// uma partida antiga não fica perguntando sobre mortes velhas).
+const promptedElims = new Set();
+function setupDeathPrompts() {
+    gameState.subscribe((s) => {
+        if (!s.gameStarted) {
+            promptedElims.clear();
+            return;
+        }
+        const open = document.getElementById('death-dialog-dyn');
+        for (const ev of s.history.slice(0, 20)) {
+            if (ev.type !== 'player_eliminated' || promptedElims.has(ev.id))
+                continue;
+            promptedElims.add(ev.id);
+            if (Date.now() - ev.timestamp > 15000 || s.matchClosed || open)
+                continue;
+            window.setTimeout(() => {
+                const cur = gameState.getState();
+                const still = cur.players.find(x => x.id === ev.playerId);
+                if (still?.isEliminated && cur.gameStarted && !document.getElementById('death-dialog-dyn'))
+                    openDeathDialog(ev.playerId);
+            }, 1100);
+        }
+        // Reviveu (ou desfez): fecha a pergunta dele.
+        if (open) {
+            const p = s.players.find(x => x.id === open.dataset.playerId);
+            if (p && !p.isEliminated)
+                open.remove();
+        }
+    });
+}
+// ===== Quem começa com justiça =====
+// Guarda quem começou as últimas partidas (localStorage) e pesa o sorteio
+// contra quem começou mais. "Quem começou" = jogador da vez no fim do turno 1.
+const STARTERS_KEY = 'lc_recent_starters_v1';
+function readStarters() {
+    try {
+        const v = JSON.parse(localStorage.getItem(STARTERS_KEY) || '[]');
+        return Array.isArray(v) ? v : [];
+    }
+    catch {
+        return [];
+    }
+}
+let starterRecordedFor = null;
+function setupStarterMemory() {
+    gameState.subscribe((s) => {
+        if (!s.gameStarted || !s.starterPlayerId || !s.gameStartTime || starterRecordedFor === s.gameStartTime)
+            return;
+        const p = s.players.find(x => x.id === s.starterPlayerId);
+        if (!p)
+            return;
+        starterRecordedFor = s.gameStartTime;
+        const list = readStarters().filter(r => r.at !== s.gameStartTime);
+        list.push({ profileId: p.profileId ?? null, name: p.name, at: s.gameStartTime });
+        try {
+            localStorage.setItem(STARTERS_KEY, JSON.stringify(list.slice(-40)));
+        }
+        catch { /* cheio */ }
+    });
+}
+// Quantas vezes cada jogador da mesa começou, nas últimas 10 partidas com gente desta mesa.
+function starterCounts(players) {
+    const ids = new Set(players.map(p => p.profileId ?? null).filter((x) => x !== null));
+    const recent = readStarters().filter(r => r.profileId !== null && ids.has(r.profileId)).slice(-10);
+    const counts = new Map();
+    players.forEach(p => counts.set(p.id, p.profileId === null ? 0 : recent.filter(r => r.profileId === p.profileId).length));
+    return { counts, considered: recent.length };
+}
+// Sorteio JUSTO: peso 1 / (1 + 2 × vezes que começou recentemente). Devolve o índice em `players`.
+function fairStarterIndex(players) {
+    const { counts } = starterCounts(players);
+    const cands = players.map((p, i) => ({ i, w: p.isEliminated ? 0 : 1 / (1 + 2 * (counts.get(p.id) || 0)) }));
+    const total = cands.reduce((a, c) => a + c.w, 0);
+    if (total <= 0)
+        return 0;
+    let r = secureRandom() * total;
+    for (const c of cands) {
+        r -= c.w;
+        if (r <= 0 && c.w > 0)
+            return c.i;
+    }
+    return cands.filter(c => c.w > 0).pop()?.i ?? 0;
+}
+function starterFairnessText(players) {
+    const { counts, considered } = starterCounts(players);
+    if (!considered)
+        return 'Ainda não sei quem costuma começar: a partir da próxima partida o sorteio pesa a favor de quem menos começou.';
+    const parts = players.filter(p => p.profileId !== null).map(p => `${p.name} ${counts.get(p.id) || 0}×`);
+    return `Quem começou nas últimas ${considered} partida${considered === 1 ? '' : 's'}: ${parts.join(' · ')}. O sorteio pesa a favor de quem menos começou.`;
+}
+function renderStarterFairness() {
+    const el = document.getElementById('starter-fairness');
+    if (el)
+        el.textContent = starterFairnessText(gameState.getState().players);
+}
+// ===== Descanso de tela (relógio) =====
+// Sem toque por X minutos na mesa: tela preta com hora, tempo de partida, turno e
+// vidas em números grandes. Qualquer toque volta (e não vaza pro card de baixo).
+let restTick = null;
+let restLastActivity = Date.now();
+function screenRestAllowed() {
+    const s = gameState.getState();
+    if (!(s.settings.screenRestMinutes ?? 2) || !s.gameStarted)
+        return false;
+    if (!document.getElementById('game-screen')?.classList.contains('active'))
+        return false;
+    if (document.querySelector('.modal.active, .st-overlay, .winner-overlay.active, .random-starter-overlay.active, .lc-lightbox'))
+        return false;
+    return true;
+}
+function showScreenRest() {
+    if (document.getElementById('screen-rest'))
+        return;
+    const el = document.createElement('div');
+    el.id = 'screen-rest';
+    el.className = 'screen-rest';
+    document.body.appendChild(el);
+    const draw = () => {
+        const s = gameState.getState();
+        const now = new Date();
+        const elapsed = s.gameStartTime ? Date.now() - s.gameStartTime : 0;
+        const ap = s.players[s.activePlayerIndex];
+        el.innerHTML = `
+            <div class="sr-clock">${now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+            <div class="sr-sub">${fmtDuration(elapsed)} de partida · turno ${s.currentTurn}${ap ? ` · vez de ${escapeHtml(ap.name)}` : ''}</div>
+            <div class="sr-lives">${s.players.map(p => `<div class="sr-life ${p.isEliminated ? 'dead' : ''}" style="--player-color:${escapeHtml(p.color)}"><span class="sr-dot"></span><span class="sr-name">${escapeHtml(p.name)}</span><span class="sr-val">${p.isEliminated ? '—' : p.life}</span></div>`).join('')}</div>
+            <div class="sr-hint">toque pra voltar</div>`;
+    };
+    draw();
+    restTick = window.setInterval(draw, 20000);
+    const dismiss = (e) => { e.preventDefault(); e.stopPropagation(); hideScreenRest(); };
+    el.addEventListener('pointerdown', dismiss);
+    el.addEventListener('click', dismiss);
+}
+function hideScreenRest() {
+    document.getElementById('screen-rest')?.remove();
+    if (restTick !== null) {
+        clearInterval(restTick);
+        restTick = null;
+    }
+    restLastActivity = Date.now();
+}
+function setupScreenRest() {
+    const bump = () => { restLastActivity = Date.now(); };
+    ['pointerdown', 'keydown', 'touchstart', 'wheel'].forEach(ev => document.addEventListener(ev, bump, { capture: true, passive: true }));
+    gameState.subscribe(bump); // mudança de estado (voz, mesa ao vivo) também conta como atividade
+    window.setInterval(() => {
+        const mins = gameState.getState().settings.screenRestMinutes ?? 2;
+        if (!mins || document.getElementById('screen-rest'))
+            return;
+        if (Date.now() - restLastActivity >= mins * 60000 && screenRestAllowed())
+            showScreenRest();
+    }, 5000);
+}
+function matchTimelineHtml(events, players, startedAt, endedAt, startingLife, winnerId) {
+    if (!events.length || endedAt <= startedAt)
+        return '';
+    const dur = Math.max(60000, endedAt - startedAt);
+    const W = 640, H = 96, L = 16, R = 18, axisY = 52;
+    const x = (t) => L + ((Math.min(Math.max(t, startedAt), endedAt) - startedAt) / dur) * (W - L - R);
+    const life = new Map(players.map(p => [p.id, startingLife]));
+    const dead = new Set();
+    let leader = null;
+    const leadChanges = [];
+    let biggest = null;
+    const elims = [];
+    const N = players.length;
+    const noteSwing = (e, amount) => {
+        if (!biggest || Math.abs(amount) > Math.abs(biggest.amount))
+            biggest = { t: e.timestamp, id: e.playerId, amount, turn: e.turn };
+    };
+    for (const e of events) {
+        if (e.type === 'life_change') {
+            if (typeof e.details.newValue === 'number')
+                life.set(e.playerId, e.details.newValue);
+            else if (typeof e.details.amount === 'number')
+                life.set(e.playerId, (life.get(e.playerId) ?? startingLife) + e.details.amount);
+            noteSwing(e, e.details.amount ?? 0);
+        }
+        else if (e.type === 'commander_damage') {
+            const amt = e.details.amount ?? 0;
+            life.set(e.playerId, (life.get(e.playerId) ?? startingLife) - amt);
+            noteSwing(e, -amt);
+        }
+        else if (e.type === 'player_eliminated') {
+            if (!dead.has(e.playerId)) {
+                dead.add(e.playerId);
+                elims.push({ t: e.timestamp, id: e.playerId, turn: e.turn, place: N - elims.length });
+            }
+        }
+        else if (e.type === 'revive') {
+            dead.delete(e.playerId);
+            const i = elims.findIndex(el => el.id === e.playerId);
+            if (i >= 0)
+                elims.splice(i, 1);
+        }
+        let best = null, bestLife = -Infinity;
+        for (const p of players) {
+            if (dead.has(p.id))
+                continue;
+            const v = life.get(p.id) ?? startingLife;
+            if (v > bestLife || (v === bestLife && p.id === leader)) {
+                best = p.id;
+                bestLife = v;
+            }
+        }
+        if (best && best !== leader) {
+            if (leader !== null)
+                leadChanges.push({ t: e.timestamp, id: best, turn: e.turn });
+            leader = best;
+        }
+    }
+    const col = (id) => players.find(p => p.id === id)?.color || '#888';
+    const nm = (id) => players.find(p => p.id === id)?.name || '?';
+    const ini = (id) => (nm(id).trim()[0] || '?').toUpperCase();
+    let ticks = '';
+    for (let t = 30 * 60000; t < dur; t += 30 * 60000) {
+        const xx = x(startedAt + t).toFixed(1);
+        const lbl = t >= 3600000 ? `${(t / 3600000).toFixed(1).replace('.0', '')}h` : `${t / 60000}min`;
+        ticks += `<line x1="${xx}" y1="${axisY - 4}" x2="${xx}" y2="${axisY + 4}" class="tl-tick"/><text x="${xx}" y="${axisY + 17}" class="tl-tick-lbl" text-anchor="middle">${lbl}</text>`;
+    }
+    const lead = leadChanges.map(c => `<path d="M${x(c.t).toFixed(1)},${axisY - 10} l5,-6 l5,6 l-5,6 z" fill="${col(c.id)}" class="tl-lead"><title>Turno ${c.turn ?? '?'}: ${escapeHtml(nm(c.id))} assume a liderança</title></path>`).join('');
+    const el = elims.map((e, i) => {
+        const xx = x(e.t).toFixed(1);
+        const up = i % 2 === 0;
+        const cy = up ? axisY - 30 : axisY + 32;
+        return `<g class="tl-elim"><line x1="${xx}" y1="${axisY}" x2="${xx}" y2="${up ? axisY - 20 : axisY + 22}" stroke="${col(e.id)}"/><circle cx="${xx}" cy="${cy}" r="10" fill="${col(e.id)}"/><text x="${xx}" y="${cy + 4}" text-anchor="middle" class="tl-ini">${escapeHtml(ini(e.id))}</text><title>${escapeHtml(nm(e.id))} caiu em ${e.place}º (turno ${e.turn ?? '?'}, ${fmtDuration(e.t - startedAt)})</title></g>`;
+    }).join('');
+    const bg = biggest; // (TS não acompanha a atribuição dentro do closure)
+    const wx = (W - R).toFixed(1);
+    const win = winnerId ? `<g><circle cx="${wx}" cy="${axisY}" r="11" fill="${col(winnerId)}"/><text x="${wx}" y="${axisY + 4}" text-anchor="middle" class="tl-ini">${escapeHtml(ini(winnerId))}</text><title>${escapeHtml(nm(winnerId))} venceu</title></g>` : '';
+    const big = bg && Math.abs(bg.amount) >= 5 ? `<text x="${x(bg.t).toFixed(1)}" y="${H - 2}" text-anchor="middle" class="tl-big" fill="${col(bg.id)}">${bg.amount > 0 ? '+' : ''}${bg.amount}</text>` : '';
+    const chips = [];
+    const lastLead = leadChanges.length ? leadChanges[leadChanges.length - 1] : null;
+    if (lastLead && (!winnerId || lastLead.id === winnerId))
+        chips.push(`Virada: ${nm(lastLead.id)} assumiu a ponta no turno ${lastLead.turn ?? '?'} (${fmtDuration(lastLead.t - startedAt)})`);
+    if (leadChanges.length)
+        chips.push(`${leadChanges.length} troca${leadChanges.length === 1 ? '' : 's'} de líder`);
+    if (elims.length)
+        chips.push(`1ª queda: ${nm(elims[0].id)} aos ${fmtDuration(elims[0].t - startedAt)}`);
+    if (bg && Math.abs(bg.amount) >= 5)
+        chips.push(`Maior swing: ${nm(bg.id)} ${bg.amount > 0 ? '+' : ''}${bg.amount} no turno ${bg.turn ?? '?'}`);
+    return `<div class="match-timeline">
+        <svg viewBox="0 0 ${W} ${H}" class="tl-svg">
+            <line x1="${L}" y1="${axisY}" x2="${W - R}" y2="${axisY}" class="tl-axis"/>
+            <text x="${L}" y="${axisY + 17}" class="tl-tick-lbl">0</text>
+            <text x="${W - R - 16}" y="${axisY + 17}" class="tl-tick-lbl" text-anchor="end">${fmtDuration(dur)}</text>
+            ${ticks}${lead}${el}${win}${big}
+        </svg>
+        ${chips.length ? `<div class="tl-chips">${chips.map(c => `<span class="tl-chip">${escapeHtml(c)}</span>`).join('')}</div>` : ''}
+    </div>`;
+}
+// Versão pro canvas da imagem compartilhada: só as quedas e o vencedor.
+function drawTimelineCanvas(ctx, events, players, startedAt, endedAt, x0, y, w) {
+    const dur = Math.max(60000, endedAt - startedAt);
+    const x = (t) => x0 + ((Math.min(Math.max(t, startedAt), endedAt) - startedAt) / dur) * w;
+    ctx.fillStyle = '#888';
+    ctx.font = '12px "Segoe UI", Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Linha do tempo (quedas)', x0, y);
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x0, y + 22);
+    ctx.lineTo(x0 + w, y + 22);
+    ctx.stroke();
+    const seen = new Set();
+    let n = 0;
+    const mark = (xx, color, letter) => {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(xx, y + 22, 9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(letter, xx, y + 26);
+    };
+    for (const e of events) {
+        if (e.type !== 'player_eliminated' || seen.has(e.playerId))
+            continue;
+        seen.add(e.playerId);
+        n++;
+        const p = players.find(pp => pp.id === e.playerId);
+        const xx = x(e.timestamp);
+        mark(xx, p?.color || '#888', (p?.name || '?')[0].toUpperCase());
+        ctx.fillStyle = '#aaa';
+        ctx.font = '10px "Segoe UI", Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${(p?.name || '?').slice(0, 8)} · ${fmtDuration(e.timestamp - startedAt)}`, xx, n % 2 ? y + 44 : y + 8);
+    }
+    const win = players.find(p => p.id === gameState.getState().winner);
+    if (win)
+        mark(x0 + w, win.color, win.name[0].toUpperCase());
+    ctx.fillStyle = '#777';
+    ctx.font = '10px "Segoe UI", Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('0', x0, y + 44);
+    ctx.textAlign = 'right';
+    ctx.fillText(fmtDuration(dur), x0 + w - 14, y + 44);
 }
 // ===== Retomar partida de outro aparelho (home) =====
 let resumeCheckedAt = 0;
@@ -1105,6 +1476,7 @@ function openLiveHostModal() {
 function setupGameScreenListeners() {
     // Menu button
     $('menu-btn')?.addEventListener('click', () => {
+        renderStarterFairness();
         openModal($('settings-modal'));
     });
     // Random starter button
@@ -1246,7 +1618,7 @@ function setupGameScreenListeners() {
         closeModal($('tools-modal'));
         startRandomStarterAnimation();
     });
-    $('open-roulette')?.addEventListener('click', () => { closeModal($('tools-modal')); openRouletteStarter(); });
+    $('open-roulette')?.addEventListener('click', () => { closeModal($('tools-modal')); openRouletteStarter({ pick: () => fairStarterIndex(gameState.getState().players) }); });
     $('open-dicestarter')?.addEventListener('click', () => { closeModal($('tools-modal')); openDiceStarter(); });
     $('open-reflex')?.addEventListener('click', () => { closeModal($('tools-modal')); openReflexStarter(); });
     $('open-taprace')?.addEventListener('click', () => { closeModal($('tools-modal')); openTapRaceStarter(); });
@@ -1381,6 +1753,7 @@ function setupSettingsTabs() {
     segListen('settings-btn-size', (v) => gameState.updateSettings({ buttonSize: v }));
     segListen('settings-hold-step', (v) => gameState.updateSettings({ holdStep: Number(v) }));
     segListen('settings-card-style', (v) => gameState.updateSettings({ cardStyle: v }));
+    segListen('settings-screen-rest', (v) => gameState.updateSettings({ screenRestMinutes: Number(v) }));
     const swListen = (id, key) => {
         $(id)?.addEventListener('change', (e) => {
             gameState.updateSettings({ [key]: e.target.checked });
@@ -1390,6 +1763,11 @@ function setupSettingsTabs() {
     swListen('settings-haptics', 'hapticsEnabled');
     swListen('settings-avatars', 'showAvatarsOnCards');
     swListen('settings-dim-elim', 'dimEliminated');
+    swListen('settings-only-life', 'onlyLife');
+    $('settings-collapse-elim')?.addEventListener('change', (e) => {
+        gameState.updateSettings({ collapseEliminated: e.target.checked });
+        gameState.refreshRotations(); // os vivos voltam/vão pro layout de N-1
+    });
     const starter = (id, fn) => {
         $(id)?.addEventListener('click', () => { closeModal($('settings-modal')); fn(); });
     };
@@ -1398,7 +1776,7 @@ function setupSettingsTabs() {
     starter('settings-open-reflex', () => openReflexStarter());
     starter('settings-open-taprace', () => openTapRaceStarter());
     starter('settings-open-bracket', () => openBracketStarter());
-    starter('settings-open-roulette', () => openRouletteStarter());
+    starter('settings-open-roulette', () => openRouletteStarter({ pick: () => fairStarterIndex(gameState.getState().players) }));
     starter('settings-open-dicestarter', () => openDiceStarter());
 }
 // ===== Ranking / encerramento da partida =====
@@ -2223,6 +2601,15 @@ function openProfilePage(profileId) {
         const pcHtml = (s.by_player_count || []).map(r => bar(`${r.players} jogadores`, r.win_rate, 100, `${r.win_rate}% (${r.wins}/${r.matches})`)).join('');
         const maxWd = Math.max(1, ...(s.weekday || []).map(w => w.matches));
         const wdHtml = (s.weekday || []).filter(w => w.matches).map(w => bar(w.label, w.matches, maxWd, `${w.wins}/${w.matches}`)).join('');
+        // v2.5.0: como morre / como elimina (motivo informado ao cair)
+        const causeBars = (list) => {
+            if (!list || !list.length)
+                return '';
+            const mx = Math.max(1, ...list.map(c => c.count));
+            return list.map(c => bar(c.label, c.count, mx, `${c.count}×`)).join('');
+        };
+        const dieHtml = causeBars(s.death_causes), killHtml = causeBars(s.kill_causes);
+        const causesHtml = (dieHtml || killHtml) ? `<div class="pp-section pp-causes">${dieHtml ? `<div><div class="podium-section-label">Como você morre</div><div class="pp-bars">${dieHtml}</div></div>` : ''}${killHtml ? `<div><div class="podium-section-label">Como você elimina</div><div class="pp-bars">${killHtml}</div></div>` : ''}</div>` : '';
         const h2hHtml = (s.head_to_head || []).slice(0, 8).map(h => `
             <div class="pp-h2h-row" data-profile="${h.profile_id ?? ''}">
                 ${avatarHtml({ name: h.name, photo_url: h.photo_url, color: getProfileById(h.profile_id ?? null)?.color }, 'lc-avatar')}
@@ -2255,12 +2642,13 @@ function openProfilePage(profileId) {
             <div class="pp-stats pp-stats-3">
                 ${stat('eliminações', s.kills ?? 0)}${stat('mortes do cmd.', s.commander_deaths_total ?? 0)}${stat('pts / partida', s.points_per_match ?? 0)}
                 ${stat('vida ao vencer', s.avg_final_life_wins ?? '—')}${stat('maior partida', fmtMs(s.longest_ms))}${stat('menor partida', fmtMs(s.shortest_ms))}
-                ${stat('tempo de mesa', fmtH(s.total_time_ms))}${stat('melhor mês', s.best_month ? `${s.best_month.label}<small>${s.best_month.wins}v</small>` : '—')}${stat('desde', s.first_match_at ? fmtDateTime(s.first_match_at).slice(0, 8) : '—')}
+                ${stat('tempo de mesa', fmtH(s.total_time_ms))}${stat('melhor mês', s.best_month ? `${s.best_month.label}<small>${s.best_month.wins}v</small>` : '—')}${stat('desde', s.first_match_at ? fmtDateTime(s.first_match_at).slice(0, 8) : '—')}${stat('começou', `${s.starts ?? 0}<small>${s.starts_rate ?? 0}%</small>`)}
             </div>
             ${(s.by_month || []).length >= 2 ? `<div class="pp-section"><div class="podium-section-label">Partidas por mês (dourado = vitórias)</div><div class="pp-months">${monthsHtml}</div></div>` : ''}
             ${placeDistHtml ? `<div class="pp-section"><div class="podium-section-label">Onde costuma terminar</div><div class="pp-bars">${placeDistHtml}</div></div>` : ''}
             ${(s.by_player_count || []).length ? `<div class="pp-section"><div class="podium-section-label">Aproveitamento por tamanho de mesa</div><div class="pp-bars">${pcHtml}</div></div>` : ''}
             ${h2hHtml ? `<div class="pp-section"><div class="podium-section-label">Confrontos diretos (vitórias suas × dele)</div><div class="pp-h2h">${h2hHtml}</div></div>` : ''}
+            ${causesHtml}
             ${wdHtml ? `<div class="pp-section"><div class="podium-section-label">Dia da semana (vitórias/partidas)</div><div class="pp-bars">${wdHtml}</div></div>` : ''}
             ${(s.elo_history || []).length >= 2 ? `<div class="pp-section"><div class="podium-section-label">Evolução do Elo</div>${eloSparkline(s.elo_history)}</div>` : ''}
             ${(s.deck_stats || []).length ? `
@@ -2377,6 +2765,7 @@ function openMatchDetail(matchId) {
                     </div>`;
         }).join('')}
             </div>
+            ${chartPlayers.length && events.length > 1 ? `<div class="podium-section-label">Linha do tempo</div>${matchTimelineHtml(events, chartPlayers, new Date(m.started_at).getTime(), new Date(m.ended_at).getTime(), m.starting_life || 40, chartPlayers.find(cp => cp.name === podium[0]?.name)?.id || null)}` : ''}
             ${chartData && events.length > 1 ? `<div class="podium-section-label">Vida ao longo da partida</div><div class="life-chart-wrap">${lifeChartSvg(chartData, { startingLife: m.starting_life || 40 })}</div>` : ''}
             <div class="podium-section-label">Log da partida (${events.length} eventos)</div>
             <div class="md-log">${log || '<div class="update-muted">Sem log (partida salva por uma versão antiga).</div>'}</div>
@@ -3084,6 +3473,7 @@ function applyCustomization(s) {
     b.setAttribute('data-avatars', s.showAvatarsOnCards === false ? 'off' : 'on');
     b.setAttribute('data-dim-elim', s.dimEliminated === false ? 'off' : 'on');
     b.setAttribute('data-card-style', s.cardStyle || 'gradient');
+    b.setAttribute('data-only-life', s.onlyLife ? 'on' : 'off');
 }
 let homeTab = 'play';
 function homeShowTab(tab) {
@@ -3801,18 +4191,21 @@ function renderGame(state) {
 }
 // Update grid layout based on layout config
 function updateGridLayout(grid, state) {
-    const { layout, playerCount } = state.settings;
-    const rows = layout.rows;
+    const { playerCount } = state.settings;
+    // Com "eliminado encolhe": os vivos usam o layout de N-1 e os eliminados
+    // ficam numa tira fina embaixo (área "elim"), sempre visíveis.
+    const eff = effectiveLayout(state);
+    const rows = eff.rows;
     // Set grid template rows and player count
     grid.className = `players-grid layout-rows-${rows.length}`;
     grid.setAttribute('data-players', playerCount.toString());
+    grid.classList.toggle('has-elim', eff.eliminated.length > 0);
     // Calculate grid template columns for each row
-    let gridTemplateAreas = '';
     let playerIndex = 0;
     const areas = [];
+    const maxInRow = Math.max(...rows);
     for (let r = 0; r < rows.length; r++) {
         const playersInRow = rows[r];
-        const maxInRow = Math.max(...rows);
         const rowAreas = [];
         for (let c = 0; c < maxInRow; c++) {
             if (c < playersInRow) {
@@ -3826,15 +4219,16 @@ function updateGridLayout(grid, state) {
         }
         areas.push(rowAreas);
     }
+    if (eff.eliminated.length)
+        areas.push(Array(maxInRow).fill('elim'));
     // Build grid template
     // minmax(0, 1fr): um card deitado (90°/270°, mais largo que a célula antes de
     // girar) não pode esticar a coluna/linha e esmagar os vizinhos.
     // Os cards ocupam a tela toda; o microfone fica no centro e os cards que
     // encostam nele ganham um recorte circular (ver maskCardsAroundFab).
-    const maxCols = Math.max(...rows);
     grid.classList.remove('has-fab');
-    grid.style.gridTemplateColumns = `repeat(${maxCols}, minmax(0, 1fr))`;
-    grid.style.gridTemplateRows = `repeat(${rows.length}, minmax(0, 1fr))`;
+    grid.style.gridTemplateColumns = `repeat(${maxInRow}, minmax(0, 1fr))`;
+    grid.style.gridTemplateRows = `repeat(${rows.length}, minmax(0, 1fr))${eff.eliminated.length ? ' auto' : ''}`;
     grid.style.gridTemplateAreas = areas.map(row => `"${row.join(' ')}"`).join(' ');
 }
 // Dano de comandante por atacante, visível no card: uma barra por oponente
@@ -4055,15 +4449,18 @@ function playerCardSignature(player, index, state) {
         index === state.activePlayerIndex, state.viadoPlayerId === player.id, team?.id,
         state.settings.gifPaused, state.settings.showCommanderDeaths, state.settings.layout.tableMode, state.settings.holdStep,
         collapsedCounters.has(player.id),
+        effectiveLayout(state).players.indexOf(player), state.settings.collapseEliminated,
+        player.isEliminated ? state.history.find(e => e.type === 'player_eliminated' && e.playerId === player.id)?.details : null,
         // faixas de vida (classes low-life/critical-life), não o valor em si
         player.life <= SPECIAL_MOMENTS.LOW_LIFE ? 'crit' : player.life <= SPECIAL_MOMENTS.DANGER_ZONE ? 'low' : 'ok',
     ]);
 }
 function renderPlayers(state) {
     const grid = $('players-grid');
-    const gridSig = JSON.stringify([state.players.map(p => p.id), state.settings.layout, state.gameMode]);
+    const eff = effectiveLayout(state);
+    const gridSig = JSON.stringify([state.players.map(p => p.id), state.settings.layout, state.gameMode, eff.eliminated.map(p => p.id)]);
     const existing = new Map();
-    grid.querySelectorAll(':scope > .player-card').forEach(c => existing.set(c.dataset.playerId, c));
+    grid.querySelectorAll('.player-card').forEach(c => existing.set(c.dataset.playerId, c));
     if (gridSig === lastGridSignature && existing.size === state.players.length) {
         let changed = 0;
         state.players.forEach((player, index) => {
@@ -4095,8 +4492,10 @@ function renderPlayers(state) {
     const fab = document.getElementById('voice-fab'); // mora dentro do grid; preserva
     grid.innerHTML = state.players.map((player, index) => {
         lastCardSignatures.set(player.id, playerCardSignature(player, index, state));
-        return renderPlayerCardHtml(player, index, state);
-    }).join('');
+        return eff.eliminated.includes(player) ? '' : renderPlayerCardHtml(player, index, state);
+    }).join('') + (eff.eliminated.length
+        ? `<div class="elim-strip" id="elim-strip">${eff.eliminated.map(p => renderPlayerCardHtml(p, state.players.indexOf(p), state)).join('')}</div>`
+        : '');
     if (fab)
         grid.appendChild(fab);
     grid.querySelectorAll('.player-card').forEach(card => bindPlayerCard(card, card.dataset.playerId));
@@ -4146,7 +4545,48 @@ function fitRotatedCards() {
 }
 window.addEventListener('resize', () => fitRotatedCards());
 window.addEventListener('orientationchange', () => setTimeout(fitRotatedCards, 150));
+// Posição no grid: índice entre os VIVOS (com "eliminado encolhe") ou o índice normal.
+function cardArea(player, index, state) {
+    const i = effectiveLayout(state).players.indexOf(player);
+    return `p${i >= 0 ? i : index}`;
+}
+// Colocação de quem já caiu: primeiro eliminado = último lugar.
+function eliminatedPlace(playerId, state) {
+    const seen = [];
+    for (const e of state.history.slice().reverse()) { // cronológico
+        if (e.type === 'player_eliminated' && !seen.includes(e.playerId))
+            seen.push(e.playerId);
+        if (e.type === 'revive') {
+            const i = seen.indexOf(e.playerId);
+            if (i >= 0)
+                seen.splice(i, 1);
+        }
+    }
+    const i = seen.indexOf(playerId);
+    return i < 0 ? state.players.length : state.players.length - i;
+}
+// Card de quem foi eliminado, encolhido (tira embaixo): continua visível, com a
+// colocação, quem matou e como; dá pra reviver e corrigir a morte.
+function renderEliminatedMiniHtml(player, state) {
+    const ev = state.history.find(e => e.type === 'player_eliminated' && e.playerId === player.id);
+    const killer = ev?.details.fromPlayerName || '';
+    const cause = DEATH_CAUSES.find(c => c.key === ev?.details.cause)?.label || '';
+    const place = eliminatedPlace(player.id, state);
+    const sub = [killer ? `por ${killer}` : '', cause].filter(Boolean).join(' · ') || 'toque pra dizer quem matou';
+    return `
+        <div class="player-card eliminated elim-mini" data-player-id="${player.id}" data-rotation="0" style="--player-color: ${player.color};">
+            ${player.avatar ? `<img src="${escapeHtml(player.avatar)}" class="player-avatar" alt="">` : `<div class="player-avatar" style="background:${escapeHtml(player.color)}"></div>`}
+            <div class="elim-mini-info" data-action="death-info">
+                <div class="elim-mini-top">${placeBadge(place)}<span class="player-name">${escapeHtml(player.name)}</span></div>
+                <div class="elim-mini-sub">${escapeHtml(sub)}</div>
+            </div>
+            <button type="button" class="elim-mini-btn" data-action="death-info" title="Quem matou e como"><svg class="ic"><use href="#ic-skull"/></svg></button>
+            <button type="button" class="elim-mini-btn elim-mini-revive" data-action="revive" title="Reviver"><svg class="ic"><use href="#ic-heart"/></svg></button>
+        </div>`;
+}
 function renderPlayerCardHtml(player, index, state) {
+    if (player.isEliminated && state.settings.collapseEliminated !== false && state.gameStarted)
+        return renderEliminatedMiniHtml(player, state);
     const { layout } = state.settings;
     {
         const isActive = index === state.activePlayerIndex;
@@ -4182,7 +4622,7 @@ function renderPlayerCardHtml(player, index, state) {
             <div class="player-card ${classes}"
                  data-player-id="${player.id}"
                  data-rotation="${rotation}"
-                 style="--player-color: ${player.color}; grid-area: p${index};">
+                 style="--player-color: ${player.color}; grid-area: ${cardArea(player, index, state)};">
                 ${player.background ? `<div class="player-card-background has-background" style="${backgroundStyle}"></div>` : ''}
                 <div class="player-header">
                     <div class="player-info">
@@ -4616,7 +5056,7 @@ async function openCommanderSheet(playerId) {
                     ${c.edhrec_rank ? `<div class="cs-sheet-meta">EDHREC #${c.edhrec_rank}</div>` : ''}
                 </div>
             </div>
-            <div class="cs-sheet-oracle">${oracle ? escapeHtml(oracle).replace(/&lt;br&gt;/g, '<br>') : '<span class="update-muted">Sem texto.</span>'}</div>
+            <div class="cs-sheet-oracle">${oracle ? glossaryHtml(escapeHtml(oracle)).replace(/&lt;br&gt;/g, '<br>') : '<span class="update-muted">Sem texto.</span>'}</div>
             <div class="pe-actions">
                 <a class="cs-gallery-btn cs-sheet-link" href="https://edhrec.com/commanders/${edhrecSlug(c.name || player.deckName)}" target="_blank" rel="noopener"><svg class="ic"><use href="#ic-chart"/></svg> Abrir no EDHREC</a>
                 <a class="cs-gallery-btn cs-sheet-link" href="${escapeHtml(c.scryfall_uri || '#')}" target="_blank" rel="noopener"><svg class="ic"><use href="#ic-search"/></svg> Ver no Scryfall</a>
@@ -4756,6 +5196,7 @@ function bindPlayerCard(card, playerId) {
             openTauntModal(playerId);
         });
         // Revive button
+        card.querySelectorAll('[data-action="death-info"]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); openDeathDialog(playerId); }));
         card.querySelector('[data-action="revive"]')?.addEventListener('click', () => {
             handleRevivePlayer(playerId);
         });
@@ -4919,6 +5360,9 @@ function updateSettingsControls(state) {
     cbx('settings-haptics', state.settings.hapticsEnabled !== false);
     cbx('settings-avatars', state.settings.showAvatarsOnCards !== false);
     cbx('settings-dim-elim', state.settings.dimEliminated !== false);
+    cbx('settings-only-life', !!state.settings.onlyLife);
+    cbx('settings-collapse-elim', state.settings.collapseEliminated !== false);
+    renderStarterFairness();
     const segS = (id, v) => {
         document.querySelectorAll(`#${id} button[data-v]`).forEach((b) => b.classList.toggle('active', b.dataset.v === v));
     };
@@ -4926,6 +5370,7 @@ function updateSettingsControls(state) {
     segS('settings-btn-size', state.settings.buttonSize || 'normal');
     segS('settings-hold-step', String(state.settings.holdStep || 5));
     segS('settings-card-style', state.settings.cardStyle || 'gradient');
+    segS('settings-screen-rest', String(state.settings.screenRestMinutes ?? 2));
     const casualCb = document.getElementById('settings-casual');
     if (casualCb)
         casualCb.disabled = !!state.matchClosed;
@@ -5094,7 +5539,8 @@ function changeLifeWithFeedback(playerId, amount) {
     const lifeValue = newCard?.querySelector('.life-value');
     const indicator = newCard?.querySelector('.life-change-indicator');
     const newState = gameState.getState();
-    if (newState.settings.animationsEnabled) {
+    // Se o jogador caiu com esse toque, o card virou a tira de eliminado (sem número): nada pra animar.
+    if (newState.settings.animationsEnabled && lifeValue && indicator) {
         lifeValue.classList.remove('damage', 'heal', 'changed');
         void lifeValue.offsetWidth;
         lifeValue.classList.add(amount < 0 ? 'damage' : 'heal');
@@ -5237,9 +5683,13 @@ function startRandomStarterAnimation() {
             clearInterval(randomStarterAnimationInterval);
             randomStarterAnimationInterval = null;
         }
-        // Select random winner
-        const winnerIndex = gameState.selectRandomStarter();
+        // Sorteio justo: pesa contra quem começou as últimas partidas.
+        const winnerIndex = fairStarterIndex(gameState.getState().players);
+        gameState.setRandomStarterIndex(winnerIndex);
         const winner = gameState.getState().players[winnerIndex];
+        const noteEl = document.getElementById('random-starter-note');
+        if (noteEl)
+            noteEl.textContent = starterFairnessText(gameState.getState().players);
         // Show winner
         const playerElements = display.querySelectorAll('.random-starter-player');
         playerElements.forEach(el => el.classList.remove('highlight'));
@@ -6132,6 +6582,12 @@ function createParticles(playerId, type, count = 8) {
 // Winner display with epic animations
 function showWinner(player) {
     $('winner-name').textContent = player.name;
+    // Linha do tempo da partida no pódio (quedas, viradas, maior swing).
+    const tlEl = document.getElementById('winner-timeline');
+    if (tlEl) {
+        const s = gameState.getState();
+        tlEl.innerHTML = matchTimelineHtml(s.history.slice().reverse(), s.players.map(p => ({ id: p.id, name: p.name, color: p.color })), s.gameStartTime || Date.now() - 60000, Date.now(), s.settings.startingLife, player.id);
+    }
     $('winner-overlay').classList.add('active');
     audioManager.play('win', player.id);
     // Show share buttons when there's a winner
@@ -6680,7 +7136,7 @@ function generateShareImage() {
     // Gráfico de vida da partida (log em ordem cronológica)
     const events = state.history.slice().reverse();
     if (events.length > 1) {
-        canvas.height = 560;
+        canvas.height = 640;
         // redesenha o fundo pra área nova
         const grad2 = ctx.createLinearGradient(0, 400, 0, canvas.height);
         grad2.addColorStop(0, '#16213e');
@@ -6693,6 +7149,7 @@ function generateShareImage() {
         ctx.fillText('Vida ao longo da partida', 30, 405);
         const data = buildLifeSeries(events, state.players, state.settings.startingLife);
         drawLifeChart(ctx, data, 20, 412, canvas.width - 40, 118, state.settings.startingLife);
+        drawTimelineCanvas(ctx, events, state.players, state.gameStartTime || Date.now() - 60000, Date.now(), 30, 556, canvas.width - 60);
     }
     // Footer
     ctx.fillStyle = '#555';

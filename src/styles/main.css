@@ -8170,3 +8170,97 @@ body.seat-dragging .player-card { transition: filter 120ms ease, outline-color 1
 .seat-drag-ghost { white-space: nowrap; max-width: none; }
 .rules-sym { display: inline-block; min-width: 1.2em; padding: 0 0.3em; border-radius: 999px; background: rgba(255,255,255,0.14); font-size: 0.85em; text-align: center; }
 @media (orientation: landscape) and (max-height: 520px) { .home-resume { margin: 0.3rem 0; } }
+
+/* ===== v2.5.0: eliminado encolhe, só vida, descanso de tela, glossário, pergunta ao cair, linha do tempo ===== */
+.elim-strip { grid-area: elim; display: flex; gap: 0.375rem; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.elim-strip::-webkit-scrollbar { display: none; }
+.player-card.elim-mini { position: relative; flex: 1 1 0; min-width: 150px; height: 54px; display: flex; align-items: center; gap: 0.45rem; padding: 0.3rem 0.45rem; border-radius: 12px; opacity: 1; filter: none; border: 1px solid var(--border-color); background: linear-gradient(90deg, color-mix(in srgb, var(--player-color) 28%, var(--bg-secondary)), var(--bg-secondary)); animation: none; }
+.player-card.elim-mini .player-avatar { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; flex-shrink: 0; filter: grayscale(0.7); }
+.elim-mini-info { flex: 1; min-width: 0; cursor: pointer; }
+.elim-mini-top { display: flex; align-items: center; gap: 0.35rem; min-width: 0; }
+.elim-mini-top .player-name { font-size: 0.86rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.elim-mini-top .place-badge { transform: scale(0.85); transform-origin: left center; }
+.elim-mini-sub { font-size: 0.7rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.elim-mini-btn { width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.08); color: var(--text-secondary); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.elim-mini-btn .ic { width: 18px; height: 18px; }
+.elim-mini-revive { color: var(--success); }
+body[data-dim-elim="on"] .player-card.elim-mini { opacity: 0.92; }
+@media (orientation: landscape) and (max-height: 520px) {
+    .player-card.elim-mini { height: 44px; min-width: 130px; }
+    .player-card.elim-mini .player-avatar { width: 28px; height: 28px; }
+    .elim-mini-sub { display: none; }
+}
+
+/* Modo só vida: só o número e os ± (e o nome pequeno) */
+body[data-only-life="on"] .player-card:not(.elim-mini) .player-counters-float,
+body[data-only-life="on"] .player-card:not(.elim-mini) .cmd-bars,
+body[data-only-life="on"] .player-card:not(.elim-mini) .cmd-fab,
+body[data-only-life="on"] .player-card:not(.elim-mini) .player-commander,
+body[data-only-life="on"] .player-card:not(.elim-mini) .player-footer,
+body[data-only-life="on"] .player-card:not(.elim-mini) .player-tag,
+body[data-only-life="on"] .player-card:not(.elim-mini) .damage-shadow { display: none !important; }
+body[data-only-life="on"] .player-card:not(.elim-mini) .life-value { font-size: clamp(4.5rem, 24cqw, 11rem); }
+body[data-only-life="on"] .player-card:not(.elim-mini) .life-control { font-size: 2.4rem; }
+body[data-only-life="on"] .player-card:not(.elim-mini) .player-header { padding-bottom: 0.1rem; }
+
+/* Descanso de tela: preto puro, relógio e vidas */
+.screen-rest { position: fixed; inset: 0; z-index: 5000; background: #000; color: #ddd; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.6rem; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; animation: modalSlideIn 400ms ease; }
+.sr-clock { font-size: clamp(4rem, 22vmin, 11rem); font-weight: 900; line-height: 1; letter-spacing: -0.02em; color: #fff; font-variant-numeric: tabular-nums; }
+.sr-sub { font-size: clamp(0.9rem, 3vmin, 1.3rem); color: #9a9a9a; }
+.sr-lives { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem 1.2rem; margin-top: 0.8rem; max-width: 92vw; }
+.sr-life { display: inline-flex; align-items: center; gap: 0.45rem; font-size: clamp(1.1rem, 4.5vmin, 2rem); font-weight: 700; }
+.sr-life.dead { opacity: 0.35; text-decoration: line-through; }
+.sr-dot { width: 0.8em; height: 0.8em; border-radius: 50%; background: var(--player-color); }
+.sr-val { font-variant-numeric: tabular-nums; color: #fff; }
+.sr-hint { position: absolute; bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); font-size: 0.8rem; color: #555; letter-spacing: 0.08em; text-transform: uppercase; }
+
+/* Glossário no toque */
+.gl-term { text-decoration: underline dotted; text-underline-offset: 3px; text-decoration-color: var(--accent-primary); cursor: pointer; }
+.gl-pop { position: fixed; inset: 0; z-index: 4200; background: rgba(0,0,0,0.55); display: flex; align-items: flex-end; justify-content: center; animation: modalSlideIn 140ms ease; }
+.gl-pop-card { width: min(520px, 100%); background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 16px 16px 0 0; padding: 0.9rem 1rem calc(0.9rem + env(safe-area-inset-bottom, 0px)); box-shadow: var(--shadow-lg); }
+.gl-pop-head { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.4rem; }
+.gl-pop-term { font-weight: 800; font-size: 1.1rem; }
+.gl-pop-en { color: var(--text-muted); font-size: 0.85rem; }
+.gl-pop-body { font-size: 0.95rem; line-height: 1.45; }
+.gl-pop-actions { display: flex; gap: 0.5rem; margin-top: 0.8rem; }
+.gl-pop-actions .cs-gallery-btn { flex: 1; margin: 0; }
+@media (min-width: 641px) { .gl-pop { align-items: center; } .gl-pop-card { border-radius: 16px; } }
+
+/* Pergunta ao cair */
+.death-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.8rem; }
+.death-chip { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.7rem; border-radius: 999px; background: var(--bg-tertiary); color: var(--text-primary); font-weight: 600; font-size: 0.85rem; border: 2px solid transparent; }
+.death-chip.active { border-color: var(--player-color, var(--accent-primary)); background: color-mix(in srgb, var(--player-color, var(--accent-primary)) 22%, var(--bg-tertiary)); }
+#death-causes .death-chip.active { border-color: var(--accent-primary); background: color-mix(in srgb, var(--accent-primary) 22%, var(--bg-tertiary)); }
+
+/* Linha do tempo da partida */
+.match-timeline { margin: 0.4rem 0 0.6rem; }
+.tl-svg { width: 100%; height: auto; display: block; overflow: visible; }
+.tl-axis { stroke: var(--border-color); stroke-width: 3; stroke-linecap: round; }
+.tl-tick { stroke: var(--text-muted); stroke-width: 1.5; }
+.tl-tick-lbl { fill: var(--text-muted); font-size: 11px; }
+.tl-ini { fill: #fff; font-size: 11px; font-weight: 800; }
+.tl-elim line { stroke-width: 2; }
+.tl-big { font-size: 12px; font-weight: 800; }
+.tl-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.3rem; }
+.tl-chip { font-size: 0.74rem; padding: 0.2rem 0.55rem; border-radius: 999px; background: var(--bg-tertiary); color: var(--text-secondary); }
+.winner-timeline { width: min(640px, 92vw); margin: 0.4rem auto 0.8rem; background: rgba(0,0,0,0.35); border-radius: 12px; padding: 0.5rem 0.7rem; }
+.winner-timeline .tl-chip { background: rgba(255,255,255,0.1); color: #eee; }
+.winner-timeline .tl-tick-lbl { fill: #aaa; }
+.winner-timeline .tl-axis { stroke: rgba(255,255,255,0.35); }
+@media (orientation: landscape) and (max-height: 520px) { .winner-timeline { padding: 0.25rem 0.5rem; margin: 0.2rem auto 0.4rem; } .winner-timeline .tl-chips { display: none; } }
+
+/* Sorteio justo */
+.settings-starters .starter-fairness { grid-column: 1 / -1; font-size: 0.78rem; line-height: 1.35; }
+.random-starter-note { margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-secondary); max-width: 520px; margin-left: auto; margin-right: auto; }
+
+/* Perfil: como morre / como mata */
+.pp-causes { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+@media (max-width: 520px) { .pp-causes { grid-template-columns: 1fr; } }
+/* v2.5.0 ajustes: a tira do eliminado é uma linha (o card base é coluna) e não responde às container queries do card grande */
+.player-card.elim-mini { flex-direction: row; container-type: normal; min-height: 0; }
+.player-card.elim-mini .player-name { display: inline; }
+body[data-only-life="on"] .player-card:not(.elim-mini) .life-control { font-size: clamp(1.6rem, 10cqw, 2.4rem); }
+/* so vida: os botoes de mais/menos nao podem ser esmagados pelo numero em cards estreitos */
+body[data-only-life="on"] .player-card:not(.elim-mini) .life-control { flex: 0 0 2.4rem; font-size: 1.9rem; }
+body[data-only-life="on"] .player-card:not(.elim-mini) .life-display { flex: 1; min-width: 0; }
+body[data-only-life="on"] .player-card:not(.elim-mini) .life-value { font-size: clamp(2.6rem, 34cqw, 11rem); }

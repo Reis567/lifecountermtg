@@ -129,6 +129,8 @@ class Match(models.Model):
     # Log completo de eventos da partida (vida, dano de comandante, mortes...),
     # do jeito que o app guarda em GameState.history.
     events = models.JSONField('Eventos', default=list, blank=True)
+    # Quem começou a partida (jogador da vez no turno 1) — sorteio justo e estatística.
+    starter_profile = models.ForeignKey(Profile, related_name='started_matches', null=True, blank=True, on_delete=models.SET_NULL)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -156,6 +158,8 @@ class MatchPlacement(models.Model):
     # Detalhes opcionais do fim da partida pra esse jogador.
     final_life = models.IntegerField('Vida final', null=True, blank=True)
     eliminated_by = models.CharField('Eliminado por', max_length=40, blank=True, default='')
+    # combat | commander | combo | poison | mill | concede | other (vazio = não informado)
+    death_cause = models.CharField('Como foi eliminado', max_length=20, blank=True, default='')
     commander_deaths = models.PositiveSmallIntegerField('Mortes do comandante', default=0)
 
     class Meta:

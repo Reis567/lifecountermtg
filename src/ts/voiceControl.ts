@@ -51,7 +51,8 @@ interface VoiceCommand {
     dice?: string;
     action?: 'randomStarter' | 'viado' | 'undo' | 'nextTurn' | 'ranking' | 'history' | 'profiles' | 'update'
         | 'settings' | 'tools' | 'fullscreen' | 'timerOn' | 'timerOff' | 'reset' | 'help' | 'stopVoice'
-        | 'soundOn' | 'soundOff' | 'narratorOn' | 'narratorOff' | 'celebrate' | 'escandalosaOn' | 'escandalosaOff';
+        | 'soundOn' | 'soundOff' | 'narratorOn' | 'narratorOff' | 'celebrate' | 'escandalosaOn' | 'escandalosaOff'
+        | 'onlyLifeOn' | 'onlyLifeOff';
     massLife?: number;
     massSet?: number;
     query?: 'status' | 'life' | 'leader' | 'turn' | 'time';
@@ -334,6 +335,7 @@ function vcParseGlobal(text: string): VoiceCommand | null {
     if (/\b(som|sons|audio)\b/.test(text) && /liga|ativa|volta/.test(text)) return { action: 'soundOn' };
     if (/narrador/.test(text)) return { action: /desliga|cala|para|sem|mudo/.test(text) ? 'narratorOff' : 'narratorOn' };
     if (/escandal/.test(text)) return { action: /desliga|sem|tira/.test(text) ? 'escandalosaOff' : 'escandalosaOn' };
+    if (/modo so vida|so vida|modo simples|modo completo|modo normal/.test(text)) return { action: /completo|normal|desliga|sai/.test(text) ? 'onlyLifeOff' : 'onlyLifeOn' };
     if (/\b(reinicia|reiniciar|resetar|reseta|recomeca|recomecar|zera a partida|nova partida)\b/.test(text)) return { action: 'reset' };
 
     // Perguntas: "como ta a mesa", "quem ta ganhando", "que turno"
@@ -548,6 +550,8 @@ function vcApply(cmd: VoiceCommand): void {
         else if (a === 'soundOff') { gameState.updateSettings({ soundEnabled: false }); vcToast('🔇 Som desligado', true); }
         else if (a === 'narratorOn') { gameState.updateSettings({ narratorEnabled: true }); vcToast('🎙️ Narrador ligado', true); }
         else if (a === 'narratorOff') { gameState.updateSettings({ narratorEnabled: false }); vcToast('🤐 Narrador desligado', true); }
+        else if (a === 'onlyLifeOn') { gameState.updateSettings({ onlyLife: true }); vcToast('Modo só vida', true); }
+        else if (a === 'onlyLifeOff') { gameState.updateSettings({ onlyLife: false }); vcToast('Modo completo', true); }
         else if (a === 'escandalosaOn') { gameState.updateSettings({ escandalosaEnabled: true }); vcToast('🚨 Vitória escandalosa ligada', true); }
         else if (a === 'escandalosaOff') { gameState.updateSettings({ escandalosaEnabled: false }); vcToast('🤫 Vitória escandalosa desligada', true); }
         else if (a === 'reset') { vcActions.reset?.(); }
@@ -1039,7 +1043,7 @@ const VC_HELP: Array<[string, string[]]> = [
     ['Mesa', ['"próximo turno" · "desfazer" · "quem começa"', '"sortear viado" · "rola um d20" · "cara ou coroa"', '"reiniciar partida" · "tela cheia" · "timer ligado"']],
     ['Perguntas', ['"como tá a mesa" · "quanto de vida tem o Zé"', '"quem tá ganhando" · "que turno" · "quanto tempo"']],
     ['Juiz (IA)', ['"como funciona ward" · "o que faz Rhystic Study"', '"juiz, posso responder a um counter com outro counter?"', 'A resposta aparece na mesa e é falada; se for sobre uma carta, mostra a carta.']],
-    ['Som e visual', ['"tema escuro/vermelho/streamer"', '"música épica/sombria/parar"', '"som desligado" · "narrador ligado"', '"vitória escandalosa desligada"']],
+    ['Som e visual', ['"tema escuro/vermelho/streamer"', '"música épica/sombria/parar"', '"som desligado" · "narrador ligado"', '"vitória escandalosa desligada"', '"modo só vida" · "modo completo"']],
     ['Telas', ['"ranking" · "histórico" · "perfis"', '"configurações" · "ferramentas" · "atualização"']],
     ['Microfone', ['Segure o botão no meio da mesa, fale e solte (como áudio do WhatsApp).', 'Toque rápido: fica ouvindo até o próximo toque ou até aplicar o comando.', 'Mãos livres: Ferramentas › Comando de voz, aí diga "contador" antes de cada comando.']],
 ];
