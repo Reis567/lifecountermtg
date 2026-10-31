@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>LifeCounter 2.5.3</title>
+<style>
+  :root { --ink: #16161a; --muted: #5d5d66; --line: #e3e3ea; --accent: #6366f1; --bg: #ffffff; --soft: #f5f5fa; --bad: #b91c1c; --good: #15803d; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Inter, Arial, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.5; }
+  .page { max-width: 900px; margin: 0 auto; padding: 36px 32px 48px; }
+  header { border-bottom: 3px solid var(--accent); padding-bottom: 16px; margin-bottom: 28px; }
+  .kicker { color: var(--accent); font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; font-size: 12px; }
+  h1 { margin: 4px 0 6px; font-size: 34px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); font-size: 15px; }
+  h2 { font-size: 22px; margin: 36px 0 8px; padding-top: 8px; border-top: 1px solid var(--line); break-after: avoid; }
+  h2 small { color: var(--muted); font-weight: 500; font-size: 13px; margin-left: 8px; }
+  p { margin: 6px 0 10px; }
+  ul { margin: 6px 0 10px; padding-left: 20px; }
+  li { margin: 3px 0; }
+  .lead { font-size: 16px; color: #2b2b33; }
+  .toc { background: var(--soft); border-radius: 12px; padding: 14px 18px; margin: 18px 0 8px; }
+  .toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+  .toc li { break-inside: avoid; }
+  .shots { display: flex; gap: 14px; align-items: flex-start; margin: 12px 0 6px; break-inside: avoid; }
+  .shot { flex: 1; min-width: 0; }
+  .shot img { width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); box-shadow: 0 6px 20px rgba(0,0,0,0.08); display: block; }
+  .shot.phone { flex: 0 0 31%; }
+  .shot.land { flex: 1; }
+  .cap { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .cap b.antes { color: var(--bad); } .cap b.depois { color: var(--good); }
+  .how { background: var(--soft); border-left: 3px solid var(--accent); padding: 8px 12px; border-radius: 0 10px 10px 0; margin: 8px 0 12px; font-size: 14px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0 12px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--soft); }
+  code { background: var(--soft); padding: 1px 5px; border-radius: 5px; font-size: 12.5px; }
+  footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+  @page { size: A4; margin: 14mm 12mm; }
+  @media print { .page { padding: 0; max-width: none; } h2 { page-break-after: avoid; } .shots { page-break-inside: avoid; } }
+</style>
+</head>
+<body>
+<div class="page">
+<header>
+  <div class="kicker">Notas da atualização</div>
+  <h1>LifeCounter 2.5.3</h1>
+  <div class="sub">31 de outubro de 2026 · APK code 28 · site lifecounter.mreis.site · atualização automática pelo app</div>
+</header>
+
+<p class="lead">Versão de som. Quando alguém é eliminado, em vez do "fon fon fon fooooom" sintetizado, a mesa agora ouve o áudio do amigo mandando <b>"faz o L"</b>. Dá pra voltar ao clássico em Configurações › Som. E, de quebra, um bug antigo que o áudio novo escancarou foi corrigido: o som de morte repetia a cada toque de vida depois da primeira eliminação.</p>
+
+<div class="toc">
+  <ol>
+    <li>"Faz o L" na eliminação</li>
+    <li>Voltar ao clássico (ou só ouvir antes)</li>
+    <li>Bug antigo: som de morte repetia a cada toque</li>
+    <li>Quem tem som próprio continua com o dele</li>
+    <li>Nos bastidores e como atualizar</li>
+  </ol>
+</div>
+
+<h2>1. "Faz o L" na eliminação <small>em pé e deitado</small></h2>
+<p>O áudio veio do WhatsApp (3 s, voz) e virou o som padrão de morte. Foi convertido pra mp3 como os outros sons do app, cortando 1,1 s de silêncio puro que havia antes da voz: fica com 2,1 s e começa a falar na hora em que o jogador cai. O volume já era parecido com o dos sons atuais (média -15 dB contra -10 a -17 dB dos outros), então não precisou de ajuste. Toca no navegador e no APK, e várias mortes seguidas tocam uma por cima da outra sem cortar.</p>
+<div class="shots">
+  <div class="shot phone"><img src="./k01-morte-em-pe.png" alt=""><div class="cap"><b class="depois">Em pé,</b> mesa de 5: a primeira queda toca o "faz o L".</div></div>
+  <div class="shot phone"><img src="./k02-tres-mortes-em-pe.png" alt=""><div class="cap"><b class="depois">Três mortes seguidas:</b> três toques, um por morte.</div></div>
+</div>
+<div class="shots">
+  <div class="shot land"><img src="./k05-duas-mortes-deitado.png" alt=""><div class="cap"><b class="depois">Deitado,</b> duas mortes com 40 toques de vida no meio: só dois "faz o L".</div></div>
+</div>
+
+<h2>2. Voltar ao clássico (ou só ouvir antes) <small>Configurações › Som</small></h2>
+<p>É a voz de uma pessoa específica. Numa mesa com gente de fora pode não fazer sentido, então a escolha fica em <b>Configurações › Som › Som de morte</b>: "Faz o L (voz)" ou "Clássico" (o fon fon fon de sempre). O botão <b>Ouvir</b> toca o que está escolhido, pra não precisar matar ninguém pra testar. A preferência fica salva no aparelho. "Silenciar tudo" e o modo silencioso continuam valendo pra ele também.</p>
+<div class="shots">
+  <div class="shot phone"><img src="./k03-config-som-em-pe.png" alt=""><div class="cap"><b class="depois">Em pé.</b> Seletor e "Ouvir" na mesma linha.</div></div>
+  <div class="shot phone"><img src="./k04-config-som-classico.png" alt=""><div class="cap"><b class="depois">Clássico escolhido:</b> a morte volta a ser o fon fon fon.</div></div>
+</div>
+<div class="shots">
+  <div class="shot land"><img src="./k06-config-som-deitado.png" alt=""><div class="cap"><b class="depois">Deitado.</b></div></div>
+</div>
+
+<h2>3. Bug antigo: som de morte repetia a cada toque <small>desde fevereiro</small></h2>
+<p>Ao testar o áudio novo, o QA contou 43 "faz o L" numa partida com duas mortes. A causa estava lá desde a versão que trouxe os sons personalizados (fevereiro de 2026): a cada atualização da mesa sem vencedor, o app zerava a lista de "mortes já anunciadas" e, no toque de vida seguinte, anunciava de novo todo mundo que já tinha caído. Com o fon fon fon de 1 s isso passava como um "eco"; com uma voz de 2 s ficava impossível de ignorar. Agora a lista só é zerada quando a partida é reiniciada ou uma nova começa. O mesmo conserto vale pro narrador e pra animação de morte por comandante, que também repetiam.</p>
+<div class="how">Verificado: na mesma partida de duas mortes, 40 toques de vida depois da primeira queda não tocaram nada além dos próprios "dano". Antes do conserto: 43 toques do som de morte.</div>
+
+<h2>4. Quem tem som próprio continua com o dele</h2>
+<ul>
+  <li><b>Ordem de prioridade mantida:</b> som personalizado do jogador (gravado no aparelho) › som do perfil guardado no servidor › som padrão. O "faz o L" é só o padrão novo.</li>
+  <li><b>Rede de segurança:</b> se o mp3 não carregar (arquivo faltando, bloqueado, formato), o app percebe e toca o fon fon fon sintetizado em vez de ficar mudo. Antes, um arquivo com erro deixava a morte em silêncio.</li>
+</ul>
+
+<h2>5. Nos bastidores e como atualizar</h2>
+<table>
+  <tr><th>Onde</th><th>O que mudou</th></tr>
+  <tr><td>Áudio</td><td><code>faz-o-l.mp3</code> na raiz (44,1 kHz mono, 2,09 s, -15,3 dB médio, pico -0,8 dB), copiado pro Android pelo <code>build-bundle.mjs</code> como os outros mp3. Convertido do .ogg (opus) do WhatsApp com o ffmpeg do pacote imageio_ffmpeg (o do Playwright é um build mínimo, sem opus nem mp3).</td></tr>
+  <tr><td>audio.ts</td><td><code>soundFiles.death = 'faz-o-l.mp3'</code>; <code>failedFiles</code> marca arquivo que deu erro no carregamento e <code>playSoundFile</code> devolve <code>false</code> pra cair no sintetizado; <code>playSynthSound</code> separado de <code>playDefaultSound</code>; com <code>deathSound === 'classic'</code> o <code>death</code> vai direto no sintetizado. Precedência personalizado › servidor › padrão intacta.</td></tr>
+  <tr><td>Configurações</td><td><code>settings.deathSound: 'voice' | 'classic'</code> (padrão <code>voice</code>, migração de estado antigo); select <code>#death-sound</code> + botão <code>#death-sound-test</code> na aba Som.</td></tr>
+  <tr><td>ui.ts</td><td><code>hideShareButtons()</code> não zera mais <code>eliminatedPlayersShown</code> (era chamado em todo <code>renderGame</code> sem vencedor); o zerar foi pros três pontos de nova partida/reset/voltar pra home.</td></tr>
+  <tr><td>Versão</td><td>2.5.3, code 28, nos dois lugares (<code>build.gradle.kts</code> e <code>updater.ts</code>). APK <code>LifeCounter-v2.5.3.apk</code> na raiz.</td></tr>
+  <tr><td>Testes</td><td>QA novo (qa14) com 26 verificações: instrumenta o <code>play()</code> dos elementos de áudio (arquivo, evento <i>playing</i>, duração, fim, erro, volume) e a nota grave exclusiva do fon fon fon. Cobre três mortes seguidas em pé, duas deitado, toques depois da morte, Ouvir, Clássico (inclusive morte real e reload), som pessoal vencendo o padrão e o fallback com o mp3 bloqueado. Suítes anteriores (qa13, qa11, qa10) sem regressão; zero erros de JS.</td></tr>
+</table>
+<p><b>Como atualizar.</b> No Android, o app avisa ao abrir e instala com um toque (ou Configurações › Atualização). No navegador basta recarregar.</p>
+
+<footer>LifeCounter 2.5.3 (code 28) · lifecounter.mreis.site · notas geradas em 31/10/2026</footer>
+</div>
+</body>
+</html>

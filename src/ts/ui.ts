@@ -72,6 +72,7 @@ import {
     FontStyle,
     AmbientMusicTrack,
     SoundPack,
+    DeathSound,
 } from './types.js';
 
 // ===== Secure Random Functions =====
@@ -1931,6 +1932,7 @@ function goHomeAfterMatch(): void {
     stopEscandalosa();
     gameState.newGame();
     hideShareButtons();
+    eliminatedPlayersShown.clear();
     clearAllDamageShadows();
     closeAllModals();
     window.scrollTo(0, 0);
@@ -2966,6 +2968,12 @@ function setupSettingsListeners(): void {
         audioManager.setSoundPack(pack);
     });
 
+    $('death-sound')?.addEventListener('change', (e) => {
+        gameState.updateSettings({ deathSound: (e.target as HTMLSelectElement).value as DeathSound });
+    });
+    // Ouvir o som de morte escolhido (sem jogador: toca o padrão, nunca o som pessoal de alguém)
+    $('death-sound-test')?.addEventListener('click', () => audioManager.play('death'));
+
     $('mute-all-btn')?.addEventListener('click', () => {
         gameState.updateSettings({ soundEnabled: false });
         ($('sound-enabled') as HTMLInputElement).checked = false;
@@ -3161,6 +3169,7 @@ function setupSettingsListeners(): void {
         maybeAskPodium(gameState.getState(), () => {
             gameState.resetGame(res.checkbox);
             hideShareButtons();
+            eliminatedPlayersShown.clear();
             clearAllDamageShadows();
             closeAllModals();
         });
@@ -3171,6 +3180,7 @@ function setupSettingsListeners(): void {
         maybeAskPodium(gameState.getState(), () => {
             gameState.newGame();
             hideShareButtons();
+            eliminatedPlayersShown.clear();
             clearAllDamageShadows();
             closeAllModals();
         });
@@ -3184,7 +3194,8 @@ function hideShareButtons(): void {
     if (shareBtn) shareBtn.style.display = 'none';
     if (shareBtnRight) shareBtnRight.style.display = 'none';
     lastShownWinnerId = null;
-    eliminatedPlayersShown.clear(); // Reset eliminated tracking
+    // (nao zera eliminatedPlayersShown aqui: renderGame chama isso a cada render sem vencedor,
+    //  e zerar fazia o som de morte tocar de novo a cada toque de vida depois da 1a eliminacao)
 }
 
 function setupPlayerSettingsListeners(): void {
@@ -4300,7 +4311,7 @@ function renderGame(state: GameState): void {
     state.players.forEach(player => {
         if (player.isEliminated && !eliminatedPlayersShown.has(player.id)) {
             eliminatedPlayersShown.add(player.id);
-            audioManager.play('death', player.id); // "Fon fon fon fooooom"
+            audioManager.play('death', player.id); // som de morte: "faz o L" (mp3) ou o fon fon fon (clássico/fallback)
             narrateElimination(player.name); // narrador/roast (IA) na morte
             // Animação de kill por comandante: o card do alvo "explode" e o do atacante pulsa.
             const elimEv = state.history.find(e => e.type === 'player_eliminated' && e.playerId === player.id);
@@ -5436,6 +5447,8 @@ function updateSettingsControls(state: GameState): void {
     const voiceSel = $('narrator-voice') as HTMLSelectElement | null;
     if (voiceSel) voiceSel.value = state.settings.narratorVoice === 'gemini' ? 'gemini' : 'default';
     ($('sound-pack') as HTMLSelectElement).value = state.settings.soundPack;
+    const dsSel = $('death-sound') as HTMLSelectElement | null;
+    if (dsSel) dsSel.value = state.settings.deathSound || 'voice';
     ($('gif-paused') as HTMLInputElement).checked = state.settings.gifPaused;
     ($('gif-fps-reduced') as HTMLInputElement).checked = state.settings.gifFpsReduced;
     ($('turn-timer-enabled') as HTMLInputElement).checked = state.settings.turnTimerEnabled;

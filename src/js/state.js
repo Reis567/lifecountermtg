@@ -172,6 +172,7 @@ export function createDefaultSettings(playerCount = 4) {
         silentMode: false,
         narratorPersona: 'classic',
         soundPack: 'default',
+        deathSound: 'voice',
         lifeFontSize: 'normal',
         buttonSize: 'normal',
         holdStep: 5,
@@ -360,6 +361,8 @@ class GameStateManager {
                     parsed.settings.silentMode = false;
                 if (!parsed.settings.soundPack)
                     parsed.settings.soundPack = 'default';
+                if (!parsed.settings.deathSound)
+                    parsed.settings.deathSound = 'voice';
                 if (parsed.casual === undefined)
                     parsed.casual = false;
                 if (parsed.starterPlayerId === undefined)

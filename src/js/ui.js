@@ -1858,6 +1858,7 @@ function goHomeAfterMatch() {
     stopEscandalosa();
     gameState.newGame();
     hideShareButtons();
+    eliminatedPlayersShown.clear();
     clearAllDamageShadows();
     closeAllModals();
     window.scrollTo(0, 0);
@@ -2891,6 +2892,11 @@ function setupSettingsListeners() {
         gameState.updateSettings({ soundPack: pack });
         audioManager.setSoundPack(pack);
     });
+    $('death-sound')?.addEventListener('change', (e) => {
+        gameState.updateSettings({ deathSound: e.target.value });
+    });
+    // Ouvir o som de morte escolhido (sem jogador: toca o padrão, nunca o som pessoal de alguém)
+    $('death-sound-test')?.addEventListener('click', () => audioManager.play('death'));
     $('mute-all-btn')?.addEventListener('click', () => {
         gameState.updateSettings({ soundEnabled: false });
         $('sound-enabled').checked = false;
@@ -3062,6 +3068,7 @@ function setupSettingsListeners() {
         maybeAskPodium(gameState.getState(), () => {
             gameState.resetGame(res.checkbox);
             hideShareButtons();
+            eliminatedPlayersShown.clear();
             clearAllDamageShadows();
             closeAllModals();
         });
@@ -3072,6 +3079,7 @@ function setupSettingsListeners() {
         maybeAskPodium(gameState.getState(), () => {
             gameState.newGame();
             hideShareButtons();
+            eliminatedPlayersShown.clear();
             clearAllDamageShadows();
             closeAllModals();
         });
@@ -3086,7 +3094,8 @@ function hideShareButtons() {
     if (shareBtnRight)
         shareBtnRight.style.display = 'none';
     lastShownWinnerId = null;
-    eliminatedPlayersShown.clear(); // Reset eliminated tracking
+    // (nao zera eliminatedPlayersShown aqui: renderGame chama isso a cada render sem vencedor,
+    //  e zerar fazia o som de morte tocar de novo a cada toque de vida depois da 1a eliminacao)
 }
 function setupPlayerSettingsListeners() {
     // Color options
@@ -4208,7 +4217,7 @@ function renderGame(state) {
     state.players.forEach(player => {
         if (player.isEliminated && !eliminatedPlayersShown.has(player.id)) {
             eliminatedPlayersShown.add(player.id);
-            audioManager.play('death', player.id); // "Fon fon fon fooooom"
+            audioManager.play('death', player.id); // som de morte: "faz o L" (mp3) ou o fon fon fon (clássico/fallback)
             narrateElimination(player.name); // narrador/roast (IA) na morte
             // Animação de kill por comandante: o card do alvo "explode" e o do atacante pulsa.
             const elimEv = state.history.find(e => e.type === 'player_eliminated' && e.playerId === player.id);
@@ -5411,6 +5420,9 @@ function updateSettingsControls(state) {
     if (voiceSel)
         voiceSel.value = state.settings.narratorVoice === 'gemini' ? 'gemini' : 'default';
     $('sound-pack').value = state.settings.soundPack;
+    const dsSel = $('death-sound');
+    if (dsSel)
+        dsSel.value = state.settings.deathSound || 'voice';
     $('gif-paused').checked = state.settings.gifPaused;
     $('gif-fps-reduced').checked = state.settings.gifFpsReduced;
     $('turn-timer-enabled').checked = state.settings.turnTimerEnabled;

@@ -93,6 +93,7 @@ export interface GameSettings {
     narratorVolume: number; // 0-100 (separado dos efeitos e da música)
     narratorPersona: NarratorPersona;
     soundPack: SoundPack;
+    deathSound: DeathSound; // som da eliminação (v2.5.3): voz "faz o L" ou o clássico sintetizado
     silentMode: boolean; // um toque: corta efeitos, música, narrador e sirene
     // Personalização da mesa (v2.3.0)
     lifeFontSize: 'small' | 'normal' | 'large'; // tamanho do número da vida
@@ -111,6 +112,7 @@ export interface GameSettings {
 export type NarratorPersona = 'classic' | 'futebol' | 'galvao' | 'novela' | 'caze';
 export type AmbientMusicTrack = 'none' | 'epic' | 'dark' | 'nature' | 'mystical';
 export type SoundPack = 'default' | 'medieval' | 'scifi' | 'horror' | 'arcade';
+export type DeathSound = 'voice' | 'classic'; // 'voice' = "faz o L" (faz-o-l.mp3); 'classic' = fon fon fon sintetizado
 
 export type AnimatedBgStyle = 'none' | 'stars' | 'mana' | 'sparks' | 'bubbles' | 'matrix';
 export type FontStyle = 'default' | 'beleren' | 'pixel' | 'gothic' | 'elegant' | 'rounded';

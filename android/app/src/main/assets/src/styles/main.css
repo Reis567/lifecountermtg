@@ -8425,3 +8425,8 @@ body[data-only-life="on"] .player-card:not(.elim-mini) .life-value { font-size: 
 /* Barras de comandante em cima da pilula (as duas so existem juntas): nada mais se sobrepoe no canto do card */
 .player-card:not(.elim-mini) .cmd-bars { bottom: calc(0.4rem + 46px); width: min(46%, 150px); max-width: none; }
 .players-grid[data-players="5"] .cmd-bars, .players-grid[data-players="6"] .cmd-bars { bottom: calc(0.4rem + 42px); }
+
+/* ===== 2.5.3: Som de morte (Configuracoes > Som) ===== */
+/* select + "Ouvir" na mesma linha sem quebrar o rotulo em pe (o select padrao ocupa 55% da linha) */
+.setting-item #death-sound { max-width: 42%; flex: 0 1 auto; }
+.setting-item #death-sound-test { flex-shrink: 0; padding: 0.45rem 0.7rem; }

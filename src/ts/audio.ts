@@ -30,7 +30,10 @@ class AudioManager {
         viado: 'viado.mp3',           // "eu não nasci gay a culpa é do meu pai"
         fluminense: 'fluminense.mp3', // Hino do Fluminense (easter egg)
         monark: 'monark.mp3',         // Monark "acorda cara" (easter egg)
+        death: 'faz-o-l.mp3',         // "faz o L" (áudio do amigo) na eliminação; se falhar, fon fon fon sintetizado
     };
+    // Arquivos que falharam ao carregar (404, formato, etc.): playSoundFile devolve false e cai no sintetizado.
+    private failedFiles: Set<string> = new Set();
 
     constructor() {
         this.sounds = new Map();
@@ -44,6 +47,7 @@ class AudioManager {
         for (const [name, path] of Object.entries(this.soundFiles)) {
             const audio = new Audio(path);
             audio.preload = 'auto';
+            audio.addEventListener('error', () => { this.failedFiles.add(name); console.warn(`Som "${name}" (${path}) não carregou; usando o sintetizado.`); });
             this.sounds.set(name, audio);
         }
     }
@@ -192,6 +196,12 @@ class AudioManager {
             }
         }
 
+        // Som de morte "clássico" escolhido em Configurações > Som: pula o mp3 e vai direto no fon fon fon.
+        if (soundName === 'death' && state.settings.deathSound === 'classic') {
+            this.playSynthSound(soundName, volume);
+            return;
+        }
+
         // Play default sound
         this.playDefaultSound(soundName, volume);
     }
@@ -274,7 +284,7 @@ class AudioManager {
     // Play a sound file
     private playSoundFile(soundName: string, volume: number): boolean {
         const audio = this.sounds.get(soundName);
-        if (!audio) return false;
+        if (!audio || this.failedFiles.has(soundName) || audio.error) return false;
 
         try {
             // Clone the audio to allow overlapping plays
@@ -288,7 +298,7 @@ class AudioManager {
         }
     }
 
-    // Play default built-in sound
+    // Play default built-in sound: arquivo mp3 primeiro, sintetizado como rede de segurança
     private playDefaultSound(soundName: string, volume: number): void {
         // Try to play sound file first
         if (this.playSoundFile(soundName, volume)) {
@@ -296,6 +306,11 @@ class AudioManager {
         }
 
         // Fall back to synthesized sound
+        this.playSynthSound(soundName, volume);
+    }
+
+    // Som sintetizado (WebAudio): packs de damage/heal e o "fon fon fon fooooom" da morte
+    private playSynthSound(soundName: string, volume: number): void {
         const audioContext = this.getAudioContext();
         if (!audioContext) return;
 
