@@ -1575,11 +1575,11 @@ function setupGameScreenListeners() {
     $('end-game-winner-btn')?.addEventListener('click', () => {
         stopEscandalosa();
         $('winner-overlay').classList.remove('active');
-        finishMatch();
+        finishMatch(goHomeAfterMatch);
     });
     $('end-game-btn')?.addEventListener('click', () => {
         closeModal($('settings-modal'));
-        finishMatch();
+        finishMatch(goHomeAfterMatch);
     });
     // Modo silencioso (um toque): corta efeitos, música e narrador.
     const toggleSilent = () => {
@@ -1852,9 +1852,25 @@ function matchNotRankable(state) {
     }
     return null;
 }
-function finishMatch(onDone) {
+// Depois de encerrar pelo botão "Encerrar partida": a mesa zera (mantendo quem
+// estava nela) e o app volta pra home. Antes a mesa só ficava "congelada".
+function goHomeAfterMatch() {
+    stopEscandalosa();
+    gameState.newGame();
+    hideShareButtons();
+    clearAllDamageShadows();
+    closeAllModals();
+    window.scrollTo(0, 0);
+}
+// onDone: a partida foi encerrada (salva ou não). onCancel: o usuário desistiu
+// de encerrar (X do pódio) e a mesa continua como estava.
+function finishMatch(onDone, onCancel) {
     const state = gameState.getState();
-    if (!state.gameStarted || state.matchClosed || state.players.length < 2) {
+    if (!state.gameStarted || state.players.length < 2) {
+        onCancel?.();
+        return;
+    }
+    if (state.matchClosed) {
         onDone?.();
         return;
     }
@@ -1885,7 +1901,7 @@ function finishMatch(onDone) {
         gameState.closeMatch();
         showSpecialMoment('🏁 Partida encerrada sem contar pro ranking', 'warning');
         onDone?.();
-    }, { skipLabel: 'Encerrar sem contar pro ranking', onCancel: () => onDone?.() });
+    }, { skipLabel: 'Encerrar sem contar pro ranking', onCancel: () => onCancel?.() });
 }
 function updateEndGameButtons(state) {
     const closed = state.matchClosed;

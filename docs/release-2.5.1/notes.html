@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<title>LifeCounter 2.5.1</title>
+<title>LifeCounter 2.5.1 / 2.5.2</title>
 <style>
   :root { --ink: #16161a; --muted: #5d5d66; --line: #e3e3ea; --accent: #6366f1; --bg: #ffffff; --soft: #f5f5fa; --bad: #b91c1c; --good: #15803d; }
   * { box-sizing: border-box; }
@@ -42,8 +42,8 @@
 <div class="page">
 <header>
   <div class="kicker">Notas da atualização</div>
-  <h1>LifeCounter 2.5.1</h1>
-  <div class="sub">31 de outubro de 2026 · APK code 26 · site lifecounter.mreis.site · atualização automática pelo app</div>
+  <h1>LifeCounter 2.5.1 / 2.5.2</h1>
+  <div class="sub">31 de outubro de 2026 · APK code 27 · site lifecounter.mreis.site · atualização automática pelo app</div>
 </header>
 
 <p class="lead">Versão de acabamento. Os próprios prints das notas da 2.5.0 mostravam defeitos visuais: o pódio deixava a mesa vazar por trás e, deitado, empilhava tudo; a linha do tempo cortava o rótulo do fim; o microfone engolia o nome de quem estava no canto; as barras de comandante entravam embaixo do número da vida. Tudo isso foi corrigido, com antes e depois abaixo.</p>
@@ -56,6 +56,7 @@
     <li>Dano de comandante no card, sem sobreposição</li>
     <li>Tira do eliminado em paisagem</li>
     <li>Pequenos acertos de texto e controles</li>
+    <li>2.5.2: Encerrar partida volta pra home</li>
     <li>Nos bastidores e como atualizar</li>
   </ol>
 </div>
@@ -143,18 +144,25 @@
   <div class="shot phone"><img src="./i14-so-vida-em-pe.png" alt=""><div class="cap"><b class="depois">Só vida,</b> sem fantasma.</div></div>
 </div>
 
-<h2>7. Nos bastidores e como atualizar</h2>
+<h2>7. 2.5.2: Encerrar partida volta pra home <small>mesmo dia</small></h2>
+<p>"Encerrar partida" (nas Configurações ou no pódio de vitória) encerrava a mesa mas deixava a tela congelada no jogo. Agora, depois de salvar no ranking ou de "Encerrar sem contar pro ranking", o app volta pra home com os mesmos jogadores já escolhidos, pronto pra próxima. O X do pódio continua mantendo a mesa como estava.</p>
+<div class="shots">
+  <div class="shot land"><img src="./j01-home-depois-de-encerrar.png" alt=""><div class="cap"><b class="depois">Depois de encerrar:</b> home, com a mesa pronta pra próxima partida.</div></div>
+</div>
+
+<h2>8. Nos bastidores e como atualizar</h2>
 <table>
   <tr><th>Onde</th><th>O que mudou</th></tr>
   <tr><td>Pódio</td><td>HTML do overlay reorganizado em <code>.winner-hero</code> + linha do tempo + <code>.winner-actions</code>; grade de duas colunas em paisagem; fundo 0,985 de opacidade com desfoque; troféu <code>#ic-trophy</code>.</td></tr>
   <tr><td>Linha do tempo</td><td><code>matchTimelineHtml</code>: altura 112, eixo em 60, rótulo da duração com três posições candidatas conforme as quedas perto do fim.</td></tr>
   <tr><td>Microfone</td><td><code>syncFabCutRadius</code> lê o tamanho real do botão; regras de <code>data-notch</code> dentro de <code>@container (max-width: 150px)</code>.</td></tr>
   <tr><td>Card</td><td><code>.cmd-risk</code> oculto; <code>.cmd-bars</code> acima da pílula; em paisagem as barras somem e, com 5+, a pílula fica compacta.</td></tr>
+  <tr><td>Encerrar partida</td><td><code>finishMatch(onDone, onCancel)</code>: os botões passam <code>goHomeAfterMatch</code> (newGame mantendo o roster + fecha modais); o X chama só <code>onCancel</code>.</td></tr>
   <tr><td>Testes</td><td>QA automatizado novo (qa12) com 27 verificações cobrindo cada defeito desta nota, em pé e deitado; suítes anteriores sem regressão; zero erros de JS.</td></tr>
 </table>
-<p><b>Como atualizar.</b> No Android, o app avisa ao abrir e instala com um toque (ou Configurações › Atualização). No navegador basta recarregar; o site já está na 2.5.1.</p>
+<p><b>Como atualizar.</b> No Android, o app avisa ao abrir e instala com um toque (ou Configurações › Atualização). No navegador basta recarregar; o site já está na 2.5.2.</p>
 
-<footer>LifeCounter 2.5.1 (code 26) · lifecounter.mreis.site · notas geradas em 31/10/2026</footer>
+<footer>LifeCounter 2.5.1 / 2.5.2 (code 27) · lifecounter.mreis.site · notas geradas em 31/10/2026</footer>
 </div>
 </body>
 </html>

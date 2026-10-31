@@ -1,5 +1,5 @@
-# LifeCounter 2.5.1
-## Notas da atualização · 31/10/2026 · APK code 26
+# LifeCounter 2.5.1 / 2.5.2
+## Notas da atualização · 31/10/2026 · APK code 27
 
 Versão de acabamento. Os próprios prints das notas da 2.5.0 mostravam defeitos visuais: o pódio deixava a mesa vazar por trás e, deitado, empilhava tudo; a linha do tempo cortava o rótulo do fim; o microfone engolia o nome de quem estava no canto; as barras de comandante entravam embaixo do número da vida. Tudo corrigido, com antes e depois.
 
@@ -71,7 +71,13 @@ Deitado, a tira escondia "por Zé · Combo". Agora aparece na mesma linha do nom
 | ![](docs/release-2.5.1/antes-d01-sorteio-justo-config.png) | ![](docs/release-2.5.1/i11-config-animacao.png) | ![](docs/release-2.5.1/i12-config-tema.png) |
 | ![](docs/release-2.5.1/antes-d02-sorteio-justo.png) | ![](docs/release-2.5.1/i13-sorteio.png) | ![](docs/release-2.5.1/i14-so-vida-em-pe.png) |
 
-## 7. Nos bastidores
+## 7. 2.5.2: Encerrar partida volta pra home
+
+"Encerrar partida" (nas Configurações ou no pódio de vitória) encerrava a mesa mas deixava a tela congelada no jogo. Agora, depois de salvar no ranking ou de "Encerrar sem contar pro ranking", o app volta pra home com os mesmos jogadores já escolhidos. O X do pódio continua mantendo a mesa.
+
+![](docs/release-2.5.1/j01-home-depois-de-encerrar.png)
+
+## 8. Nos bastidores
 
 | Onde | O que mudou |
 |---|---|
@@ -79,6 +85,7 @@ Deitado, a tira escondia "por Zé · Combo". Agora aparece na mesma linha do nom
 | Linha do tempo | `matchTimelineHtml`: altura 112, eixo em 60, rótulo da duração com três posições candidatas. |
 | Microfone | `syncFabCutRadius` lê o tamanho real do botão; regras de `data-notch` dentro de `@container (max-width: 150px)`. |
 | Card | `.cmd-risk` oculto; `.cmd-bars` acima da pílula; em paisagem as barras somem e, com 5+, a pílula fica compacta. |
+| Encerrar partida | `finishMatch(onDone, onCancel)`: os botões passam `goHomeAfterMatch` (newGame mantendo o roster + fecha modais); o X chama só `onCancel`. |
 | Testes | QA novo (qa12) com 27 verificações, em pé e deitado; suítes anteriores sem regressão; zero erros de JS. |
 
 **Como atualizar.** No Android, o app avisa ao abrir e instala com um toque (ou Configurações › Atualização). No navegador basta recarregar.
