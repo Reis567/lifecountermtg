@@ -10,6 +10,11 @@ export interface Player {
     deckName?: string | null;
     deckColors?: string | null; // WUBRG (pra mostrar no card)
     deckImage?: string | null; // arte do comandante (Scryfall art_crop)
+    // v2.6.0: parceiro (Partner / Background / Friends forever): segundo comandante do mesmo deck.
+    // O dano de comandante dele fica em commanderDamage[`${id}:2`] (21 de cada um elimina).
+    partnerName?: string | null;
+    partnerImage?: string | null;
+    partnerColors?: string | null;
     background: string | null; // Background image/GIF
     backgroundType: 'none' | 'image' | 'gif';
     emoji: string | null; // Personal emoji/icon
@@ -110,7 +115,7 @@ export interface GameSettings {
 }
 
 export type NarratorPersona = 'classic' | 'futebol' | 'galvao' | 'novela' | 'caze';
-export type AmbientMusicTrack = 'none' | 'epic' | 'dark' | 'nature' | 'mystical';
+export type AmbientMusicTrack = 'none' | 'epic' | 'dark' | 'nature' | 'mystical' | 'auto'; // auto = sente a mesa (v2.6.0)
 export type SoundPack = 'default' | 'medieval' | 'scifi' | 'horror' | 'arcade';
 export type DeathSound = 'voice' | 'classic'; // 'voice' = "faz o L" (faz-o-l.mp3); 'classic' = fon fon fon sintetizado
 
@@ -217,6 +222,7 @@ export interface EventDetails {
     message?: string;
     source?: 'tap' | 'hold' | 'voice' | 'shortcut' | 'commander' | 'modal' | 'auto';
     cause?: DeathCause; // como foi eliminado (player_eliminated)
+    slot?: 1 | 2; // commander_damage: 1 = comandante, 2 = parceiro (v2.6.0)
 }
 
 // Motivo da eliminação (pergunta ao cair; vai pro ranking e pro perfil).

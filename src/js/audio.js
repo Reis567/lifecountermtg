@@ -589,6 +589,7 @@ class AudioManager {
 }
 // Export singleton instance
 export const audioManager = new AudioManager();
+const MOOD_TRACK = { calm: 'nature', tension: 'dark', climax: 'epic' };
 class AmbientMusicManager {
     constructor() {
         this.audioContext = null;
@@ -598,7 +599,43 @@ class AmbientMusicManager {
         this.isPlaying = false;
         this.currentTrack = 'none';
         this.volume = 0.3;
+        this.mood = 'calm';
+        this.moodTimer = null;
     }
+    // Trilha de fato tocada: no modo 'auto' depende do clima da mesa.
+    resolvedTrack() {
+        return this.currentTrack === 'auto' ? MOOD_TRACK[this.mood] : this.currentTrack;
+    }
+    // Clima da mesa (ui.ts chama a cada mudanca de estado). So faz algo no modo 'auto':
+    // abaixa a trilha atual em ~1,2 s, troca e sobe a nova em 1,5 s.
+    setMood(mood) {
+        if (mood === this.mood)
+            return;
+        this.mood = mood;
+        if (this.currentTrack !== 'auto' || !this.isPlaying)
+            return;
+        const ctx = this.audioContext;
+        if (this.moodTimer !== null) {
+            clearTimeout(this.moodTimer);
+            this.moodTimer = null;
+        }
+        if (this.masterGain && ctx) {
+            const g = this.masterGain.gain;
+            const now = ctx.currentTime;
+            try {
+                g.cancelScheduledValues(now);
+                g.setValueAtTime(g.value, now);
+                g.linearRampToValueAtTime(0.0001, now + 1.2);
+            }
+            catch { /* ignore */ }
+            this.moodTimer = window.setTimeout(() => { this.moodTimer = null; if (this.isPlaying)
+                this.play(); }, 1250);
+        }
+        else {
+            this.play();
+        }
+    }
+    getMood() { return this.mood; }
     getAudioContext() {
         if (!this.audioContext) {
             try {
@@ -640,7 +677,15 @@ class AmbientMusicManager {
         this.masterGain = ctx.createGain();
         this.masterGain.gain.value = this.volume * 0.15;
         this.masterGain.connect(ctx.destination);
-        switch (this.currentTrack) {
+        // entrada suave (importa na troca automatica de trilha)
+        try {
+            const g = this.masterGain.gain;
+            g.setValueAtTime(0.0001, ctx.currentTime);
+            g.linearRampToValueAtTime(this.volume * 0.15, ctx.currentTime + 1.5);
+        }
+        catch { /* ignore */ }
+        window.__lcTrack = this.resolvedTrack(); // QA
+        switch (this.resolvedTrack()) {
             case 'epic':
                 this.playEpicTrack(ctx);
                 break;

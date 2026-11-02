@@ -19,7 +19,7 @@ import { openMechanicsModal, renderMechanicsBadge } from './mechanics.js';
 import { setupNotifications, onNotification, getMyProfileId, setMyProfileId } from './notifications.js';
 import { buildLifeSeries, lifeChartSvg, drawLifeChart } from './chart.js';
 import { liveHostStart, liveHostStop, liveHostSession, liveHostNotify, liveHostSetAllowEdits, onLiveHostChange, liveJoinUrl, liveGuestOpen } from './live.js';
-import { apiCreateDeck, apiUploadProfileSound, apiDeleteProfileSound, apiElo, apiSeasons, apiSeasonOverview } from './api.js';
+import { apiCreateDeck, apiDeleteDeck, apiUpdateDeck, apiMergeDeck, apiCommanders, apiUploadProfileSound, apiDeleteProfileSound, apiElo, apiSeasons, apiSeasonOverview } from './api.js';
 import { identifyCardFromFile, askJudgeText, formatJudgeText } from './cardScanner.js';
 import { glossaryHtml, setupGlossary } from './glossary.js';
 import { setupCloudSave, cloudCheckResume, cloudResume, cloudDiscard, cloudIsMine } from './cloudsave.js';
@@ -991,6 +991,130 @@ function setupSeatMap() {
 // vidas em números grandes. Qualquer toque volta (e não vaza pro card de baixo).
 let restTick = null;
 let restLastActivity = Date.now();
+// ===== v2.6.0: curiosidades no descanso de tela, virada ao vivo e clima da trilha =====
+const tableStats = new Map(); // nome (lowercase) -> stats do perfil (carregado no início da partida)
+let seasonFacts = null;
+let restFactIdx = 0;
+function restFacts() {
+    const out = [];
+    const s = gameState.getState();
+    for (const p of s.players) {
+        const st = tableStats.get(p.name.trim().toLowerCase());
+        if (!st || !st.matches)
+            continue;
+        const n = p.name;
+        if ((st.starts ?? 0) >= 2 && st.starts_wins === 0)
+            out.push(`${n} nunca venceu começando (${st.starts} vezes)`);
+        else if ((st.starts ?? 0) >= 3 && st.starts_win_rate !== null && st.starts_win_rate !== undefined)
+            out.push(`${n} vence ${st.starts_win_rate}% das partidas que começa`);
+        if (st.current_streak >= 2)
+            out.push(`${n} vem de ${st.current_streak} vitórias seguidas`);
+        if (st.best_streak >= 3)
+            out.push(`maior sequência de ${n}: ${st.best_streak} vitórias`);
+        if (st.nemesis?.[0])
+            out.push(`nêmesis de ${n}: ${st.nemesis[0].name} (${st.nemesis[0].times}×)`);
+        if (st.victims?.[0])
+            out.push(`${n} já eliminou ${st.victims[0].name} ${st.victims[0].times}×`);
+        if (st.death_causes?.[0])
+            out.push(`${n} morre mais de ${st.death_causes[0].label.toLowerCase()} (${st.death_causes[0].count}×)`);
+        if (st.best_month?.wins)
+            out.push(`melhor mês de ${n}: ${st.best_month.label}, ${st.best_month.wins} vitória${st.best_month.wins === 1 ? '' : 's'}`);
+        if (st.longest_ms)
+            out.push(`partida mais longa de ${n}: ${fmtDuration(st.longest_ms)}`);
+        if (st.matches >= 5)
+            out.push(`${n}: ${st.win_rate}% de vitórias em ${st.matches} partidas`);
+        if (st.top_deck?.matches)
+            out.push(`deck mais jogado de ${n}: ${st.top_deck.name} (${st.top_deck.win_rate}%)`);
+    }
+    const o = seasonFacts;
+    if (o) {
+        if (o.longest_match)
+            out.push(`partida mais longa da temporada: ${fmtDuration(o.longest_match.duration_ms)}${o.longest_match.winner ? ` (venceu ${o.longest_match.winner})` : ''}`);
+        if (o.commander)
+            out.push(`comandante da temporada: ${o.commander.name} (${o.commander.wins} vitória${o.commander.wins === 1 ? '' : 's'})`);
+        if (o.leader)
+            out.push(`líder da temporada: ${o.leader.name} com ${o.leader.points} pts`);
+        if (o.starter && o.starter.matches >= 5)
+            out.push(`quem começa vence ${o.starter.win_rate}% das partidas (esperado ${o.starter.expected_rate}%)`);
+    }
+    return out;
+}
+// Troca de líder ao vivo: quem tem mais vida entre os vivos. Espera 2,5 s de estabilidade
+// (toques de ±1 fazem a ponta oscilar) e só anuncia se a ponta era de outro.
+let liveLeaderId = null;
+let liveLeaderGame = null;
+let liveLeaderPending = null;
+function trackLeaderLive(state) {
+    if (!state.gameStarted || state.matchClosed) {
+        liveLeaderId = null;
+        return;
+    }
+    const gameKey = state.gameStartTime ?? null;
+    if (liveLeaderGame !== gameKey) {
+        liveLeaderGame = gameKey;
+        liveLeaderId = null;
+        if (liveLeaderPending) {
+            clearTimeout(liveLeaderPending.timer);
+            liveLeaderPending = null;
+        }
+    }
+    const alive = state.players.filter(p => !p.isEliminated);
+    if (alive.length < 2)
+        return;
+    let best = null;
+    for (const p of alive)
+        if (!best || p.life > best.life || (p.life === best.life && p.id === liveLeaderId))
+            best = p;
+    if (!best)
+        return;
+    if (liveLeaderId === null) {
+        liveLeaderId = best.id;
+        return;
+    }
+    if (best.id === liveLeaderId) {
+        if (liveLeaderPending) {
+            clearTimeout(liveLeaderPending.timer);
+            liveLeaderPending = null;
+        }
+        return;
+    }
+    if (liveLeaderPending?.id === best.id)
+        return;
+    if (liveLeaderPending)
+        clearTimeout(liveLeaderPending.timer);
+    const id = best.id;
+    liveLeaderPending = { id, timer: window.setTimeout(() => {
+            liveLeaderPending = null;
+            const s = gameState.getState();
+            if (!s.gameStarted || s.matchClosed)
+                return;
+            const alive2 = s.players.filter(p => !p.isEliminated);
+            if (alive2.length < 2)
+                return;
+            const top = alive2.reduce((a, b) => (b.life > a.life ? b : a), alive2[0]);
+            if (top.id !== id)
+                return;
+            const prev = s.players.find(p => p.id === liveLeaderId);
+            liveLeaderId = id;
+            showSpecialMoment(`${top.name} assumiu a ponta no turno ${s.currentTurn}${prev && !prev.isEliminated ? ` (era ${prev.name})` : ''}`, 'success');
+            narrator.speak(`${top.name} assumiu a ponta no turno ${s.currentTurn}`);
+        }, 2500) };
+}
+// Clima da mesa pra trilha automática: 1 contra 1 = clímax; alguém por um fio = tensão; senão calmo.
+function updateTableMood(state) {
+    if (!state.gameStarted) {
+        ambientMusic.setMood('calm');
+        return;
+    }
+    const alive = state.players.filter(p => !p.isEliminated);
+    let mood = 'calm';
+    if (alive.length === 2 && state.players.length > 2)
+        mood = 'climax';
+    else if (alive.some(p => p.life <= 5 || p.counters.poison >= 8 || Object.values(p.commanderDamage || {}).some(v => v >= CMD_RISK_FROM)))
+        mood = 'tension';
+    window.__lcMood = mood; // QA
+    ambientMusic.setMood(mood);
+}
 function screenRestAllowed() {
     const s = gameState.getState();
     if (!(s.settings.screenRestMinutes ?? 2) || !s.gameStarted)
@@ -1008,10 +1132,14 @@ function showScreenRest() {
     el.id = 'screen-rest';
     el.className = 'screen-rest';
     document.body.appendChild(el);
+    const facts = restFacts();
+    if (facts.length)
+        restFactIdx = Math.floor(Math.random() * facts.length);
     const draw = () => {
         const s = gameState.getState();
         const now = new Date();
         const elapsed = s.gameStartTime ? Date.now() - s.gameStartTime : 0;
+        const fact = facts.length ? facts[restFactIdx++ % facts.length] : '';
         const ap = s.players[s.activePlayerIndex];
         const h = Math.floor(elapsed / 3600000), m = Math.floor((elapsed % 3600000) / 60000);
         el.innerHTML = `
@@ -1019,6 +1147,7 @@ function showScreenRest() {
             <div class="sr-clock">${h}:${String(m).padStart(2, '0')}</div>
             <div class="sr-sub">${now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · turno ${s.currentTurn}${ap ? ` · vez de ${escapeHtml(ap.name)}` : ''}</div>
             <div class="sr-lives">${s.players.map(p => `<div class="sr-life ${p.isEliminated ? 'dead' : ''}" style="--player-color:${escapeHtml(p.color)}"><span class="sr-dot"></span><span class="sr-name">${escapeHtml(p.name)}</span><span class="sr-val">${p.isEliminated ? '—' : p.life}</span></div>`).join('')}</div>
+            ${fact ? `<div class="sr-fact">${escapeHtml(fact)}</div>` : ''}
             <div class="sr-hint">toque pra voltar</div>`;
     };
     draw();
@@ -1453,9 +1582,12 @@ function setupSetupScreenListeners() {
 // com perfil, pro narrador/roast ter base real. Silencioso se offline.
 async function loadNarratorContext() {
     const players = gameState.getState().players.filter((p) => p.profileId !== null);
+    tableStats.clear();
+    apiSeasonOverview().then((o) => { seasonFacts = o; }).catch(() => { seasonFacts = null; });
     const ctx = await Promise.all(players.map(async (p) => {
         try {
             const s = await apiProfileStats(p.profileId);
+            tableStats.set(p.name.trim().toLowerCase(), s);
             return {
                 name: p.name, wins: s.wins, matches: s.matches, currentStreak: s.current_streak, bestStreak: s.best_streak,
                 nemesis: s.nemesis[0]?.name || null, recentPlaces: s.recent.map((r) => r.place), elo: s.elo, rankSeason: s.rank_season,
@@ -2070,6 +2202,7 @@ function openRankingModal(initialTab = 'today', mount) {
                     <button class="ranking-tab" data-p="year">Ano</button>
                     <button class="ranking-tab" data-p="all">Geral</button>
                     <button class="ranking-tab" data-p="elo">Elo</button>
+                    <button class="ranking-tab" data-p="commanders">Comandantes</button>
                     <button class="ranking-tab" data-p="seasons">Hall</button>
                     <button class="ranking-tab" data-p="history">Histórico</button>
                 </div>
@@ -2152,6 +2285,50 @@ function openRankingModal(initialTab = 'today', mount) {
                     <svg class="ic rk-chev"><use href="#ic-chevron"/></svg>
                 </div>`;
             }).join('');
+        }
+        catch (e) {
+            if (token !== renderToken)
+                return;
+            setSource(false);
+            tableEl.innerHTML = `<div class="ranking-empty">Sem conexão (${escapeHtml(String(e?.message || e))}).</div>`;
+        }
+    };
+    // v2.6.0: ranking global por comandante/deck + confronto deck contra deck
+    let cmdPeriod = 'all';
+    let cmdOpen = null;
+    const renderCommanders = async () => {
+        const token = ++renderToken;
+        tableEl.innerHTML = '<div class="ranking-empty">Carregando…</div>';
+        try {
+            const { rows } = await apiCommanders(cmdPeriod);
+            if (token !== renderToken)
+                return;
+            setSource(true, ' · por comandante (todos os pilotos)');
+            lastRows = [];
+            const seg = `<div class="seg-mini ck-seg"><button type="button" data-v="all" class="${cmdPeriod === 'all' ? 'active' : ''}">Geral</button><button type="button" data-v="season" class="${cmdPeriod === 'season' ? 'active' : ''}">Temporada</button></div>`;
+            if (rows.length === 0) {
+                tableEl.innerHTML = seg + '<div class="ranking-empty">Nenhuma partida com comandante marcado neste período.</div>';
+            }
+            else
+                tableEl.innerHTML = seg + rows.map((r, i) => {
+                    const pilots = r.pilots.map(p => `${escapeHtml(p.name)}${p.wins ? ` <b>${p.wins}v</b>` : ''}`).join(' · ');
+                    const open = cmdOpen === r.key;
+                    const vs = r.vs.length ? r.vs.map(v => `<div class="ck-vs-row" title="${escapeHtml(v.name)}: ficou na frente ${v.ahead} de ${v.matches} vezes"><span class="ck-vs-name">${colorsHtml(v.colors)} ${escapeHtml(v.name)}</span><span class="ck-vs-bar"><span style="width:${v.ahead_rate}%"></span></span><span class="ck-vs-val"><b>${v.ahead}</b>/${v.matches} · ${Math.round(v.ahead_rate)}%</span></div>`).join('') : '<div class="update-muted">Ainda não cruzou com outro deck.</div>';
+                    return `
+                <div class="rk-row ck-row ${i === 0 ? 'leader' : i === 1 ? 'second' : i === 2 ? 'third' : ''} ranking-clickable ${open ? 'open' : ''}" data-key="${escapeHtml(r.key)}">
+                    <span class="rk-place">${medalFor(i + 1)}</span>
+                    <span class="ck-art" style="${r.image ? `background-image:url('${escapeHtml(r.image)}')` : ''}"></span>
+                    <span class="rk-main">
+                        <span class="rk-name">${escapeHtml(r.name)} ${colorsHtml(r.colors)}</span>
+                        <span class="rk-meta">${pilots || '—'} · ${r.matches} partida${r.matches === 1 ? '' : 's'}${r.avg_place ? ` · ${r.avg_place}º em média` : ''}</span>
+                    </span>
+                    <span class="rk-pts"><b>${r.wins}</b><small>${r.win_rate}%</small></span>
+                    <svg class="ic rk-chev"><use href="#ic-chevron"/></svg>
+                </div>
+                ${open ? `<div class="ck-vs"><div class="podium-section-label">Deck contra deck (quantas vezes terminou na frente)</div>${vs}</div>` : ''}`;
+                }).join('');
+            tableEl.querySelectorAll('.ck-seg button').forEach(b => b.addEventListener('click', () => { cmdPeriod = b.dataset.v === 'season' ? 'season' : 'all'; void renderCommanders(); }));
+            tableEl.querySelectorAll('.ck-row').forEach(el => el.addEventListener('click', () => { cmdOpen = cmdOpen === el.dataset.key ? null : (el.dataset.key || null); void renderCommanders(); }));
         }
         catch (e) {
             if (token !== renderToken)
@@ -2275,15 +2452,22 @@ function openRankingModal(initialTab = 'today', mount) {
         }).join('');
     };
     const render = () => {
-        modal.querySelectorAll('.ranking-tab').forEach((b) => b.classList.toggle('active', b.dataset.p === tab));
+        modal.querySelectorAll('.ranking-tab').forEach((b) => { b.classList.toggle('active', b.dataset.p === tab); if (b.dataset.p === tab) {
+            try {
+                b.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+            }
+            catch { /* ignore */ }
+        } });
         filtersEl.style.display = tab === 'history' ? '' : 'none';
         const shareBtn = modal.querySelector('#ranking-share');
         if (shareBtn)
-            shareBtn.style.display = (tab === 'history' || tab === 'seasons') ? 'none' : '';
+            shareBtn.style.display = (tab === 'history' || tab === 'seasons' || tab === 'commanders') ? 'none' : '';
         if (tab === 'history')
             void renderHistory();
         else if (tab === 'elo')
             void renderElo();
+        else if (tab === 'commanders')
+            void renderCommanders();
         else if (tab === 'seasons')
             void renderSeasons();
         else
@@ -2384,6 +2568,7 @@ function seasonOverviewHtml(ov) {
             ${ov.longest_streak ? stat('maior sequência', `${ov.longest_streak.value}`, escapeHtml(ov.longest_streak.name)) : ''}
             ${ov.longest_match ? stat('partida mais longa', fmtDuration(ov.longest_match.duration_ms), escapeHtml(ov.longest_match.winner || '')) : ''}
             ${ov.commander ? stat('comandante da temporada', `${ov.commander.wins} vit`, escapeHtml(ov.commander.name)) : ''}
+            ${ov.starter ? stat('quem começa vence', `${ov.starter.win_rate}%`, `esperado ${ov.starter.expected_rate}%`) : ''}
         </div>
         ${ov.commander && ov.commander.image ? `<div class="so-cmd"><img src="${escapeHtml(ov.commander.image)}" alt=""><div><div class="so-cmd-n">${escapeHtml(ov.commander.name)}</div><div class="so-cmd-s">${ov.commander.wins} vitória${ov.commander.wins === 1 ? '' : 's'} em ${ov.commander.matches} · ${colorsHtml(ov.commander.colors)}${ov.commander.pilot ? ` · ${escapeHtml(ov.commander.pilot)}` : ''}</div></div></div>` : ''}
         ${ov.awards.length ? `<div class="so-awards-l">Prêmios parciais (fecham com a temporada)</div><div class="hall-awards">${ov.awards.map(a => awardChipHtml(a, true)).join('')}</div>` : ''}
@@ -2721,7 +2906,7 @@ function openProfilePage(profileId) {
             <div class="pp-stats pp-stats-3">
                 ${stat('eliminações', s.kills ?? 0)}${stat('mortes do cmd.', s.commander_deaths_total ?? 0)}${stat('pts / partida', s.points_per_match ?? 0)}
                 ${stat('vida ao vencer', s.avg_final_life_wins ?? '—')}${stat('maior partida', fmtMs(s.longest_ms))}${stat('menor partida', fmtMs(s.shortest_ms))}
-                ${stat('tempo de mesa', fmtH(s.total_time_ms))}${stat('melhor mês', s.best_month ? `${s.best_month.label}<small>${s.best_month.wins}v</small>` : '—')}${stat('desde', s.first_match_at ? fmtDateTime(s.first_match_at).slice(0, 8) : '—')}${stat('começou', `${s.starts ?? 0}<small>${s.starts_rate ?? 0}%</small>`)}
+                ${stat('tempo de mesa', fmtH(s.total_time_ms))}${stat('melhor mês', s.best_month ? `${s.best_month.label}<small>${s.best_month.wins}v</small>` : '—')}${stat('desde', s.first_match_at ? fmtDateTime(s.first_match_at).slice(0, 8) : '—')}${stat('começou', `${s.starts ?? 0}<small>${s.starts_rate ?? 0}%</small>`)}${s.starts_win_rate !== null && s.starts_win_rate !== undefined ? stat('vence quando começa', `${s.starts_win_rate}%<small>${s.non_start_win_rate !== null && s.non_start_win_rate !== undefined ? `${s.non_start_win_rate}% sem começar` : ''}</small>`) : ''}
             </div>
             ${(s.by_month || []).length >= 2 ? `<div class="pp-section"><div class="podium-section-label">Partidas por mês (dourado = vitórias)</div><div class="pp-months">${monthsHtml}</div></div>` : ''}
             ${placeDistHtml ? `<div class="pp-section"><div class="podium-section-label">Onde costuma terminar</div><div class="pp-bars">${placeDistHtml}</div></div>` : ''}
@@ -2730,10 +2915,10 @@ function openProfilePage(profileId) {
             ${causesHtml}
             ${wdHtml ? `<div class="pp-section"><div class="podium-section-label">Dia da semana (vitórias/partidas)</div><div class="pp-bars">${wdHtml}</div></div>` : ''}
             ${(s.elo_history || []).length >= 2 ? `<div class="pp-section"><div class="podium-section-label">Evolução do Elo</div>${eloSparkline(s.elo_history)}</div>` : ''}
-            ${(s.deck_stats || []).length ? `
+            ${(s.deck_stats || []).length || (getProfileById(profileId)?.decks || []).some(d => d.active !== false) ? `
             <div class="pp-section">
-                <div class="podium-section-label">Decks / comandantes</div>
-                <div class="pp-decks">${s.deck_stats.map(d => `<div class="pp-deck"><span class="deck-item-colors">${colorsHtml(d.colors)}</span><span class="pp-deck-name">${escapeHtml(d.name)}</span><span class="update-muted">${d.wins}/${d.matches} · ${d.win_rate}%</span></div>`).join('')}</div>
+                <div class="podium-section-label pp-decks-head">Decks / comandantes <button type="button" class="small-btn" id="pp-manage-decks">Gerenciar</button></div>
+                <div class="pp-decks">${(s.deck_stats || []).map(d => `<div class="pp-deck"><span class="deck-item-colors">${colorsHtml(d.colors)}</span><span class="pp-deck-name">${escapeHtml(d.name)}</span><span class="update-muted">${d.wins}/${d.matches} · ${d.win_rate}%</span></div>`).join('')}</div>
                 ${(s.color_stats || []).length ? `<div class="pp-list">${s.color_stats.map(c => `<span class="pp-chip">${colorsHtml(c.color)} ${c.win_rate}% <small>(${c.matches})</small></span>`).join('')}</div>` : ''}
             </div>` : ''}
             ${s.nemesis.length || s.victims.length ? `
@@ -2750,6 +2935,7 @@ function openProfilePage(profileId) {
                 ${s.recent.length ? s.recent.map(r => `<div class="pp-recent" data-id="${r.match_id}"><span>${medalFor(r.place)}</span><span class="pp-recent-date">${fmtDateTime(r.ended_at)}</span><span class="update-muted">${r.players} jog. · ${r.points} pts</span></div>`).join('') : '<div class="update-muted">Sem partidas.</div>'}
             </div>
         `;
+        body.querySelector('#pp-manage-decks')?.addEventListener('click', () => openDeckManager(profileId, () => { void load(); }));
         body.querySelectorAll('.pp-recent').forEach((el) => el.addEventListener('click', () => openMatchDetail(Number(el.dataset.id))));
         body.querySelectorAll('.pp-form-dot').forEach((el) => el.addEventListener('click', () => openMatchDetail(Number(el.dataset.match))));
         body.querySelectorAll('.pp-h2h-row').forEach((el) => el.addEventListener('click', () => { if (el.dataset.profile)
@@ -3393,7 +3579,7 @@ export function describeEvent(event, nameOf) {
         }
         case 'commander_damage': {
             const amount = d.amount || 0;
-            return `${playerName} ${amount > 0 ? 'recebeu' : 'removeu'} ${Math.abs(amount)} de comandante de ${from} · total ${d.newValue}`;
+            return `${playerName} ${amount > 0 ? 'recebeu' : 'removeu'} ${Math.abs(amount)} de comandante de ${from}${d.slot === 2 ? ' (parceiro)' : ''} · total ${d.newValue}`;
         }
         case 'counter_change': {
             const amount = d.amount || 0;
@@ -3746,8 +3932,8 @@ function colorsHtml(colors) {
     const dots = (colors || '').split('').filter(c => 'WUBRG'.includes(c)).map(c => `<span class="mana-dot mana-${c}" title="${c}"></span>`).join('');
     return `<span class="mana-dots">${dots || '<span class="mana-dot mana-C" title="incolor"></span>'}</span>`;
 }
-async function scryfallSearchCommander(q) {
-    const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(`${q} is:commander`)}&unique=cards&order=edhrec`;
+async function scryfallSearchCommander(q, partner = false) {
+    const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(`${q} ${partner ? '(is:commander or t:background)' : 'is:commander'}`)}&unique=cards&order=edhrec`;
     const res = await fetch(url);
     if (res.status === 404)
         return [];
@@ -3766,7 +3952,7 @@ async function scryfallSearchCommander(q) {
 // Escolher o comandante/deck de um jogador (setup OU no meio da partida).
 // Com perfil: lista os decks salvos do perfil + busca no Scryfall (salva o deck
 // no perfil). Sem perfil (amistosa): só busca no Scryfall e guarda no jogador.
-function openDeckPicker(playerId) {
+function openDeckPicker(playerId, partner = false) {
     const player = gameState.getState().players.find(p => p.id === playerId);
     if (!player)
         return;
@@ -3779,10 +3965,35 @@ function openDeckPicker(playerId) {
     modal.style.zIndex = '2080';
     document.body.appendChild(modal);
     const close = () => modal.remove();
+    let partnerMode = partner; // v2.6.0: a busca escolhe o PARCEIRO (segundo comandante)
+    // Parceiro / Background: o nome do deck vira "A // B", as cores somam, e (com perfil) o deck salvo acompanha.
+    const setPartner = async (p) => {
+        const cur = gameState.getState().players.find(x => x.id === playerId);
+        if (!cur || !cur.deckName)
+            return;
+        const base = cur.deckName.split(' // ')[0];
+        const name = p ? `${base} // ${p.name}` : base;
+        const baseColors = (cur.deckColors || '').split('').filter(c => !(cur.partnerColors || '').includes(c) || (base && (cur.deckColors || '').includes(c)));
+        const union = Array.from(new Set([...(p ? [] : []), ...baseColors, ...((p?.colors || '').split(''))])).filter(c => 'WUBRG'.includes(c)).sort((a, b) => 'WUBRG'.indexOf(a) - 'WUBRG'.indexOf(b)).join('');
+        gameState.updatePlayerSetup(playerId, { deckName: name, deckColors: union || null, partnerName: p?.name ?? null, partnerImage: p?.image ?? null, partnerColors: p?.colors ?? null });
+        if (hasProfile && cur.deckId) {
+            try {
+                await apiUpdateDeck(cur.deckId, { name: name.slice(0, 60), commander: name.slice(0, 120), colors: union });
+                await refreshProfiles();
+            }
+            catch (err) {
+                showSpecialMoment(`Parceiro marcado só nesta partida (${err?.message || err}).`, 'warning');
+            }
+        }
+        close();
+        openDeckPicker(playerId);
+    };
     const choose = (deck) => {
+        const parts = (deck?.name || '').split(' // ');
         gameState.updatePlayerSetup(playerId, {
             deckId: deck?.id ?? null, deckName: deck?.name ?? null,
             deckColors: deck?.colors ?? null, deckImage: deck?.image_url ?? null,
+            partnerName: parts.length > 1 ? parts.slice(1).join(' // ') : null, partnerImage: null, partnerColors: null,
         });
         if (deck && gameState.getState().gameStarted)
             showSpecialMoment(`${player.name} agora joga de ${deck.name}`, 'success');
@@ -3798,6 +4009,9 @@ function openDeckPicker(playerId) {
                 </div>
                 <div class="profile-picker-body">
                     ${player.deckName ? `<div class="deck-current">${player.deckImage ? `<img src="${escapeHtml(player.deckImage)}" alt="">` : ''}<div><div class="update-muted">Nesta partida</div><b>${escapeHtml(player.deckName)}</b> ${colorsHtml(player.deckColors || '')}</div></div>` : ''}
+                    ${player.deckName ? `<div class="deck-partner">${player.partnerName
+            ? `${player.partnerImage ? `<img src="${escapeHtml(player.partnerImage)}" alt="">` : ''}<span><span class="update-muted">Parceiro</span> <b>${escapeHtml(player.partnerName)}</b></span><button type="button" class="small-btn" id="deck-partner-rm">Remover</button>`
+            : `<span class="update-muted">Dois comandantes? (Partner, Background)</span><button type="button" class="small-btn ${partnerMode ? 'active' : ''}" id="deck-partner-add">${partnerMode ? 'Buscando o parceiro…' : 'Adicionar parceiro'}</button>`}</div>` : ''}
                     <div class="deck-list">
                         ${decks.map(d => `
                             <button type="button" class="deck-item ${player.deckId === d.id ? 'selected' : ''}" data-id="${d.id}" style="${d.image_url ? `background-image:url('${escapeHtml(d.image_url)}')` : ''}">
@@ -3808,7 +4022,7 @@ function openDeckPicker(playerId) {
                         ${decks.length === 0 ? `<div class="update-muted">${hasProfile ? 'Nenhum deck salvo ainda. Busque o comandante abaixo (fica salvo no perfil).' : 'Jogador sem perfil: busque o comandante abaixo (vale só nesta partida).'}</div>` : ''}
                     </div>
                     <div class="deck-search">
-                        <input type="text" id="deck-search-input" class="profile-new-name" placeholder="Buscar comandante no Scryfall…" autocomplete="off">
+                        <input type="text" id="deck-search-input" class="profile-new-name" placeholder="${partnerMode ? 'Buscar o parceiro no Scryfall…' : 'Buscar comandante no Scryfall…'}" autocomplete="off">
                         ${isGeminiConfigured() ? `<label class="cs-gallery-btn deck-photo-btn" id="deck-photo-btn"><input type="file" accept="image/*" capture="environment" hidden id="deck-photo-input"><svg class="ic"><use href="#ic-camera"/></svg> Fotografar o comandante</label>` : ''}
                         <div id="deck-search-results" class="deck-results"></div>
                     </div>
@@ -3819,6 +4033,8 @@ function openDeckPicker(playerId) {
             </div>`;
         modal.querySelector('.modal-close')?.addEventListener('click', close);
         modal.querySelector('#deck-none')?.addEventListener('click', () => choose(null));
+        modal.querySelector('#deck-partner-add')?.addEventListener('click', () => { partnerMode = !partnerMode; render(); });
+        modal.querySelector('#deck-partner-rm')?.addEventListener('click', () => { void setPartner(null); });
         modal.querySelectorAll('.deck-item').forEach(el => el.addEventListener('click', () => {
             const d = decks.find(x => x.id === Number(el.dataset.id));
             if (d)
@@ -3865,7 +4081,7 @@ function openDeckPicker(playerId) {
             timer = window.setTimeout(async () => {
                 results.innerHTML = '<div class="update-muted">Buscando…</div>';
                 try {
-                    const hits = await scryfallSearchCommander(q);
+                    const hits = await scryfallSearchCommander(q, partnerMode);
                     results.innerHTML = hits.length ? hits.map((h, i) => `
                         <button type="button" class="deck-hit" data-i="${i}" style="${h.image ? `background-image:url('${escapeHtml(h.image)}')` : ''}">
                             <span class="deck-item-colors">${colorsHtml(h.colors)}</span>
@@ -3873,6 +4089,10 @@ function openDeckPicker(playerId) {
                         </button>`).join('') : '<div class="update-muted">Nada encontrado.</div>';
                     results.querySelectorAll('.deck-hit').forEach(el => el.addEventListener('click', async () => {
                         const h = hits[Number(el.dataset.i)];
+                        if (partnerMode) {
+                            void setPartner({ name: h.name, colors: h.colors, image: h.image });
+                            return;
+                        }
                         if (!hasProfile) {
                             choose({ id: null, name: h.name, colors: h.colors, image_url: h.image });
                             return;
@@ -3896,6 +4116,93 @@ function openDeckPicker(playerId) {
             }, 350);
         });
         input.focus();
+    };
+    modal.addEventListener('click', (e) => { if (e.target === modal)
+        close(); });
+    render();
+}
+// v2.6.0: decks do perfil — renomear, apagar, juntar duplicados (as partidas do apagado vão pro escolhido).
+function openDeckManager(profileId, onChange) {
+    document.getElementById('deck-manager-dyn')?.remove();
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.id = 'deck-manager-dyn';
+    modal.style.zIndex = '2090';
+    document.body.appendChild(modal);
+    let changed = false;
+    let mergeFrom = null; // deck escolhido pra ser juntado em outro
+    const close = () => { modal.remove(); if (changed)
+        onChange?.(); };
+    const render = () => {
+        const prof = getProfileById(profileId);
+        const decks = (prof?.decks || []).filter(d => d.active !== false);
+        modal.innerHTML = `
+            <div class="modal-content profile-picker-content">
+                <div class="modal-header">
+                    <h2><svg class="ic ic-title"><use href="#ic-deck"/></svg>Decks de ${escapeHtml(prof?.name || '')}</h2>
+                    <button class="modal-close" type="button">&times;</button>
+                </div>
+                <div class="profile-picker-body">
+                    ${decks.length ? '' : '<div class="update-muted">Nenhum deck salvo. O deck entra quando o comandante é escolhido na mesa.</div>'}
+                    <div class="dm-list">${decks.map(d => `
+                        <div class="dm-row" data-id="${d.id}">
+                            <span class="ck-art" style="${d.image_url ? `background-image:url('${escapeHtml(d.image_url)}')` : ''}"></span>
+                            <span class="dm-main"><b>${escapeHtml(d.name)}</b><small>${colorsHtml(d.colors)}${d.commander && d.commander !== d.name ? ` · ${escapeHtml(d.commander)}` : ''}</small></span>
+                            <span class="dm-actions">${mergeFrom !== null
+            ? (d.id === mergeFrom ? `<button type="button" class="small-btn" data-act="merge-cancel">Cancelar</button>` : `<button type="button" class="small-btn" data-act="merge-into">Receber as partidas</button>`)
+            : `<button type="button" class="small-btn" data-act="rename" title="Renomear"><svg class="ic"><use href="#ic-pencil"/></svg></button>${decks.length > 1 ? `<button type="button" class="small-btn" data-act="merge" title="Juntar com outro deck"><svg class="ic"><use href="#ic-shuffle"/></svg></button>` : ''}<button type="button" class="small-btn danger" data-act="delete" title="Apagar"><svg class="ic"><use href="#ic-trash"/></svg></button>`}
+                            </span>
+                        </div>`).join('')}</div>
+                    ${decks.length > 1 ? '<div class="update-muted dm-hint">Juntar: as partidas do deck escolhido passam pro outro e ele some da lista (serve pra duplicado do mesmo comandante).</div>' : ''}
+                </div>
+            </div>`;
+        modal.querySelector('.modal-close')?.addEventListener('click', close);
+        modal.querySelectorAll('.dm-row button[data-act]').forEach(b => b.addEventListener('click', async () => {
+            const row = b.closest('.dm-row');
+            const id = Number(row.dataset.id);
+            const d = decks.find(x => x.id === id);
+            if (!d)
+                return;
+            try {
+                if (b.dataset.act === 'rename') {
+                    const name = await promptDialog('Novo nome do deck', { title: 'Renomear deck', value: d.name, okText: 'Salvar' });
+                    if (!name || name.trim() === d.name)
+                        return;
+                    await apiUpdateDeck(id, { name: name.trim().slice(0, 60) });
+                }
+                else if (b.dataset.act === 'delete') {
+                    if (!await confirmDialog(`Apagar o deck "${d.name}"? As partidas já jogadas continuam no histórico.`, { title: 'Apagar deck', okText: 'Apagar', danger: true }))
+                        return;
+                    await apiDeleteDeck(id);
+                }
+                else if (b.dataset.act === 'merge') {
+                    mergeFrom = id;
+                    render();
+                    return;
+                }
+                else if (b.dataset.act === 'merge-cancel') {
+                    mergeFrom = null;
+                    render();
+                    return;
+                }
+                else if (b.dataset.act === 'merge-into') {
+                    const from = decks.find(x => x.id === mergeFrom);
+                    if (!from || mergeFrom === null)
+                        return;
+                    if (!await confirmDialog(`Juntar "${from.name}" em "${d.name}"? As partidas de "${from.name}" passam pra "${d.name}" e ele some da lista.`, { title: 'Juntar decks', okText: 'Juntar' }))
+                        return;
+                    const r = await apiMergeDeck(mergeFrom, id);
+                    mergeFrom = null;
+                    showSpecialMoment(`${r.moved} partida${r.moved === 1 ? '' : 's'} movida${r.moved === 1 ? '' : 's'} pra ${r.deck.name}`, 'success');
+                }
+                changed = true;
+                await refreshProfiles();
+                render();
+            }
+            catch (err) {
+                showSpecialMoment(`Não deu: ${err?.message || err}`, 'warning');
+            }
+        }));
     };
     modal.addEventListener('click', (e) => { if (e.target === modal)
         close(); });
@@ -4213,6 +4520,8 @@ function renderGame(state) {
     updateSettingsControls(state);
     // Handle turn timer
     updateTurnTimer(state);
+    trackLeaderLive(state); // v2.6.0: anuncia troca de líder na hora
+    updateTableMood(state); // v2.6.0: trilha automática sente a mesa
     // Check for newly eliminated players and play death sound
     state.players.forEach(player => {
         if (player.isEliminated && !eliminatedPlayersShown.has(player.id)) {
@@ -4323,17 +4632,30 @@ function updateGridLayout(grid, state) {
 // Dano de comandante por atacante, visível no card: uma barra por oponente
 // (cor dele) crescendo até 21. Com 15+ de alguém, selo "em risco".
 const CMD_RISK_FROM = 15;
+// v2.6.0: a chave do dano de comandante e o id do atacante, ou `${id}:2` pro parceiro dele.
+function cmdKeySource(key) { return key.split(':')[0]; }
+function cmdKeySlot(key) { return key.endsWith(':2') ? 2 : 1; }
+// Nome do comandante (ou do parceiro) de um jogador; sem comandante marcado, o nome do jogador.
+function cmdNameFor(p, slot) {
+    if (!p)
+        return '?';
+    if (slot === 2)
+        return p.partnerName || 'parceiro';
+    return (p.deckName || '').split(' // ')[0] || p.name;
+}
 function commanderBarsHtml(player, state) {
     const entries = Object.entries(player.commanderDamage || {}).filter(([, v]) => v > 0);
     if (!entries.length)
         return '';
     const maxD = Math.max(...entries.map(([, v]) => v));
     const risk = maxD >= CMD_RISK_FROM && maxD < COMMANDER_DAMAGE_LETHAL && !player.isEliminated;
-    const bars = entries.sort((a, b) => b[1] - a[1]).map(([sid, v]) => {
-        const src = state.players.find(p => p.id === sid);
+    const bars = entries.sort((a, b) => b[1] - a[1]).map(([key, v]) => {
+        const src = state.players.find(p => p.id === cmdKeySource(key));
+        const slot = cmdKeySlot(key);
+        const label = slot === 2 ? `${src?.name || '?'} (${cmdNameFor(src, 2)})` : (src?.name || '?');
         const pct = Math.min(100, Math.round(100 * v / COMMANDER_DAMAGE_LETHAL));
-        return `<div class="cmd-bar ${v >= COMMANDER_DAMAGE_LETHAL ? 'lethal' : v >= CMD_RISK_FROM ? 'danger' : ''}" title="${escapeHtml(src?.name || '?')}: ${v}/21" data-action="commander-bars">
-            <span class="cmd-bar-name">${escapeHtml((src?.name || '?').slice(0, 8))}</span>
+        return `<div class="cmd-bar ${v >= COMMANDER_DAMAGE_LETHAL ? 'lethal' : v >= CMD_RISK_FROM ? 'danger' : ''}" title="${escapeHtml(label)}: ${v}/21" data-action="commander-bars">
+            <span class="cmd-bar-name">${escapeHtml((src?.name || '?').slice(0, 8))}${slot === 2 ? '<small>²</small>' : ''}</span>
             <span class="cmd-bar-track"><span class="cmd-bar-fill" style="width:${pct}%;background:${escapeHtml(src?.color || '#888')}"></span></span>
             <span class="cmd-bar-val">${v}</span>
         </div>`;
@@ -4387,7 +4709,7 @@ function revertEvent(playerId, eventId) {
             break;
         case 'commander_damage':
             if (d.fromPlayerId)
-                gameState.addCommanderDamage(playerId, d.fromPlayerId, -(d.amount || 0));
+                gameState.addCommanderDamage(playerId, d.fromPlayerId, -(d.amount || 0), d.slot === 2 ? 2 : 1);
             else
                 return false;
             break;
@@ -4686,7 +5008,7 @@ window.addEventListener('orientationchange', () => setTimeout(fitRotatedCards, 1
 function cmdPillHtml(player, state) {
     const entries = Object.entries(player.commanderDamage || {}).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
     const top = entries[0];
-    const src = top ? state.players.find(p => p.id === top[0]) : null;
+    const src = top ? state.players.find(p => p.id === cmdKeySource(top[0])) : null;
     const maxD = top ? top[1] : 0;
     const cls = maxD >= COMMANDER_DAMAGE_LETHAL ? 'lethal' : maxD >= CMD_RISK_FROM ? 'danger' : maxD > 0 ? 'has' : '';
     return `<button class="cmd-fab commander-drag-btn ${cls}" data-action="commander" title="Dano de comandante: toque abre, arraste até outro card pra aplicar"${src ? ` style="--cmd-src:${escapeHtml(src.color)}"` : ''}>
@@ -4919,11 +5241,14 @@ function openCommanderQuickPopup(targetId, sourceId, x, y) {
     if (!target || !source || target.isEliminated)
         return;
     let amount = 1;
+    let slot = 1;
+    const totalOf = (sl) => target.commanderDamage[sl === 2 ? `${sourceId}:2` : sourceId] || 0;
     const pop = document.createElement('div');
     pop.id = 'cmd-quick-pop';
     pop.className = 'cmd-quick-pop';
     pop.innerHTML = `
-        <div class="cmd-quick-title">⚔️ <b>${escapeHtml(source.name)}</b> → <b>${escapeHtml(target.name)}</b> <span class="update-muted">(total ${target.commanderDamage[sourceId] || 0}/21)</span></div>
+        <div class="cmd-quick-title">⚔️ <b>${escapeHtml(source.name)}</b> → <b>${escapeHtml(target.name)}</b> <span class="update-muted" id="cmd-quick-total">(total ${totalOf(1)}/21)</span></div>
+        ${source.partnerName ? `<div class="cmd-quick-slots"><button type="button" class="active" data-slot="1">${escapeHtml(cmdNameFor(source, 1))}</button><button type="button" data-slot="2">${escapeHtml(cmdNameFor(source, 2))}</button></div>` : ''}
         <div class="cmd-quick-row">
             <button type="button" data-d="-1">−</button>
             <span class="cmd-quick-amount" id="cmd-quick-amount">1</span>
@@ -4941,10 +5266,17 @@ function openCommanderQuickPopup(targetId, sourceId, x, y) {
         amount = Math.max(1, Math.min(50, amount + Number(b.dataset.d)));
         amountEl.textContent = String(amount);
     }));
+    pop.querySelectorAll('[data-slot]').forEach(b => b.addEventListener('click', () => {
+        slot = Number(b.dataset.slot) === 2 ? 2 : 1;
+        pop.querySelectorAll('[data-slot]').forEach(x => x.classList.toggle('active', x === b));
+        const t = pop.querySelector('#cmd-quick-total');
+        if (t)
+            t.textContent = `(total ${totalOf(slot)}/21)`;
+    }));
     const close = () => pop.remove();
     pop.querySelector('#cmd-quick-cancel')?.addEventListener('click', close);
     pop.querySelector('#cmd-quick-ok')?.addEventListener('click', () => {
-        gameState.addCommanderDamage(targetId, sourceId, amount);
+        gameState.addCommanderDamage(targetId, sourceId, amount, slot);
         audioManager.play('damage', targetId);
         createParticles(targetId, 'fire', Math.min(amount * 2, 15));
         narrator.announceCommanderDamage(target.name, source.name, amount);
@@ -5092,8 +5424,10 @@ async function openCommanderSheet(playerId) {
                 <a class="cs-gallery-btn cs-sheet-link" href="https://edhrec.com/commanders/${edhrecSlug(c.name || player.deckName)}" target="_blank" rel="noopener"><svg class="ic"><use href="#ic-chart"/></svg> Abrir no EDHREC</a>
                 <a class="cs-gallery-btn cs-sheet-link" href="${escapeHtml(c.scryfall_uri || '#')}" target="_blank" rel="noopener"><svg class="ic"><use href="#ic-search"/></svg> Ver no Scryfall</a>
                 <button type="button" class="cs-gallery-btn" id="cmd-sheet-change"><svg class="ic"><use href="#ic-deck"/></svg> Trocar comandante</button>
+                <button type="button" class="cs-gallery-btn" id="cmd-sheet-partner"><svg class="ic"><use href="#ic-users"/></svg> ${player.partnerName ? `Parceiro: ${escapeHtml(player.partnerName)}` : 'Parceiro / Background'}</button>
             </div>`;
         body.querySelector('#cmd-sheet-change')?.addEventListener('click', () => { close(); openDeckPicker(playerId); });
+        body.querySelector('#cmd-sheet-partner')?.addEventListener('click', () => { close(); openDeckPicker(playerId, !player.partnerName); });
     }
     catch (e) {
         body.innerHTML = `<div class="ranking-empty">Scryfall indisponível (${escapeHtml(String(e?.message || e))}).</div><div class="pe-actions"><button type="button" class="cs-gallery-btn" id="cmd-sheet-change">Trocar comandante</button></div>`;
@@ -5891,9 +6225,10 @@ function openCommanderDamageModal(playerId, mode = 'in') {
             return;
         const other = b.dataset.p;
         const d = Number(b.dataset.d);
+        const slot = Number(b.dataset.slot) === 2 ? 2 : 1;
         const target = cmdSheetMode === 'in' ? playerId : other;
         const source = cmdSheetMode === 'in' ? other : playerId;
-        gameState.addCommanderDamage(target, source, d);
+        gameState.addCommanderDamage(target, source, d, slot);
         if (d > 0) {
             audioManager.play('commander_damage', target);
             createParticles(target, 'fire', Math.min(d * 2, 15));
@@ -5914,21 +6249,25 @@ function openCommanderDamageModal(playerId, mode = 'in') {
             title.textContent = cmdSheetMode === 'in' ? `Dano de comandante em ${me.name}` : `Dano do comandante de ${me.name}`;
         const others = s.players.filter(p => p.id !== playerId);
         rows.innerHTML = others.map(o => {
-            const v = cmdSheetMode === 'in' ? (me.commanderDamage[o.id] || 0) : (o.commanderDamage[playerId] || 0);
-            const pct = Math.min(100, Math.round(100 * v / COMMANDER_DAMAGE_LETHAL));
-            const cls = v >= COMMANDER_DAMAGE_LETHAL ? 'lethal' : v >= CMD_RISK_FROM ? 'danger' : '';
             const attacker = cmdSheetMode === 'in' ? o : me; // a cor da barra é a de quem bate
-            const deck = (cmdSheetMode === 'in' ? o.deckName : me.deckName) || '';
-            return `<div class="cmd-dmg-row ${cls} ${o.isEliminated ? 'dead' : ''}" style="--player-color:${escapeHtml(attacker.color)}">
-                <div class="cmd-dmg-who">${avatarHtml({ name: o.name, photo_url: o.avatar, color: o.color }, 'lc-avatar lc-avatar-sm')}<div class="cmd-dmg-names"><b>${escapeHtml(o.name)}</b>${deck ? `<small>${escapeHtml(deck)}</small>` : ''}</div></div>
+            const slots = attacker.partnerName ? [1, 2] : [1];
+            return slots.map(slot => {
+                const key = (id) => slot === 2 ? `${id}:2` : id;
+                const v = cmdSheetMode === 'in' ? (me.commanderDamage[key(o.id)] || 0) : (o.commanderDamage[key(playerId)] || 0);
+                const pct = Math.min(100, Math.round(100 * v / COMMANDER_DAMAGE_LETHAL));
+                const cls = v >= COMMANDER_DAMAGE_LETHAL ? 'lethal' : v >= CMD_RISK_FROM ? 'danger' : '';
+                const deck = attacker.partnerName ? cmdNameFor(attacker, slot) : ((cmdSheetMode === 'in' ? o.deckName : me.deckName) || '');
+                return `<div class="cmd-dmg-row ${cls} ${o.isEliminated ? 'dead' : ''} ${slot === 2 ? 'slot2' : ''}" style="--player-color:${escapeHtml(attacker.color)}">
+                <div class="cmd-dmg-who">${slot === 1 ? avatarHtml({ name: o.name, photo_url: o.avatar, color: o.color }, 'lc-avatar lc-avatar-sm') : '<span class="lc-avatar lc-avatar-sm cmd-slot2-mark">2</span>'}<div class="cmd-dmg-names"><b>${slot === 1 ? escapeHtml(o.name) : escapeHtml(deck)}</b>${slot === 1 && deck ? `<small>${escapeHtml(deck)}</small>` : slot === 2 ? '<small>parceiro</small>' : ''}</div></div>
                 <div class="cmd-dmg-meter"><div class="cmd-dmg-bar"><span style="width:${pct}%"></span></div><div class="cmd-dmg-val">${v}<small>/21</small></div></div>
                 <div class="cmd-dmg-btns">
-                    <button type="button" data-p="${o.id}" data-d="-1" ${v <= 0 ? 'disabled' : ''}>−</button>
-                    <button type="button" data-p="${o.id}" data-d="1" class="plus">+1</button>
-                    <button type="button" data-p="${o.id}" data-d="3" class="plus">+3</button>
-                    <button type="button" data-p="${o.id}" data-d="5" class="plus">+5</button>
+                    <button type="button" data-p="${o.id}" data-slot="${slot}" data-d="-1" ${v <= 0 ? 'disabled' : ''}>−</button>
+                    <button type="button" data-p="${o.id}" data-slot="${slot}" data-d="1" class="plus">+1</button>
+                    <button type="button" data-p="${o.id}" data-slot="${slot}" data-d="3" class="plus">+3</button>
+                    <button type="button" data-p="${o.id}" data-slot="${slot}" data-d="5" class="plus">+5</button>
                 </div>
             </div>`;
+            }).join('');
         }).join('');
     };
     const unsub = gameState.subscribe(() => { if (document.body.contains(modal))

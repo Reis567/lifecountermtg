@@ -955,17 +955,19 @@ class GameStateManager {
         }
     }
     // ===== Commander Damage Actions =====
-    addCommanderDamage(targetPlayerId, sourcePlayerId, amount) {
+    // slot 2 = dano do PARCEIRO do atacante (chave `${sourcePlayerId}:2`); cada comandante conta os seus 21.
+    addCommanderDamage(targetPlayerId, sourcePlayerId, amount, slot = 1) {
         const targetPlayer = this.state.players.find(p => p.id === targetPlayerId);
+        const key = slot === 2 ? `${sourcePlayerId}:2` : sourcePlayerId;
         if (targetPlayer && !targetPlayer.isEliminated) {
-            const previousDamage = targetPlayer.commanderDamage[sourcePlayerId] || 0;
+            const previousDamage = targetPlayer.commanderDamage[key] || 0;
             const previousLife = targetPlayer.life;
             this.addUndoAction('commander_damage', targetPlayerId, {
                 commanderDamage: { ...targetPlayer.commanderDamage },
                 life: targetPlayer.life,
             }, `Dano de comandante: ${amount > 0 ? '+' : ''}${amount}`);
             const newDamage = Math.max(0, previousDamage + amount);
-            targetPlayer.commanderDamage[sourcePlayerId] = newDamage;
+            targetPlayer.commanderDamage[key] = newDamage;
             // Adjust life based on actual damage change
             // actualChange is positive when adding damage (life decreases)
             // actualChange is negative when removing damage (life increases)
@@ -977,6 +979,7 @@ class GameStateManager {
                 previousValue: previousDamage,
                 newValue: newDamage,
                 source: 'commander',
+                ...(slot === 2 ? { slot: 2 } : {}),
             });
             this.syncTeamLife(targetPlayerId);
             this.checkEliminationConditions(targetPlayerId);
@@ -1212,9 +1215,9 @@ class GameStateManager {
             this.eliminatePlayer(playerId, 'life', undefined, true);
             return;
         }
-        for (const [sourceId, damage] of Object.entries(player.commanderDamage)) {
+        for (const [sourceKey, damage] of Object.entries(player.commanderDamage)) {
             if (damage >= COMMANDER_DAMAGE_LETHAL) {
-                this.eliminatePlayer(playerId, 'commander', sourceId, true);
+                this.eliminatePlayer(playerId, 'commander', sourceKey.split(':')[0], true);
                 return;
             }
         }

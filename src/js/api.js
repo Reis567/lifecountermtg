@@ -142,6 +142,16 @@ export function apiCreateDeck(profileId, data) {
 export function apiDeleteDeck(deckId) {
     return apiFetch(`/api/decks/${deckId}/`, { method: 'DELETE' }, true);
 }
+// v2.6.0: renomear/ajustar deck, juntar dois decks do mesmo perfil, ranking global por comandante
+export function apiUpdateDeck(deckId, data) {
+    return apiFetch(`/api/decks/${deckId}/`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }, true);
+}
+export function apiMergeDeck(deckId, into) {
+    return apiFetch(`/api/decks/${deckId}/merge/`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ into }) }, true);
+}
+export function apiCommanders(period) {
+    return apiFetch(`/api/commanders/?period=${encodeURIComponent(period)}`);
+}
 export function apiUploadProfileSound(profileId, kind, file, filename) {
     const fd = new FormData();
     fd.append('file', file, filename);

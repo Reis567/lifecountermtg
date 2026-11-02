@@ -439,7 +439,49 @@ AWARD_LABELS = {
     'most_matches': 'Mais partidas',
     'zebra': 'Zebra',
     'longest_streak': 'Maior sequência',
+    'comeback': 'Maior virada',
 }
+
+
+def _max_deficit(match, winner_name, starting_life):
+    """
+    Maior desvantagem do vencedor durante a partida: (maior vida entre os
+    vivos) - (vida do vencedor), no pior momento dele. Reconstruido do log de
+    eventos (cronologico). None se o log nao tem o vencedor.
+    """
+    events = match.events or []
+    if not isinstance(events, list) or not events:
+        return None
+    wname = (winner_name or '').strip().lower()
+    wid = None
+    for e in events:
+        if (e.get('playerName') or '').strip().lower() == wname and e.get('playerId'):
+            wid = e.get('playerId')
+            break
+    if not wid:
+        return None
+    life, dead, worst = {}, set(), 0
+    for e in events:
+        t, pid, d = e.get('type'), e.get('playerId'), (e.get('details') or {})
+        if not pid:
+            continue
+        if t == 'life_change':
+            if isinstance(d.get('newValue'), (int, float)):
+                life[pid] = d['newValue']
+            elif isinstance(d.get('amount'), (int, float)):
+                life[pid] = life.get(pid, starting_life) + d['amount']
+        elif t == 'commander_damage' and isinstance(d.get('amount'), (int, float)):
+            life[pid] = life.get(pid, starting_life) - d['amount']
+        elif t == 'player_eliminated':
+            dead.add(pid)
+        elif t == 'revive':
+            dead.discard(pid)
+        else:
+            continue
+        others = [v for k, v in life.items() if k != wid and k not in dead]
+        if others:
+            worst = max(worst, max(others) - life.get(wid, starting_life))
+    return worst
 
 
 def _elo_before(history):
@@ -474,6 +516,7 @@ def _season_awards(request, s_start, s_end, elo_history=None):
 
     kills, podiums, played, streak_best, streak_cur = {}, {}, {}, {}, {}
     zebra = None  # (gap, profile_id, match_id)
+    comeback = None  # (deficit, profile_id, match_id)
     if elo_history is None:
         elo_history = scoring.compute_elo()[1]
     before = _elo_before(elo_history)
@@ -499,6 +542,10 @@ def _season_awards(request, s_start, s_end, elo_history=None):
             gap = max(ratings.values()) - ratings[winner.profile_id]
             if ratings[winner.profile_id] == min(ratings.values()) and gap > 0 and (zebra is None or gap > zebra[0]):
                 zebra = (gap, winner.profile_id, m.id)
+        if winner:
+            deficit = _max_deficit(m, winner.name, m.starting_life or 40)
+            if deficit and deficit >= 10 and (comeback is None or deficit > comeback[0]):
+                comeback = (deficit, winner.profile_id, m.id)
 
     def best(d):
         if not d:
@@ -513,6 +560,8 @@ def _season_awards(request, s_start, s_end, elo_history=None):
             out.append({'key': key, 'label': AWARD_LABELS[key], 'value': b[1], **profiles[b[0]]})
     if zebra:
         out.append({'key': 'zebra', 'label': AWARD_LABELS['zebra'], 'value': int(zebra[0]), 'match_id': zebra[2], **profiles[zebra[1]]})
+    if comeback:
+        out.append({'key': 'comeback', 'label': AWARD_LABELS['comeback'], 'value': int(comeback[0]), 'match_id': comeback[2], **profiles[comeback[1]]})
     return out
 
 
@@ -641,6 +690,13 @@ def season_summary(request):
         for pid in order:
             series[pid]['values'].append(totals[pid])
         race_matches.append({'id': m.id, 'ended_at': m.ended_at})
+    # v2.6.0: quem comeca vence quanto? (partidas com starter conhecido) x esperado (1/N medio)
+    known = [m for m in matches if m.starter_profile_id]
+    st_wins = sum(1 for m in known if any(p.place == 1 and p.profile_id == m.starter_profile_id for p in m.placements.all()))
+    starter_d = None
+    if known:
+        expected = round(100.0 * sum(1.0 / max(2, m.player_count or 4) for m in known) / len(known), 1)
+        starter_d = {'matches': len(known), 'wins': st_wins, 'win_rate': round(100.0 * st_wins / len(known), 1), 'expected_rate': expected}
     days_total = max(1, (s_end.date() - s_start.date()).days)
     days_left = max(0, (s_end.date() - timezone.localdate()).days)
     return Response({
@@ -650,6 +706,7 @@ def season_summary(request):
         'gap': (rows[0]['points'] - rows[1]['points']) if len(rows) > 1 else None,
         'longest_streak': streak, 'longest_match': longest_d, 'commander': commander,
         'awards': awards, 'race': {'matches': race_matches, 'series': [series[pid] for pid in order]},
+        'starter': starter_d,
         'now': now,
     })
 
@@ -832,6 +889,14 @@ def profile_stats(request, pk):
     kill_causes = _cause_dist(o.death_cause for o in all_pl if (o.eliminated_by or '').strip().lower() == me_name and o.profile_id != profile.id)
     starts = Match.objects.filter(id__in=match_ids, starter_profile=profile).count()
     starts_rate = round(100.0 * starts / matches_n, 1) if matches_n else 0.0
+    # v2.6.0: vence mais quando comeca? (so partidas em que se sabe quem comecou)
+    started_ids = set(Match.objects.filter(id__in=match_ids, starter_profile=profile).values_list('id', flat=True))
+    known_ids = set(Match.objects.filter(id__in=match_ids, starter_profile__isnull=False).values_list('id', flat=True))
+    starts_wins = sum(1 for p in placements if p.match_id in started_ids and p.place == 1)
+    non_start_n = len(known_ids - started_ids)
+    non_start_wins = sum(1 for p in placements if p.match_id in known_ids and p.match_id not in started_ids and p.place == 1)
+    starts_win_rate = round(100.0 * starts_wins / len(started_ids), 1) if started_ids else None
+    non_start_win_rate = round(100.0 * non_start_wins / non_start_n, 1) if non_start_n else None
     commander_deaths_total = sum(p.commander_deaths or 0 for p in placements)
     win_lives = [p.final_life for p in placements if p.place == 1 and p.final_life is not None]
     avg_final_life_wins = round(sum(win_lives) / len(win_lives), 1) if win_lives else None
@@ -853,6 +918,9 @@ def profile_stats(request, pk):
         'kill_causes': kill_causes,
         'starts': starts,
         'starts_rate': starts_rate,
+        'starts_wins': starts_wins,
+        'starts_win_rate': starts_win_rate,
+        'non_start_win_rate': non_start_win_rate,
         'commander_deaths_total': commander_deaths_total,
         'avg_final_life_wins': avg_final_life_wins,
         'longest_ms': max(durations) if durations else 0,
@@ -930,6 +998,16 @@ def profile_decks(request, pk):
     if err:
         return err
     data = {**request.data, 'profile': profile.id}
+    # v2.6.0: buscar o mesmo comandante de novo devolve o deck que ja existe (nao divide a estatistica)
+    sid = (data.get('scryfall_id') or '').strip()
+    nm = (data.get('name') or '').strip()
+    existing = None
+    if sid:
+        existing = profile.decks.filter(active=True, scryfall_id=sid).first()
+    if existing is None and nm:
+        existing = profile.decks.filter(active=True, name__iexact=nm).first()
+    if existing is not None:
+        return Response(DeckSerializer(existing).data, status=200)
     ser = DeckSerializer(data=data)
     ser.is_valid(raise_exception=True)
     deck = ser.save(profile=profile)
@@ -953,6 +1031,108 @@ def deck_detail(request, pk):
     ser.is_valid(raise_exception=True)
     ser.save()
     return Response(ser.data)
+
+
+@api_view(['POST'])
+def deck_merge(request, pk):
+    """Junta o deck pk no deck `into` (mesmo perfil): move as colocacoes e desativa o pk."""
+    err = _check_key(request)
+    if err:
+        return err
+    try:
+        src = Deck.objects.get(pk=pk)
+        dst = Deck.objects.get(pk=int(request.data.get('into')))
+    except (Deck.DoesNotExist, TypeError, ValueError):
+        raise Http404
+    if src.id == dst.id or src.profile_id != dst.profile_id:
+        return Response({'detail': 'Os dois decks precisam ser do mesmo perfil e diferentes.'}, status=400)
+    with transaction.atomic():
+        moved = MatchPlacement.objects.filter(deck=src).update(deck=dst, deck_name=dst.name, deck_colors=dst.colors or '')
+        src.active = False
+        src.save(update_fields=['active'])
+        if not dst.image_url and src.image_url:
+            dst.image_url = src.image_url
+            dst.save(update_fields=['image_url'])
+    return Response({'moved': moved, 'deck': DeckSerializer(dst).data})
+
+
+def _norm_deck(name):
+    return ' '.join((name or '').split()).strip().lower()
+
+
+@api_view(['GET'])
+def commanders(request):
+    """
+    Ranking global por comandante/deck (agrupado pelo nome, entre todos os
+    perfis) + confronto deck contra deck (quem terminou na frente quando os
+    dois estavam na mesma mesa). ?period=all|season|year|month|today.
+    """
+    period = request.GET.get('period', 'all')
+    start, end = _period_range(period)
+    qs = Match.objects.all()
+    if start:
+        qs = qs.filter(ended_at__gte=start)
+    if end:
+        qs = qs.filter(ended_at__lt=end)
+    matches = list(qs.order_by('ended_at', 'id').prefetch_related('placements__profile', 'placements__deck'))
+    decks = {}
+    vs = {}
+    for m in matches:
+        pls = [p for p in m.placements.all() if p.deck_name]
+        for p in pls:
+            k = _norm_deck(p.deck_name)
+            d = decks.setdefault(k, {'key': k, 'name': p.deck_name, 'colors': p.deck_colors or '', 'image': None,
+                                     'matches': 0, 'wins': 0, 'podiums': 0, 'places': [], 'pilots': {}, 'last_at': None})
+            d['matches'] += 1
+            d['places'].append(p.place)
+            if p.place == 1:
+                d['wins'] += 1
+            if p.place <= 3:
+                d['podiums'] += 1
+            if p.deck and p.deck.image_url and not d['image']:
+                d['image'] = p.deck.image_url
+            if not d['colors'] and p.deck_colors:
+                d['colors'] = p.deck_colors
+            pname = p.profile.name if p.profile else p.name
+            pil = d['pilots'].setdefault(pname, {'name': pname, 'profile_id': p.profile_id, 'matches': 0, 'wins': 0})
+            pil['matches'] += 1
+            if p.place == 1:
+                pil['wins'] += 1
+            d['last_at'] = m.ended_at
+        # confronto: pares de decks diferentes na mesma mesa
+        for a in pls:
+            for b in pls:
+                ka, kb = _norm_deck(a.deck_name), _norm_deck(b.deck_name)
+                if ka == kb:
+                    continue
+                r = vs.setdefault(ka, {}).setdefault(kb, {'matches': 0, 'ahead': 0, 'wins': 0})
+                r['matches'] += 1
+                if a.place < b.place:
+                    r['ahead'] += 1
+                if a.place == 1:
+                    r['wins'] += 1
+    out = []
+    for d in decks.values():
+        n = d['matches']
+        rivals = []
+        for kb, r in (vs.get(d['key']) or {}).items():
+            other = decks.get(kb)
+            if not other:
+                continue
+            rivals.append({'key': kb, 'name': other['name'], 'colors': other['colors'], 'image': other['image'],
+                           'matches': r['matches'], 'ahead': r['ahead'], 'behind': r['matches'] - r['ahead'],
+                           'ahead_rate': round(100.0 * r['ahead'] / r['matches'], 1)})
+        rivals.sort(key=lambda x: (-x['matches'], -x['ahead_rate']))
+        out.append({
+            'key': d['key'], 'name': d['name'], 'colors': d['colors'], 'image': d['image'],
+            'matches': n, 'wins': d['wins'], 'podiums': d['podiums'],
+            'win_rate': round(100.0 * d['wins'] / n, 1) if n else 0.0,
+            'avg_place': round(sum(d['places']) / n, 2) if n else None,
+            'pilots': sorted(d['pilots'].values(), key=lambda x: (-x['matches'], -x['wins'])),
+            'last_at': d['last_at'], 'vs': rivals,
+        })
+    out.sort(key=lambda x: (-x['wins'], -x['win_rate'], -x['matches'], x['name'].lower()))
+    return Response({'period': period, 'rows': out})
 
 
 # ----- sons por perfil (servidor) ------------------------------------------

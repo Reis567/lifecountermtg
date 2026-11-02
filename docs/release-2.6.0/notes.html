@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>LifeCounter 2.6.0</title>
+<style>
+  :root { --ink: #16161a; --muted: #5d5d66; --line: #e3e3ea; --accent: #6366f1; --bg: #ffffff; --soft: #f5f5fa; --bad: #b91c1c; --good: #15803d; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Inter, Arial, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.5; }
+  .page { max-width: 900px; margin: 0 auto; padding: 36px 32px 48px; }
+  header { border-bottom: 3px solid var(--accent); padding-bottom: 16px; margin-bottom: 28px; }
+  .kicker { color: var(--accent); font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; font-size: 12px; }
+  h1 { margin: 4px 0 6px; font-size: 34px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); font-size: 15px; }
+  h2 { font-size: 22px; margin: 36px 0 8px; padding-top: 8px; border-top: 1px solid var(--line); break-after: avoid; }
+  h2 small { color: var(--muted); font-weight: 500; font-size: 13px; margin-left: 8px; }
+  p { margin: 6px 0 10px; }
+  ul { margin: 6px 0 10px; padding-left: 20px; }
+  li { margin: 3px 0; }
+  .lead { font-size: 16px; color: #2b2b33; }
+  .toc { background: var(--soft); border-radius: 12px; padding: 14px 18px; margin: 18px 0 8px; }
+  .toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+  .toc li { break-inside: avoid; }
+  .shots { display: flex; gap: 14px; align-items: flex-start; margin: 12px 0 6px; break-inside: avoid; }
+  .shot { flex: 1; min-width: 0; }
+  .shot img { width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); box-shadow: 0 6px 20px rgba(0,0,0,0.08); display: block; }
+  .shot.phone { flex: 0 0 31%; }
+  .shot.land { flex: 1; }
+  .cap { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .cap b.antes { color: var(--bad); } .cap b.depois { color: var(--good); }
+  .how { background: var(--soft); border-left: 3px solid var(--accent); padding: 8px 12px; border-radius: 0 10px 10px 0; margin: 8px 0 12px; font-size: 14px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0 12px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--soft); }
+  code { background: var(--soft); padding: 1px 5px; border-radius: 5px; font-size: 12.5px; }
+  footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+  @page { size: A4; margin: 14mm 12mm; }
+  @media print { .page { padding: 0; max-width: none; } h2 { page-break-after: avoid; } .shots { page-break-inside: avoid; } }
+</style>
+</head>
+<body>
+<div class="page">
+<header>
+  <div class="kicker">Notas da atualização</div>
+  <h1>LifeCounter 2.6.0</h1>
+  <div class="sub">2 de novembro de 2026 · APK code 29 · site lifecounter.mreis.site · atualização automática pelo app</div>
+</header>
+
+<p class="lead">Oito coisas pedidas de uma vez. Na mesa: comandantes parceiros contam os 21 de cada um, a troca de líder é anunciada na hora, a música ambiente sente a mesa e o descanso de tela conta curiosidades reais. No ranking: aba de Comandantes com deck contra deck, quanto vale começar, prêmio de maior virada e uma tela pra arrumar os decks do perfil. E o log da partida vai inteiro pro servidor, que antes cortava em 500 eventos.</p>
+
+<div class="toc">
+  <ol>
+    <li>Comandantes parceiros (Partner, Background)</li>
+    <li>Virada ao vivo e prêmio "Maior virada"</li>
+    <li>Trilha que sente a mesa</li>
+    <li>Descanso de tela com curiosidades</li>
+    <li>Ranking por comandante e deck contra deck</li>
+    <li>Quem começa vence quanto?</li>
+    <li>Decks do perfil: renomear, apagar, juntar</li>
+    <li>Log inteiro no servidor</li>
+    <li>Nos bastidores e como atualizar</li>
+  </ol>
+</div>
+
+<h2>1. Comandantes parceiros <small>Partner, Background, Friends forever</small></h2>
+<p>O dano de comandante era um número por oponente. Com dois comandantes isso dava errado: 11 de um e 10 de outro somavam 21 sem ninguém ter matado. Agora cada comandante conta os seus 21.</p>
+<ul>
+  <li>Na ficha do comandante (toque na pílula do card) tem o botão <b>Parceiro / Background</b>: a busca no Scryfall passa a aceitar Backgrounds e o deck vira "A // B", com as cores somadas. Com perfil, o deck salvo acompanha.</li>
+  <li>Na folha de dano, quem tem parceiro aparece em <b>duas linhas</b> (uma por comandante). Ao arrastar o CMD até outro card, o popup pergunta de qual comandante é o dano.</li>
+  <li>21 de qualquer um dos dois elimina, com "Dano de comandante" e o matador já preenchidos. O log marca o dano do parceiro.</li>
+</ul>
+<div class="shots">
+  <div class="shot land"><img src="./m00-ficha-com-botao-parceiro.png" alt=""><div class="cap"><b class="depois">Ficha do comandante</b> com o botão de parceiro.</div></div>
+</div>
+<div class="shots">
+  <div class="shot land"><img src="./m01-picker-parceiro.png" alt=""><div class="cap"><b class="depois">Thrasios // Tymna</b> marcado, com o parceiro listado e removível.</div></div>
+</div>
+<div class="shots">
+  <div class="shot land"><img src="./m02-folha-parceiro-15.png" alt=""><div class="cap"><b class="depois">Folha de dano:</b> Reis em duas linhas; 15 da Tymna em alerta, Thrasios ainda em 0.</div></div>
+</div>
+<div class="shots">
+  <div class="shot land"><img src="./m03-eliminado-pelo-parceiro.png" alt=""><div class="cap"><b class="depois">21 do parceiro:</b> Zé eliminado "por Reis · Dano de comandante".</div></div>
+</div>
+
+<h2>2. Virada ao vivo e prêmio "Maior virada"</h2>
+<p>A linha do tempo já sabia detectar troca de líder, mas só mostrava no fim. Agora, quando alguém assume a maior vida da mesa, aparece "Fulano assumiu a ponta no turno N (era Beltrano)" e o narrador fala, se estiver ligado. Toques de ±1 que fazem a ponta oscilar não contam: o app espera 2,5 s de estabilidade.</p>
+<p>Na temporada entrou o prêmio <b>Maior virada</b>: quem venceu estando mais atrás do líder em algum momento (diferença de vida reconstruída do log; mínimo 10). Aparece com os outros prêmios parciais e no Hall ao fechar.</p>
+<div class="shots">
+  <div class="shot land"><img src="./m04-virada-ao-vivo.png" alt=""><div class="cap"><b class="depois">"Reis assumiu a ponta no turno 1 (era Zé)"</b> na hora da troca.</div></div>
+</div>
+
+<h2>3. Trilha que sente a mesa <small>Configurações › Som › Trilha › Automática</small></h2>
+<p>A música ambiente ganhou a opção <b>Automática</b>: mesa calma toca Natureza; alguém com 5 de vida ou menos, 8 de veneno ou 15 de dano de comandante vira tensão (Sombria); quando sobram dois, clímax (Épica). A troca é suave: a trilha atual desce em 1,2 s e a nova entra em 1,5 s.</p>
+<div class="shots">
+  <div class="shot land"><img src="./m04b-clima-climax.png" alt=""><div class="cap"><b class="depois">Sobraram dois:</b> clímax.</div></div>
+</div>
+
+<h2>4. Descanso de tela com curiosidades</h2>
+<p>O relógio do descanso de tela agora rotaciona, a cada 20 s, um fato real dos dados: "X nunca venceu começando", "nêmesis de Y: Z (4×)", "partida mais longa da temporada: 2h18", "X vence 60% das partidas que começa", "comandante da temporada: Atraxa". Vem das estatísticas que o narrador já carrega no início da partida; sem rede, mostra só o relógio.</p>
+<div class="shots">
+  <div class="shot phone"><img src="./m05-descanso-curiosidade-em-pe.png" alt=""><div class="cap"><b class="depois">Descanso</b> com a curiosidade embaixo das vidas.</div></div>
+</div>
+
+<h2>5. Ranking por comandante e deck contra deck <small>aba Comandantes</small></h2>
+<p>Até aqui o comandante só aparecia dentro do perfil de cada um. A aba <b>Comandantes</b> do Ranking junta todos os pilotos: vitórias, partidas, aproveitamento, colocação média e quem pilota. Toque no deck abre o <b>deck contra deck</b>: quantas vezes ele terminou na frente de cada outro deck que sentou na mesma mesa. Filtro Geral ou Temporada.</p>
+<div class="shots">
+  <div class="shot phone"><img src="./m06-comandantes-em-pe.png" alt=""><div class="cap"><b class="depois">Em pé:</b> Atraxa aberto, com os confrontos.</div></div>
+</div>
+<div class="shots">
+  <div class="shot land"><img src="./m06-comandantes-deitado.png" alt=""><div class="cap"><b class="depois">Deitado.</b></div></div>
+</div>
+
+<h2>6. Quem começa vence quanto?</h2>
+<p>Desde a 2.5.0 o app guarda quem começou cada partida. Agora isso vira número: na página da temporada, "quem começa vence X%" contra o esperado (1/N médio da mesa); no perfil, "vence quando começa" contra "sem começar". Serve pra saber se o sorteio justo está fazendo diferença.</p>
+<div class="shots">
+  <div class="shot phone"><img src="./m07-temporada-quem-comeca.png" alt=""><div class="cap"><b class="depois">Temporada:</b> quem começa vence, com o esperado embaixo.</div></div>
+  <div class="shot phone"><img src="./m08-perfil-decks.png" alt=""><div class="cap"><b class="depois">Perfil:</b> "vence quando começa" e o botão Gerenciar dos decks.</div></div>
+</div>
+
+<h2>7. Decks do perfil: renomear, apagar, juntar</h2>
+<p>O servidor já aceitava, faltava a tela. Em Perfil › Decks › <b>Gerenciar</b>: renomear, apagar (o histórico fica) e <b>juntar</b> dois decks: as partidas de um passam pro outro e o duplicado some. E buscar de novo o mesmo comandante não cria outro deck: o app devolve o que já existe.</p>
+<div class="shots">
+  <div class="shot phone"><img src="./m09-gerenciar-decks.png" alt=""><div class="cap"><b class="depois">Gerenciar decks.</b></div></div>
+  <div class="shot phone"><img src="./m10-renomear-deck.png" alt=""><div class="cap"><b class="depois">Renomear</b> com o prompt do app.</div></div>
+  <div class="shot phone"><img src="./m11-juntar-decks.png" alt=""><div class="cap"><b class="depois">Juntar:</b> escolhe quem recebe as partidas.</div></div>
+</div>
+
+<h2>8. Log inteiro no servidor</h2>
+<p>O cliente mandava só os primeiros 500 eventos da partida. Uma mesa de 5 com duas horas passa disso fácil, e aí o fim sumia: quedas tardias, a vitória, o final do gráfico e conquistas que dependem do fim. Agora vai tudo (até 5000, o limite do próprio estado). Testado com 1200 eventos.</p>
+
+<h2>9. Nos bastidores e como atualizar</h2>
+<table>
+  <tr><th>Onde</th><th>O que mudou</th></tr>
+  <tr><td>Parceiros</td><td><code>Player.partnerName/partnerImage/partnerColors</code>; chave <code>`${id}:2`</code> em <code>commanderDamage</code>; <code>addCommanderDamage(…, slot)</code>; <code>EventDetails.slot</code>; <code>cmdKeySource/cmdKeySlot/cmdNameFor</code> no ui.ts; busca Scryfall com <code>t:background</code> no modo parceiro.</td></tr>
+  <tr><td>Virada</td><td><code>trackLeaderLive</code> (2,5 s de estabilidade) no <code>renderGame</code>; backend <code>_max_deficit</code> + prêmio <code>comeback</code> em <code>_season_awards</code>.</td></tr>
+  <tr><td>Trilha</td><td><code>AmbientMusicTrack 'auto'</code>; <code>setMood(calm|tension|climax)</code> com rampa de ganho; <code>updateTableMood</code> por render.</td></tr>
+  <tr><td>Descanso</td><td><code>tableStats</code> (stats por jogador) + <code>seasonFacts</code> carregados com o contexto do narrador; <code>restFacts()</code>; <code>.sr-fact</code>.</td></tr>
+  <tr><td>Backend</td><td><code>GET /api/commanders/?period=</code> (agrupado por nome do deck entre perfis, com <code>vs</code>); <code>POST /api/decks/&lt;id&gt;/merge/</code>; dedupe no <code>POST /profiles/&lt;id&gt;/decks/</code> (scryfall_id ou nome); <code>starts_wins/starts_win_rate/non_start_win_rate</code> no perfil; <code>starter</code> no resumo da temporada. Testes: <code>tests_lote7.py</code> (6 novos, 33 no total).</td></tr>
+  <tr><td>Log</td><td><code>ranking.ts</code>: <code>events.slice(0, 5000)</code>; <code>deck_name</code> cortado em 60 pro servidor.</td></tr>
+  <tr><td>Testes</td><td>QA novo (qa15): parceiro de ponta a ponta com Scryfall real, troca de líder e oscilação, clima da trilha (nature → dark → epic), descanso com curiosidade, aba Comandantes em pé e deitado, temporada, perfil e gerenciador. Suítes anteriores sem regressão; zero erros de JS.</td></tr>
+</table>
+<p><b>Como atualizar.</b> No Android, o app avisa ao abrir e instala com um toque (ou Configurações › Atualização). No navegador basta recarregar.</p>
+
+<footer>LifeCounter 2.6.0 (code 29) · lifecounter.mreis.site · notas geradas em 02/11/2026</footer>
+</div>
+</body>
+</html>

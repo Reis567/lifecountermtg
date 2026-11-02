@@ -42,7 +42,9 @@ function toPayload(r) {
         source: apiSource(),
         device: deviceId(),
         starter_profile_id: r.starterProfileId ?? null,
-        events: Array.isArray(r.events) ? r.events.slice(0, 500) : [],
+        // v2.6.0: o log vai inteiro (o estado guarda ate 5000). Antes cortava em 500 e
+        // partida longa perdia o FIM (quedas tardias, vitoria), estragando linha do tempo e conquistas.
+        events: Array.isArray(r.events) ? r.events.slice(0, 5000) : [],
         placements: r.placements.map((p) => ({
             profile_id: p.profileId ?? null,
             name: p.name,
@@ -53,7 +55,7 @@ function toPayload(r) {
             death_cause: p.deathCause || '',
             commander_deaths: p.commanderDeaths || 0,
             deck_id: p.deckId ?? null,
-            deck_name: p.deckName || '',
+            deck_name: (p.deckName || '').slice(0, 60),
             deck_colors: p.deckColors || '',
         })),
     };

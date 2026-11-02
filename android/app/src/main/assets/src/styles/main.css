@@ -8430,3 +8430,38 @@ body[data-only-life="on"] .player-card:not(.elim-mini) .life-value { font-size: 
 /* select + "Ouvir" na mesma linha sem quebrar o rotulo em pe (o select padrao ocupa 55% da linha) */
 .setting-item #death-sound { max-width: 42%; flex: 0 1 auto; }
 .setting-item #death-sound-test { flex-shrink: 0; padding: 0.45rem 0.7rem; }
+
+/* ===== 2.6.0: parceiros, aba Comandantes, gerenciador de decks, curiosidades no descanso ===== */
+.deck-partner { display: flex; align-items: center; gap: 0.6rem; margin: 0.4rem 0 0.6rem; font-size: 0.86rem; }
+.deck-partner img { width: 40px; height: 28px; object-fit: cover; border-radius: 6px; }
+.deck-partner > span { flex: 1; min-width: 0; }
+.deck-partner .small-btn.active { background: var(--accent-primary); color: #fff; }
+.cmd-quick-slots { display: flex; gap: 0.35rem; margin: 0.3rem 0 0.4rem; }
+.cmd-quick-slots button { flex: 1; min-width: 0; padding: 0.3rem 0.4rem; font-size: 0.72rem; border-radius: 999px; background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid transparent; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmd-quick-slots button.active { color: #fff; border-color: var(--accent-primary); background: rgba(124, 92, 255, 0.25); }
+.cmd-dmg-row.slot2 { margin-top: -0.25rem; border-top: 0; }
+.cmd-dmg-row.slot2 .cmd-dmg-who { padding-left: 0.4rem; }
+.cmd-dmg-row.slot2 .cmd-dmg-names b { font-size: 0.86rem; }
+.cmd-slot2-mark { display: inline-flex; align-items: center; justify-content: center; background: var(--player-color, #888); color: #fff; font-weight: 800; font-size: 0.8rem; }
+.ck-seg { margin: 0 0 0.6rem; }
+.ck-art { width: 56px; height: 36px; flex-shrink: 0; border-radius: 8px; background: var(--bg-tertiary) center/cover no-repeat; }
+.ck-row.open { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.ck-row .rk-name { display: inline-flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+.ck-vs { background: var(--bg-secondary); border-radius: 0 0 var(--border-radius-sm) var(--border-radius-sm); padding: 0.5rem 0.75rem 0.7rem; margin: 0 0 0.5rem; }
+.ck-vs-row { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(40px, 0.8fr) auto; gap: 0.45rem; align-items: center; font-size: 0.8rem; padding: 0.25rem 0; }
+.ck-vs-name { display: inline-flex; align-items: center; gap: 0.3rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck-vs-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.ck-vs-bar span { display: block; height: 100%; background: var(--accent-primary); }
+.ck-vs-val { color: var(--text-muted); white-space: nowrap; }
+.pp-decks-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.dm-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.dm-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0.5rem; border-radius: var(--border-radius-sm); background: var(--bg-secondary); }
+.dm-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.dm-main b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dm-main small { color: var(--text-muted); display: inline-flex; align-items: center; gap: 0.3rem; }
+.dm-actions { display: flex; gap: 0.3rem; flex-shrink: 0; }
+.dm-actions .small-btn { padding: 0.4rem 0.5rem; }
+.dm-actions .small-btn.danger { color: #f87171; }
+.dm-hint { margin-top: 0.6rem; font-size: 0.78rem; }
+.sr-fact { margin-top: 1.2rem; max-width: 36ch; text-align: center; font-size: 0.95rem; color: rgba(255,255,255,0.55); line-height: 1.35; }
+@media (orientation: landscape) and (max-height: 520px) { .sr-fact { margin-top: 0.5rem; font-size: 0.85rem; max-width: 60ch; } }

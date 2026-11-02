@@ -95,6 +95,7 @@ export interface SeasonOverviewDTO {
     longest_match: { match_id: number; duration_ms: number; ended_at: string; winner: string | null; players: number } | null;
     commander: { name: string; wins: number; matches: number; colors: string; image: string | null; pilot: string | null } | null;
     awards: SeasonAwardDTO[];
+    starter?: { matches: number; wins: number; win_rate: number; expected_rate: number } | null; // v2.6.0
     race: { matches: Array<{ id: number; ended_at: string }>; series: Array<{ profile_id: number; name: string; photo_url: string | null; color: string; values: number[] }> };
 }
 
@@ -175,6 +176,10 @@ export interface ProfileStatsDTO {
     kill_causes?: Array<{ cause: string; label: string; count: number }>;
     starts?: number;
     starts_rate?: number;
+    // v2.6.0: vantagem de quem comeca
+    starts_wins?: number;
+    starts_win_rate?: number | null;
+    non_start_win_rate?: number | null;
     commander_deaths_total?: number;
     avg_final_life_wins?: number | null;
     longest_ms?: number;
@@ -420,6 +425,23 @@ export function apiCreateDeck(profileId: number, data: { name: string; commander
 
 export function apiDeleteDeck(deckId: number): Promise<void> {
     return apiFetch(`/api/decks/${deckId}/`, { method: 'DELETE' }, true);
+}
+
+// v2.6.0: renomear/ajustar deck, juntar dois decks do mesmo perfil, ranking global por comandante
+export function apiUpdateDeck(deckId: number, data: { name?: string; commander?: string; colors?: string; image_url?: string }): Promise<DeckDTO> {
+    return apiFetch(`/api/decks/${deckId}/`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }, true);
+}
+export function apiMergeDeck(deckId: number, into: number): Promise<{ moved: number; deck: DeckDTO }> {
+    return apiFetch(`/api/decks/${deckId}/merge/`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ into }) }, true);
+}
+export interface CommanderRowDTO {
+    key: string; name: string; colors: string; image: string | null;
+    matches: number; wins: number; podiums: number; win_rate: number; avg_place: number | null; last_at: string | null;
+    pilots: Array<{ name: string; profile_id: number | null; matches: number; wins: number }>;
+    vs: Array<{ key: string; name: string; colors: string; image: string | null; matches: number; ahead: number; behind: number; ahead_rate: number }>;
+}
+export function apiCommanders(period: string): Promise<{ period: string; rows: CommanderRowDTO[] }> {
+    return apiFetch(`/api/commanders/?period=${encodeURIComponent(period)}`);
 }
 
 export function apiUploadProfileSound(profileId: number, kind: 'death' | 'win' | 'damage', file: Blob, filename: string): Promise<ProfileDTO> {

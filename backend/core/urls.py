@@ -10,6 +10,8 @@ urlpatterns = [
     path('profiles/<int:pk>/decks/', views.profile_decks),
     path('profiles/<int:pk>/sounds/<str:kind>/', views.profile_sound),
     path('decks/<int:pk>/', views.deck_detail),
+    path('decks/<int:pk>/merge/', views.deck_merge),
+    path('commanders/', views.commanders),
     path('matches/', views.matches),
     path('matches/<int:pk>/', views.match_detail),
     path('ranking/', views.ranking),

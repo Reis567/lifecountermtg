@@ -1029,10 +1029,12 @@ class GameStateManager {
 
     // ===== Commander Damage Actions =====
 
-    addCommanderDamage(targetPlayerId: string, sourcePlayerId: string, amount: number): void {
+    // slot 2 = dano do PARCEIRO do atacante (chave `${sourcePlayerId}:2`); cada comandante conta os seus 21.
+    addCommanderDamage(targetPlayerId: string, sourcePlayerId: string, amount: number, slot: 1 | 2 = 1): void {
         const targetPlayer = this.state.players.find(p => p.id === targetPlayerId);
+        const key = slot === 2 ? `${sourcePlayerId}:2` : sourcePlayerId;
         if (targetPlayer && !targetPlayer.isEliminated) {
-            const previousDamage = targetPlayer.commanderDamage[sourcePlayerId] || 0;
+            const previousDamage = targetPlayer.commanderDamage[key] || 0;
             const previousLife = targetPlayer.life;
 
             this.addUndoAction('commander_damage', targetPlayerId, {
@@ -1041,7 +1043,7 @@ class GameStateManager {
             }, `Dano de comandante: ${amount > 0 ? '+' : ''}${amount}`);
 
             const newDamage = Math.max(0, previousDamage + amount);
-            targetPlayer.commanderDamage[sourcePlayerId] = newDamage;
+            targetPlayer.commanderDamage[key] = newDamage;
 
             // Adjust life based on actual damage change
             // actualChange is positive when adding damage (life decreases)
@@ -1055,6 +1057,7 @@ class GameStateManager {
                 previousValue: previousDamage,
                 newValue: newDamage,
                 source: 'commander',
+                ...(slot === 2 ? { slot: 2 as const } : {}),
             });
 
             this.syncTeamLife(targetPlayerId);
@@ -1333,9 +1336,9 @@ class GameStateManager {
             return;
         }
 
-        for (const [sourceId, damage] of Object.entries(player.commanderDamage)) {
+        for (const [sourceKey, damage] of Object.entries(player.commanderDamage)) {
             if (damage >= COMMANDER_DAMAGE_LETHAL) {
-                this.eliminatePlayer(playerId, 'commander', sourceId, true);
+                this.eliminatePlayer(playerId, 'commander', sourceKey.split(':')[0], true);
                 return;
             }
         }
