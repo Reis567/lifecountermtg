@@ -48,7 +48,7 @@ Depois de sorteado numa partida em andamento, o botão vira "Viado sorteado (1 p
 
 ## 5. Sexo no perfil e "vezes viado"
 
-Folha de edição do perfil (lápis) › **Sexo**: Mulher, Homem ou Não dizer. Laura e Maria já vêm como Mulher; os outros perfis fixos como Homem. A página do perfil mostra o símbolo ao lado do nome e o contador "vezes viado".
+Folha de edição do perfil (lápis) › **Sexo**: Mulher, Homem ou Não dizer. Laura, Maria e System já vêm como Mulher; os outros perfis fixos como Homem. A página do perfil mostra o símbolo ao lado do nome e o contador "vezes viado".
 
 ![](docs/release-2.7.0/n07-perfil-editar-sexo.png)
 ![](docs/release-2.7.0/n06-perfil-vezes-viado.png)
