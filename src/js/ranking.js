@@ -54,6 +54,7 @@ function toPayload(r) {
             eliminated_by: p.eliminatedBy || '',
             death_cause: p.deathCause || '',
             commander_deaths: p.commanderDeaths || 0,
+            viado: !!p.viado,
             deck_id: p.deckId ?? null,
             deck_name: (p.deckName || '').slice(0, 60),
             deck_colors: p.deckColors || '',
@@ -128,7 +129,7 @@ export async function aggregateRemote(period) {
         const rows = data.rows.map((r) => ({
             name: r.name, points: r.points, matches: r.matches, wins: r.wins, profileId: r.profile_id, photoUrl: r.photo_url,
         }));
-        return { rows, remote: true, totalMatches: data.total_matches, raw: data.rows, label: data.label, tiebreak: data.tiebreak, mode: data.mode };
+        return { rows, remote: true, totalMatches: data.total_matches, raw: data.rows, label: data.label, tiebreak: data.tiebreak, mode: data.mode, criteria: data.criteria };
     }
     catch (e) {
         console.warn('ranking: servidor indisponível, usando local', e);
@@ -208,6 +209,13 @@ function applyDeathInfo(placements, state, ids) {
             pl.deathCause = ev.details.cause;
     });
 }
+// v2.7.0: marca quem foi sorteado como viado (um por partida) na colocação dele.
+function applyViado(placements, state, ids) {
+    if (!state.viadoPlayerId)
+        return;
+    placements.forEach((pl, i) => { if (ids[i] === state.viadoPlayerId)
+        pl.viado = true; });
+}
 // Constrói o resultado automaticamente quando há um vencedor no estado.
 // Ordem: vencedor = 1º; eliminados em ORDEM INVERSA (último eliminado = 2º, ...,
 // primeiro eliminado = último colocado). Pontos = N - place + 1.
@@ -241,6 +249,7 @@ export function buildAutoResult(state) {
             order.push(p.id);
     const placements = order.map((id, idx) => placementFor(state.players.find((x) => x.id === id), idx, N, eliminatedBy[id]));
     applyDeathInfo(placements, state, order);
+    applyViado(placements, state, order);
     const startedAt = state.gameStartTime || Date.now();
     return {
         id: 'm_' + startedAt,
@@ -258,7 +267,9 @@ export function buildAutoResult(state) {
 // Versão "manual" (vinda do modal de pódio quando a partida foi resetada sem vencedor).
 export function buildManualResult(placements, state) {
     const startedAt = state.gameStartTime || Date.now();
-    applyDeathInfo(placements, state, placements.map((pl) => state.players.find((p) => p.name === pl.name && (p.profileId ?? null) === (pl.profileId ?? null))?.id || ''));
+    const ids = placements.map((pl) => state.players.find((p) => p.name === pl.name && (p.profileId ?? null) === (pl.profileId ?? null))?.id || '');
+    applyDeathInfo(placements, state, ids);
+    applyViado(placements, state, ids);
     return {
         id: 'mm_' + startedAt + '_' + Date.now(),
         startedAt,

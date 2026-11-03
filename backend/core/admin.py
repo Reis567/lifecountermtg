@@ -31,7 +31,7 @@ class AchievementAdmin(admin.ModelAdmin):
 
 @admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('name', 'slug', 'is_preset', 'active', 'updated_at')
+    list_display = ('name', 'slug', 'gender', 'is_preset', 'active', 'updated_at')
     list_filter = ('is_preset', 'active')
     search_fields = ('name', 'slug')
 

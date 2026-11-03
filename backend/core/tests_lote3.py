@@ -42,11 +42,11 @@ class Lote3Tests(TestCase):
     def test_profile_analytics(self):
         now = timezone.now()
         # Zé vence 2 (eliminando Reis nas duas), perde 1 pro Reis (que elimina o Zé).
-        self._match('a1', now - timedelta(days=3), [self.ze, self.reis, self.laura],
+        self._match('a1', now - timedelta(hours=3), [self.ze, self.reis, self.laura],
                     eliminated_by={self.reis.id: 'Zé', self.laura.id: 'Zé'}, final_life={self.ze.id: 31}, duration_min=40)
-        self._match('a2', now - timedelta(days=2), [self.ze, self.laura, self.reis],
+        self._match('a2', now - timedelta(hours=2), [self.ze, self.laura, self.reis],
                     eliminated_by={self.reis.id: 'Zé', self.laura.id: 'Laura'}, final_life={self.ze.id: 11}, duration_min=20)
-        self._match('a3', now - timedelta(days=1), [self.reis, self.ze, self.laura],
+        self._match('a3', now - timedelta(hours=1), [self.reis, self.ze, self.laura],
                     eliminated_by={self.ze.id: 'Reis'}, duration_min=60)
         r = self.c.get(f'/api/profiles/{self.ze.id}/stats/')
         self.assertEqual(r.status_code, 200)

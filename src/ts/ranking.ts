@@ -7,7 +7,7 @@
 // Pontuação: 1º = N pontos, 2º = N-1, ..., último = 1 (N = jogadores na partida).
 // Identidade do jogador é o PERFIL (profileId); sem perfil cai no nome.
 
-import { apiRanking, apiListMatches, apiDeleteMatch, apiSource, deviceId, MatchPayload, RankingRowDTO, MatchDTO } from './api.js';
+import { apiRanking, apiListMatches, apiDeleteMatch, apiSource, deviceId, MatchPayload, RankingRowDTO, RankingCriterionDTO, MatchDTO } from './api.js';
 import { enqueueMatch } from './sync.js';
 
 const KEY = 'lc_rankings_v1';
@@ -24,6 +24,7 @@ export interface MatchPlacement {
     commanderDeaths?: number;
     eliminatedBy?: string;
     deathCause?: string; // combat | commander | combo | poison | mill | concede | other
+    viado?: boolean; // v2.7.0: sorteado como viado nesta partida (conta no desempate)
 }
 
 export interface MatchResult {
@@ -95,6 +96,7 @@ function toPayload(r: MatchResult): MatchPayload {
             eliminated_by: p.eliminatedBy || '',
             death_cause: p.deathCause || '',
             commander_deaths: p.commanderDeaths || 0,
+            viado: !!p.viado,
             deck_id: p.deckId ?? null,
             deck_name: (p.deckName || '').slice(0, 60),
             deck_colors: p.deckColors || '',
@@ -163,13 +165,13 @@ export function aggregate(period: RankingPeriod, ref: Date = new Date()): Aggreg
 }
 
 // Agregado do SERVIDOR; se falhar, cai no local.
-export async function aggregateRemote(period: RankingPeriod): Promise<{ rows: AggregateRow[]; remote: boolean; totalMatches: number; raw?: RankingRowDTO[]; label?: string | null; tiebreak?: string; mode?: string }> {
+export async function aggregateRemote(period: RankingPeriod): Promise<{ rows: AggregateRow[]; remote: boolean; totalMatches: number; raw?: RankingRowDTO[]; label?: string | null; tiebreak?: string; mode?: string; criteria?: RankingCriterionDTO[] }> {
     try {
         const data = await apiRanking(period);
         const rows: AggregateRow[] = data.rows.map((r) => ({
             name: r.name, points: r.points, matches: r.matches, wins: r.wins, profileId: r.profile_id, photoUrl: r.photo_url,
         }));
-        return { rows, remote: true, totalMatches: data.total_matches, raw: data.rows, label: (data as any).label, tiebreak: (data as any).tiebreak, mode: (data as any).mode };
+        return { rows, remote: true, totalMatches: data.total_matches, raw: data.rows, label: data.label, tiebreak: data.tiebreak, mode: data.mode, criteria: data.criteria };
     } catch (e) {
         console.warn('ranking: servidor indisponível, usando local', e);
         const rows = aggregate(period);
@@ -225,6 +227,7 @@ interface ResultState {
     history: Array<{ type: string; playerId?: string; timestamp?: number; details?: { fromPlayerId?: string; message?: string; cause?: string } }>;
     gameStartTime: number | null;
     starterPlayerId?: string | null;
+    viadoPlayerId?: string | null;
     gameMode?: string;
     settings?: { startingLife?: number };
 }
@@ -268,6 +271,12 @@ function applyDeathInfo(placements: MatchPlacement[], state: ResultState, ids: s
     });
 }
 
+// v2.7.0: marca quem foi sorteado como viado (um por partida) na colocação dele.
+function applyViado(placements: MatchPlacement[], state: ResultState, ids: string[]): void {
+    if (!state.viadoPlayerId) return;
+    placements.forEach((pl, i) => { if (ids[i] === state.viadoPlayerId) pl.viado = true; });
+}
+
 // Constrói o resultado automaticamente quando há um vencedor no estado.
 // Ordem: vencedor = 1º; eliminados em ORDEM INVERSA (último eliminado = 2º, ...,
 // primeiro eliminado = último colocado). Pontos = N - place + 1.
@@ -297,6 +306,7 @@ export function buildAutoResult(state: ResultState): MatchResult | null {
 
     const placements: MatchPlacement[] = order.map((id, idx) => placementFor(state.players.find((x) => x.id === id), idx, N, eliminatedBy[id]));
     applyDeathInfo(placements, state, order);
+    applyViado(placements, state, order);
 
     const startedAt = state.gameStartTime || Date.now();
     return {
@@ -319,7 +329,9 @@ export function buildManualResult(
     state: ResultState,
 ): MatchResult {
     const startedAt = state.gameStartTime || Date.now();
-    applyDeathInfo(placements, state, placements.map((pl) => state.players.find((p) => p.name === pl.name && (p.profileId ?? null) === (pl.profileId ?? null))?.id || ''));
+    const ids = placements.map((pl) => state.players.find((p) => p.name === pl.name && (p.profileId ?? null) === (pl.profileId ?? null))?.id || '');
+    applyDeathInfo(placements, state, ids);
+    applyViado(placements, state, ids);
     return {
         id: 'mm_' + startedAt + '_' + Date.now(),
         startedAt,

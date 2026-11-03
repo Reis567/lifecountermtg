@@ -8465,3 +8465,71 @@ body[data-only-life="on"] .player-card:not(.elim-mini) .life-value { font-size: 
 .dm-hint { margin-top: 0.6rem; font-size: 0.78rem; }
 .sr-fact { margin-top: 1.2rem; max-width: 36ch; text-align: center; font-size: 0.95rem; color: rgba(255,255,255,0.55); line-height: 1.35; }
 @media (orientation: landscape) and (max-height: 520px) { .sr-fact { margin-top: 0.5rem; font-size: 0.85rem; max-width: 60ch; } }
+
+/* ===== 2.7.0: tabela do ranking estilo campeonato, legenda, info de desempate, sexo no perfil, viado 1x por partida ===== */
+.rk-tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0.2rem -0.2rem 0.4rem; padding: 0 0.2rem; border-radius: var(--border-radius); background: var(--bg-tertiary); }
+.rk-tbl { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 540px; font-size: 0.82rem; }
+.rk-tbl th, .rk-tbl td { padding: 0.45rem 0.35rem; text-align: center; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.rk-tbl thead th { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); background: var(--bg-tertiary); position: sticky; top: 0; z-index: 2; }
+.rk-tbl th.c-pos, .rk-tbl td.c-pos { position: sticky; left: 0; z-index: 1; background: var(--bg-tertiary); width: 40px; min-width: 40px; text-align: left; padding-left: 0.5rem; }
+.rk-tbl th.c-name, .rk-tbl td.c-name { position: sticky; left: 40px; z-index: 1; background: var(--bg-tertiary); text-align: left; min-width: 150px; max-width: 170px; box-shadow: 6px 0 8px -6px rgba(0,0,0,0.5); }
+.rk-tbl thead th.c-pos, .rk-tbl thead th.c-name { z-index: 3; }
+.rk-tbl td.c-pts { font-size: 1rem; }
+.rk-tbl td.c-pts b { font-weight: 800; }
+.rk-tbl th.c-pts { color: var(--text-primary); }
+.rk-tbl td.c-form { padding-right: 0.6rem; }
+.rk-tr.ranking-clickable { cursor: pointer; }
+.rk-tr td.c-pos { box-shadow: inset 4px 0 0 transparent; }
+.rk-tr.leader td.c-pos { box-shadow: inset 4px 0 0 #f5c542; }
+.rk-tr.second td.c-pos { box-shadow: inset 4px 0 0 #cbd5e1; }
+.rk-tr.third td.c-pos { box-shadow: inset 4px 0 0 #cd7f32; }
+.rk-tr.last td.c-pos { box-shadow: inset 4px 0 0 #ef4444; }
+.rk-tr.leader td { background: rgba(245,197,66,0.07); }
+.rk-tr.second td { background: rgba(203,213,225,0.05); }
+.rk-tr.third td { background: rgba(205,127,50,0.06); }
+.rk-tr.last td { background: rgba(239,68,68,0.05); }
+.rk-tr.leader td.c-pos, .rk-tr.leader td.c-name { background: #2a2816; }
+.rk-tr.second td.c-pos, .rk-tr.second td.c-name { background: #252830; }
+.rk-tr.third td.c-pos, .rk-tr.third td.c-name { background: #2a2320; }
+.rk-tr.last td.c-pos, .rk-tr.last td.c-name { background: #2a1f1f; }
+.rk-pos { display: inline-block; font-weight: 800; font-size: 0.95rem; min-width: 1.1em; }
+.rk-arrow { display: inline-block; width: 9px; height: 9px; vertical-align: middle; margin-left: 2px; }
+.rk-arrow.up { fill: #22c55e; }
+.rk-arrow.down { fill: #ef4444; }
+.rk-arrow.same { width: 7px; height: 2px; background: rgba(255,255,255,0.25); border-radius: 1px; margin-left: 3px; }
+.rk-arrow.inline { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; margin: 0 1px; }
+.rk-arrow.inline.up { border-bottom: 8px solid #22c55e; }
+.rk-arrow.inline.down { border-top: 8px solid #ef4444; }
+.rk-cell-name { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
+.rk-tavatar { width: 30px; height: 30px; font-size: 0.75rem; flex-shrink: 0; }
+.rk-tname-wrap { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+.rk-tname { font-weight: 700; font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 0.2rem; }
+.rk-female { width: 13px; height: 13px; color: #f472b6; flex-shrink: 0; }
+.pp-female { width: 18px; height: 18px; color: #f472b6; vertical-align: -3px; }
+.rk-tie { font-size: 0.6rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 118px; }
+.rk-form { display: inline-flex; gap: 3px; align-items: center; }
+.rk-fd { width: 17px; height: 17px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 800; background: rgba(255,255,255,0.08); color: var(--text-secondary); }
+.rk-fd.w { background: #f5c542; color: #1a1a1a; }
+.rk-fd.p { background: rgba(99,102,241,0.5); color: #fff; }
+.rk-fd.l { background: rgba(239,68,68,0.3); color: #fca5a5; }
+.rk-fd.e { background: transparent; border: 1px dashed rgba(255,255,255,0.12); }
+.rk-fd.last { box-shadow: 0 0 0 2px rgba(255,255,255,0.35); }
+.rk-legend { margin: 0.4rem 0 0.6rem; padding: 0.55rem 0.7rem; border-radius: var(--border-radius); background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.7rem; color: var(--text-muted); line-height: 1.4; }
+.rk-legend b { color: var(--text-secondary); }
+.rk-legend .rk-fd { width: 14px; height: 14px; font-size: 0.52rem; vertical-align: middle; }
+.rk-link { background: none; border: 0; padding: 0; color: var(--accent-primary); font-weight: 700; font-size: 0.7rem; text-decoration: underline; cursor: pointer; }
+.rk-info-body { display: flex; flex-direction: column; gap: 0.45rem; }
+.rk-info-p { margin: 0 0 0.3rem; font-size: 0.88rem; color: var(--text-secondary); line-height: 1.45; }
+.rk-info-list { margin: 0 0 0.4rem; padding-left: 1.3rem; display: flex; flex-direction: column; gap: 0.45rem; }
+.rk-info-list li b { display: block; font-size: 0.9rem; }
+.rk-info-list li span { font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; }
+.rk-ex { border-collapse: collapse; width: 100%; font-size: 0.8rem; margin: 0 0 0.5rem; }
+.rk-ex th, .rk-ex td { padding: 0.3rem 0.4rem; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.rk-ex th:first-child, .rk-ex td:first-child { text-align: left; }
+.rk-ex th { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.pe-gender { margin-top: 0.25rem; }
+#sortear-viado-btn.locked { opacity: 0.6; border-style: dashed; }
+@media (orientation: landscape) and (max-height: 520px) {
+    .rk-tbl { min-width: 0; }
+    .rk-tbl th.c-name, .rk-tbl td.c-name { min-width: 180px; max-width: none; }
+}

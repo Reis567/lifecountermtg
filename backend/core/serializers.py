@@ -20,7 +20,7 @@ class ProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Profile
-        fields = ['id', 'name', 'slug', 'photo_url', 'color', 'aliases', 'is_preset', 'active', 'sounds', 'decks', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'slug', 'photo_url', 'color', 'aliases', 'gender', 'is_preset', 'active', 'sounds', 'decks', 'created_at', 'updated_at']
         read_only_fields = ['id', 'slug', 'is_preset', 'created_at', 'updated_at']
 
     def get_photo_url(self, obj):
@@ -55,7 +55,7 @@ class PlacementSerializer(serializers.ModelSerializer):
     class Meta:
         model = MatchPlacement
         fields = ['profile_id', 'name', 'place', 'points', 'final_life', 'eliminated_by', 'death_cause', 'commander_deaths', 'photo_url',
-                  'deck_id', 'deck_name', 'deck_colors', 'deck_image']
+                  'deck_id', 'deck_name', 'deck_colors', 'deck_image', 'viado']
 
     def get_deck_image(self, obj):
         return obj.deck.image_url if obj.deck and obj.deck.image_url else None

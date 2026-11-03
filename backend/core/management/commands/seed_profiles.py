@@ -26,6 +26,8 @@ PRESETS = [
     ('System', 'system', 'system.jpg', '#22c55e'),
     ('Leo', 'leo', 'leo.jpg', '#3b82f6'),
 ]
+# Sexo dos pré-setados (só preenche quando ainda não foi informado; o app pode mudar).
+GENDERS = {'laura': 'f', 'maria': 'f', 'ze': 'm', 'reis': 'm', 'mendas': 'm', 'cabral': 'm', 'leo': 'm'}
 
 
 class Command(BaseCommand):
@@ -43,6 +45,8 @@ class Command(BaseCommand):
                 profile.is_preset = True
             if not profile.active:
                 profile.active = True
+            if not profile.gender and GENDERS.get(slug):
+                profile.gender = GENDERS[slug]
             photo_path = SEED_DIR / photo_name
             if photo_path.exists() and (opts['photos'] or not profile.photo):
                 with photo_path.open('rb') as fh:

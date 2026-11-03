@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>LifeCounter 2.7.0</title>
+<style>
+  :root { --ink: #16161a; --muted: #5d5d66; --line: #e3e3ea; --accent: #6366f1; --bg: #ffffff; --soft: #f5f5fa; --bad: #b91c1c; --good: #15803d; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Inter, Arial, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.5; }
+  .page { max-width: 900px; margin: 0 auto; padding: 36px 32px 48px; }
+  header { border-bottom: 3px solid var(--accent); padding-bottom: 16px; margin-bottom: 28px; }
+  .kicker { color: var(--accent); font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; font-size: 12px; }
+  h1 { margin: 4px 0 6px; font-size: 34px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); font-size: 15px; }
+  h2 { font-size: 22px; margin: 36px 0 8px; padding-top: 8px; border-top: 1px solid var(--line); break-after: avoid; }
+  h2 small { color: var(--muted); font-weight: 500; font-size: 13px; margin-left: 8px; }
+  p { margin: 6px 0 10px; }
+  ul, ol { margin: 6px 0 10px; padding-left: 20px; }
+  li { margin: 3px 0; }
+  .lead { font-size: 16px; color: #2b2b33; }
+  .toc { background: var(--soft); border-radius: 12px; padding: 14px 18px; margin: 18px 0 8px; }
+  .toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+  .toc li { break-inside: avoid; }
+  .shots { display: flex; gap: 14px; align-items: flex-start; margin: 12px 0 6px; break-inside: avoid; }
+  .shot { flex: 1; min-width: 0; }
+  .shot img { width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); box-shadow: 0 6px 20px rgba(0,0,0,0.08); display: block; }
+  .shot.phone { flex: 0 0 31%; }
+  .shot.land { flex: 1; }
+  .cap { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .cap b.antes { color: var(--bad); } .cap b.depois { color: var(--good); }
+  .how { background: var(--soft); border-left: 3px solid var(--accent); padding: 8px 12px; border-radius: 0 10px 10px 0; margin: 8px 0 12px; font-size: 14px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0 12px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--soft); }
+  code { background: var(--soft); padding: 1px 5px; border-radius: 5px; font-size: 12.5px; }
+  footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+  @page { size: A4; margin: 14mm 12mm; }
+  @media print { .page { padding: 0; max-width: none; } h2 { page-break-after: avoid; } .shots { page-break-inside: avoid; } }
+</style>
+</head>
+<body>
+<div class="page">
+<header>
+  <div class="kicker">Notas da atualização</div>
+  <h1>LifeCounter 2.7.0</h1>
+  <div class="sub">3 de novembro de 2026 · APK code 30 · site lifecounter.mreis.site · atualização automática pelo app</div>
+</header>
+
+<p class="lead">O ranking virou tabela de campeonato, no estilo do Brasileirão: pontos, partidas, vitórias, pódios, lanternas, eliminações, vezes sorteado como viado e a forma das últimas cinco, com legenda embaixo e um botão de informação explicando a pontuação e o desempate. O desempate ganhou dois critérios novos, nesta ordem: mulher na frente e depois quem foi sorteado como viado mais vezes. Pra isso o sorteio do viado passou a ser um por partida (trava depois de sorteado) e é gravado no ranking ao encerrar. O perfil ganhou o campo Sexo.</p>
+
+<div class="toc">
+  <ol>
+    <li>Tabela de campeonato no ranking</li>
+    <li>Legenda e botão de informação</li>
+    <li>Desempate: mulher na frente, depois mais vezes viado</li>
+    <li>Sorteio do viado: um por partida, gravado no ranking</li>
+    <li>Sexo no perfil e "vezes viado"</li>
+    <li>Nos bastidores e como atualizar</li>
+  </ol>
+</div>
+
+<h2>1. Tabela de campeonato no ranking <small>Hoje, Mês, Temporada, Ano e Geral</small></h2>
+<p>A "Classificação completa" era uma lista com nome, "V vitórias · P partidas · %" e os pontos. Agora é uma tabela de verdade, com as colunas de uma tabela de campeonato e o pódio continuando em cima. A aba Temporada mantém o resumo (líder, prêmios, corrida de pontos) e ganha a mesma tabela.</p>
+<ul>
+  <li><b>#</b> com seta: subiu, desceu ou ficou igual em relação à tabela antes da última partida do período.</li>
+  <li><b>Jogador</b> (coluna fixa: a tabela rola pro lado no celular e o nome fica parado), com o símbolo de mulher ao lado de quem tem sexo feminino no perfil.</li>
+  <li><b>Pts</b> pontos · <b>PJ</b> partidas · <b>V</b> vitórias · <b>Pód</b> pódios (1º a 3º) · <b>Lant</b> lanternas (último lugar) · <b>Elim</b> eliminações · <b>Viado</b> vezes sorteado.</li>
+  <li><b>Últimas 5</b>, da mais antiga pra mais recente: dourado = vitória, roxo = pódio, vermelho = o resto, com a colocação dentro da bolinha. A última tem um anel.</li>
+  <li>Faixas na borda: ouro, prata e bronze pros três primeiros e vermelho pro último (zona do rebaixamento).</li>
+  <li>Quando uma linha empata em pontos com a de cima, ela mostra <b>"empate: …"</b> dizendo qual critério a deixou atrás.</li>
+</ul>
+<div class="shots">
+  <div class="shot phone"><img src="./n02-geral-tabela-em-pe.png" alt=""><div class="cap"><b class="depois">Geral em pé:</b> faixas de pódio, símbolo de mulher, colunas numéricas.</div></div>
+  <div class="shot phone"><img src="./n03-geral-tabela-rolada.png" alt=""><div class="cap"><b class="depois">Rolada pro lado:</b> # e Jogador fixos, forma das últimas 5 à direita.</div></div>
+  <div class="shot phone"><img src="./n04-hoje-desempate.png" alt=""><div class="cap"><b class="depois">Hoje:</b> quatro com 3 pontos; cada linha diz o que a separou da de cima.</div></div>
+</div>
+<div class="shots">
+  <div class="shot land"><img src="./n02-geral-tabela-deitado.png" alt=""><div class="cap"><b class="depois">Deitado:</b> a tabela inteira cabe sem rolar.</div></div>
+</div>
+
+<h2>2. Legenda e botão de informação</h2>
+<p>Embaixo da tabela entrou a legenda das siglas, a regra da pontuação em vigor ("1º = N, 2º = N−1 … último = 1", ou "só vitória vale", "pódio 3/1", "Elo") e os critérios de desempate na ordem. No cabeçalho do ranking, ao lado de compartilhar e da engrenagem, o botão <b>i</b> abre a janela "Pontuação e desempate", com a tabela de exemplo por tamanho de mesa e a explicação de cada critério.</p>
+<div class="shots">
+  <div class="shot phone"><img src="./n05-info-desempate-em-pe.png" alt=""><div class="cap"><b class="depois">Janela de informação</b> em pé.</div></div>
+  <div class="shot land"><img src="./n05-info-desempate-deitado.png" alt=""><div class="cap"><b class="depois">Deitado.</b></div></div>
+</div>
+
+<h2>3. Desempate: mulher na frente, depois mais vezes viado</h2>
+<p>A ordem de desempate agora é:</p>
+<ol>
+  <li><b>Mais pontos</b> (ou mais vitórias, se a engrenagem do ranking estiver configurada assim).</li>
+  <li><b>Mulher na frente.</b> Vale o campo Sexo do perfil.</li>
+  <li><b>Mais vezes sorteado como viado.</b> Conta quantas partidas a pessoa foi o viado sorteado.</li>
+  <li>Mais vitórias (ou mais pontos), depois mais partidas, depois ordem do nome.</li>
+</ol>
+<div class="how">A mesma ordem vale pra tudo que usa o ranking: abas de período, resumo da temporada, Hall e a posição "temporada / geral" no perfil.</div>
+
+<h2>4. Sorteio do viado: um por partida, gravado no ranking</h2>
+<p>Como o sorteio passou a valer ponto de desempate, ele trava: depois de sorteado numa partida em andamento, o botão vira "Viado sorteado (1 por partida)", o "Sortear Novamente" some e um novo toque (ou o comando de voz) só avisa quem foi. Nova partida ou reset destrava. Ao encerrar a partida, o sorteado vai marcado na colocação dele e passa a contar na coluna Viado e no desempate.</p>
+<div class="shots">
+  <div class="shot land"><img src="./n00-viado-sorteado-deitado.png" alt=""><div class="cap"><b class="depois">Sorteado:</b> sem "Sortear Novamente".</div></div>
+  <div class="shot land"><img src="./n01-viado-travado-config.png" alt=""><div class="cap"><b class="depois">Segundo toque:</b> "O viado desta partida já foi sorteado: Zé. Só na próxima."</div></div>
+</div>
+
+<h2>5. Sexo no perfil e "vezes viado"</h2>
+<p>Na folha de edição do perfil (lápis) entrou o seletor <b>Sexo</b>: Mulher, Homem ou Não dizer. Laura e Maria já vêm como Mulher; os outros perfis fixos como Homem. A página do perfil mostra o símbolo ao lado do nome e o contador "vezes viado" junto das eliminações.</p>
+<div class="shots">
+  <div class="shot phone"><img src="./n07-perfil-editar-sexo.png" alt=""><div class="cap"><b class="depois">Editar perfil</b> com o seletor de sexo.</div></div>
+  <div class="shot phone"><img src="./n06-perfil-vezes-viado.png" alt=""><div class="cap"><b class="depois">Perfil:</b> símbolo no nome e "vezes viado" nos números.</div></div>
+</div>
+
+<h2>6. Nos bastidores</h2>
+<table>
+  <tr><th>Onde</th><th>O que mudou</th></tr>
+  <tr><td>Backend</td><td>Migração 0005: <code>Profile.gender</code> ('', f, m) e <code>MatchPlacement.viado</code>. <code>_aggregate</code> devolve <code>gender</code>, <code>viado_count</code>, <code>kills</code>, <code>losses</code>, <code>form</code> (últimas 5) e <code>tie</code> (critério que separou da linha de cima); <code>_rank_key</code> ordena por pontos › mulher › viado › vitórias › partidas › nome (ou vitórias primeiro, conforme a configuração). <code>GET /api/ranking/</code> devolve <code>criteria</code> e <code>prev_rank</code> (posição antes da última partida). Perfil aceita <code>gender</code> no POST/PATCH; <code>profile_stats</code> devolve <code>viado_count</code>. Seed preenche o sexo dos perfis fixos só quando está vazio. Testes <code>tests_lote8.py</code> (6 novos, 39 no total).</td></tr>
+  <tr><td>App</td><td><code>GameState.isViadoLocked()</code>; <code>sortearViado()</code> não sorteia com a partida rolando e alguém já sorteado; <code>applyViado</code> em <code>ranking.ts</code> marca a colocação; <code>viado</code> no payload da partida. Ranking: <code>rankingTableHtml</code>, <code>rankingLegendHtml</code>, <code>openRankingInfo</code>; botão <code>#ranking-info</code>. Perfil: seletor de sexo (<code>updateProfile({ gender })</code>), ícones <code>ic-info</code> e <code>ic-female</code>.</td></tr>
+  <tr><td>Testes</td><td>QA <code>qa16.mjs</code>: sorteio trava e grava (viado na colocação salva, só um por partida, nova partida destrava), empate decidido por sexo e por viado nas partidas de hoje, tabela com as 10 colunas em pé e deitado, coluna fixa ao rolar, "empate: …" nas linhas, janela de informação com 6 critérios, toque na linha abre o perfil, sexo salvo pelo seletor. Suítes anteriores sem regressão; zero erros de JS.</td></tr>
+</table>
+
+<p><b>Como atualizar.</b> No Android, o app avisa ao abrir e instala com um toque (ou Configurações › Atualização). No navegador basta recarregar.</p>
+
+<footer>LifeCounter 2.7.0 · 03/11/2026 · gerado a partir dos prints do QA automatizado.</footer>
+</div>
+</body>
+</html>

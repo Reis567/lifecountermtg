@@ -841,7 +841,13 @@ class GameStateManager {
     // Names that cannot be selected (case insensitive)
     private readonly protectedNames = ['reis', 'kings', 'matheus'];
 
+    // v2.7.0: um viado por partida. Com a partida rolando e alguem ja sorteado, nao sorteia de novo.
+    isViadoLocked(): boolean {
+        return !!this.state.viadoPlayerId && this.state.gameStarted;
+    }
+
     sortearViado(): Player | null {
+        if (this.isViadoLocked()) return this.getViado();
         // Filter out players with protected names
         const eligiblePlayers = this.state.players.filter(player => {
             const nameLower = player.name.toLowerCase();

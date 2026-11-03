@@ -11,6 +11,9 @@ class Profile(models.Model):
     color = models.CharField('Cor', max_length=7, blank=True, default='')
     # Apelidos reconhecidos pelo comando de voz ("Zezinho", "Cabralzinho").
     aliases = models.JSONField('Apelidos', default=list, blank=True)
+    # v2.7.0: desempate do ranking (mulher na frente). '' = não informado.
+    GENDERS = [('', 'Não informado'), ('f', 'Mulher'), ('m', 'Homem')]
+    gender = models.CharField('Sexo', max_length=1, choices=GENDERS, blank=True, default='')
     is_preset = models.BooleanField('Pré-setado', default=False)
     active = models.BooleanField('Ativo', default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -161,6 +164,8 @@ class MatchPlacement(models.Model):
     # combat | commander | combo | poison | mill | concede | other (vazio = não informado)
     death_cause = models.CharField('Como foi eliminado', max_length=20, blank=True, default='')
     commander_deaths = models.PositiveSmallIntegerField('Mortes do comandante', default=0)
+    # v2.7.0: foi sorteado como viado nesta partida (um por partida; conta no desempate).
+    viado = models.BooleanField('Sorteado como viado', default=False)
 
     class Meta:
         ordering = ['place']

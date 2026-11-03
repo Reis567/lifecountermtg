@@ -34,7 +34,7 @@ import {
 import { setupSync, getSyncStatus, onSyncChange, flushSyncQueue, onNewAchievements } from './sync.js';
 import { apiProfileStats, apiGetSeasonSettings, apiSetSeasonSettings, apiGetMatch, type SeasonSettingsDTO } from './api.js';
 import { setupUpdater, openUpdateModal } from './updater.js';
-import { type ProfileDTO, type MatchDTO } from './api.js';
+import { type ProfileDTO, type MatchDTO, type RankingRowDTO, type RankingCriterionDTO } from './api.js';
 import { confirmDialog, confirmDialogFull, alertDialog, requestWakeLock, releaseWakeLock, setupWakeLock } from './dialogs.js';
 import { openMechanicsModal, renderMechanicsBadge } from './mechanics.js';
 import { setupNotifications, onNotification, getMyProfileId, setMyProfileId } from './notifications.js';
@@ -2238,6 +2238,7 @@ function openRankingModal(initialTab: RankingTab = 'today', mount?: HTMLElement)
         <div class="modal-content ranking-modal-content">
             <div class="modal-header">
                 <h2><svg class="ic ic-title"><use href="#ic-trophy"/></svg>Ranking da mesa</h2>
+                <button class="header-btn ranking-cfg-btn" id="ranking-info" type="button" title="Pontuação e critérios de desempate"><svg class="ic"><use href="#ic-info"/></svg></button>
                 <button class="header-btn ranking-cfg-btn" id="ranking-share" type="button" title="Exportar como imagem"><svg class="ic"><use href="#ic-share"/></svg></button>
                 <button class="header-btn ranking-cfg-btn" id="ranking-cfg" type="button" title="Temporada, pontuação e desempate"><svg class="ic"><use href="#ic-settings"/></svg></button>
                 <button class="modal-close" type="button">&times;</button>
@@ -2304,6 +2305,10 @@ function openRankingModal(initialTab: RankingTab = 'today', mount?: HTMLElement)
     // Linhas exibidas na aba atual (pra exportar como imagem).
     let lastRows: Array<{ name: string; points: number; wins: number; matches: number; photoUrl?: string | null }> = [];
     let lastTitle = '';
+    // v2.7.0: criterios e modo da ultima aba carregada (botao de informacao)
+    let lastCriteria: RankingCriterionDTO[] = [];
+    let lastMode = 'placement';
+    let lastTiebreak: 'points' | 'wins' = 'points';
 
     const renderElo = async (): Promise<void> => {
         const token = ++renderToken;
@@ -2405,10 +2410,13 @@ function openRankingModal(initialTab: RankingTab = 'today', mount?: HTMLElement)
     const renderRanking = async (): Promise<void> => {
         const token = ++renderToken;
         tableEl.innerHTML = '<div class="ranking-empty">Carregando…</div>';
-        const { rows, remote, totalMatches, label, tiebreak, mode } = await aggregateRemote(tab as RankingPeriod);
+        const { rows, remote, totalMatches, label, tiebreak, mode, raw, criteria } = await aggregateRemote(tab as RankingPeriod);
         if (token !== renderToken) return;
         const modeTxt: Record<string, string> = { placement: '', winner_only: ' · só vitória vale', podium: ' · pódio 3/1', elo: ' · por Elo' };
         const tb = (tiebreak === 'wins' ? ' · desempate: vitórias' : '') + (modeTxt[mode || ''] || '');
+        lastMode = mode || 'placement';
+        lastTiebreak = tiebreak === 'wins' ? 'wins' : 'points';
+        lastCriteria = criteria && criteria.length ? criteria : defaultCriteria(lastTiebreak);
         const tabNames: Record<string, string> = { today: 'Hoje', month: 'Mês', season: label || 'Temporada', year: 'Ano', all: 'Geral' };
         lastTitle = tabNames[tab] || '';
         lastRows = rows.map(r => ({ name: r.name, points: r.points, wins: r.wins, matches: r.matches, photoUrl: r.photoUrl ?? getProfileById(r.profileId ?? null)?.photo_url ?? null }));
@@ -2418,23 +2426,9 @@ function openRankingModal(initialTab: RankingTab = 'today', mount?: HTMLElement)
             return;
         }
         const unit = mode === 'elo' ? 'Elo' : 'pts';
-        const body = rows.map((r, i) => {
-            const prof = getProfileById(r.profileId ?? null);
-            const photo = r.photoUrl ?? prof?.photo_url ?? null;
-            const rate = r.matches ? Math.round(100 * r.wins / r.matches) : 0;
-            return `
-            <div class="rk-row ${i === 0 ? 'leader' : i === 1 ? 'second' : i === 2 ? 'third' : ''} ${r.profileId ? 'ranking-clickable' : ''}" data-profile="${r.profileId ?? ''}">
-                <span class="rk-place">${medalFor(i + 1)}</span>
-                ${avatarHtml({ name: r.name, photo_url: photo, color: prof?.color }, 'lc-avatar rk-avatar')}
-                <span class="rk-main">
-                    <span class="rk-name">${escapeHtml(r.name)}</span>
-                    <span class="rk-meta">${r.wins} vitória${r.wins === 1 ? '' : 's'} · ${r.matches} partida${r.matches === 1 ? '' : 's'} · ${rate}%</span>
-                </span>
-                <span class="rk-pts"><b>${r.points}</b><small>${unit}</small></span>
-                ${r.profileId ? '<svg class="ic rk-chev"><use href="#ic-chevron"/></svg>' : ''}
-            </div>`;
-        }).join('');
-        tableEl.innerHTML = podiumHtml(rows, unit) + body;
+        // v2.7.0: tabela de campeonato (Pts, PJ, V, Pod, Lant, Elim, Viado, ultimas 5) + legenda
+        tableEl.innerHTML = podiumHtml(rows, unit) + rankingTableHtml(rows, raw, unit) + rankingLegendHtml(lastMode, lastCriteria);
+        tableEl.querySelector('#rk-legend-info')?.addEventListener('click', () => openRankingInfo(lastCriteria, lastMode, lastTiebreak));
         // Aba Temporada: resumo visual + corrida de pontos em cima do pódio.
         if (tab === 'season' && remote) {
             apiSeasonOverview().then((ov) => {
@@ -2501,6 +2495,7 @@ function openRankingModal(initialTab: RankingTab = 'today', mount?: HTMLElement)
         if (!lastRows.length) { showSpecialMoment('Nada pra exportar nesta aba.', 'warning'); return; }
         void exportRankingImage(lastTitle, lastRows);
     });
+    modal.querySelector('#ranking-info')?.addEventListener('click', () => openRankingInfo(lastCriteria, lastMode, lastTiebreak));
 
     tableEl.addEventListener('click', async (e) => {
         const target = e.target as HTMLElement;
@@ -2618,6 +2613,131 @@ function raceChartSvg(race: SeasonOverviewDTO['race']): string {
     }).join('');
     const xl = `<text x="${padL}" y="${H - 8}" font-size="10" fill="#888">1ª partida</text><text x="${W - padR}" y="${H - 8}" font-size="10" text-anchor="end" fill="#888">${n}ª</text>`;
     return `<svg class="race-chart" viewBox="0 0 ${W} ${H}">${grid}${lines}${xl}</svg>`;
+}
+
+// ===== v2.7.0: tabela estilo campeonato, legenda e janela de informacao =====
+function defaultCriteria(tiebreak: 'points' | 'wins'): RankingCriterionDTO[] {
+    const pts = { key: 'points', label: 'Mais pontos' }, wins = { key: 'wins', label: 'Mais vitórias' };
+    return [
+        tiebreak === 'wins' ? wins : pts,
+        { key: 'gender', label: 'Mulher na frente' },
+        { key: 'viado', label: 'Mais vezes sorteado como viado' },
+        tiebreak === 'wins' ? pts : wins,
+        { key: 'matches', label: 'Mais partidas' },
+        { key: 'name', label: 'Ordem alfabética' },
+    ];
+}
+
+function scoringText(mode: string): string {
+    if (mode === 'winner_only') return 'Só a vitória pontua: 1 ponto pra quem vence, 0 pro resto.';
+    if (mode === 'podium') return 'Pódio: 3 pontos pro 1º, 1 pro 2º, 0 pro resto.';
+    if (mode === 'elo') return 'Nota Elo: todo mundo começa em 1000; vencer mesa forte vale mais, perder pra mesa fraca custa mais.';
+    return '1º lugar = N pontos, 2º = N−1 … último = 1, onde N é o número de jogadores da mesa. Mesa de 4: 4 / 3 / 2 / 1.';
+}
+
+const TIE_LABEL: Record<string, string> = { gender: 'mulher na frente', viado: 'mais vezes viado', wins: 'mais vitórias', points: 'mais pontos', matches: 'mais partidas', name: 'ordem do nome' };
+
+function formDotsHtml(form: Array<{ match_id: number; place: number; players: number }> | undefined, n = 5): string {
+    const list = (form || []).slice(-n);
+    const dots = list.map((f, i) => `<span class="rk-fd ${f.place === 1 ? 'w' : f.place <= 3 ? 'p' : 'l'} ${i === list.length - 1 ? 'last' : ''}" title="${f.place}º de ${f.players}" data-match="${f.match_id}">${f.place}</span>`);
+    while (dots.length < n) dots.unshift('<span class="rk-fd e"></span>');
+    return `<span class="rk-form">${dots.join('')}</span>`;
+}
+
+function rankingTableHtml(rows: Array<{ name: string; points: number; wins: number; matches: number; profileId?: number | null; photoUrl?: string | null }>, raw: RankingRowDTO[] | undefined, unit: string): string {
+    const byKey = new Map<string, RankingRowDTO>();
+    (raw || []).forEach((r) => byKey.set(r.profile_id ? `p${r.profile_id}` : `n:${r.name.toLowerCase()}`, r));
+    const up = '<svg class="rk-arrow up" viewBox="0 0 10 10" aria-label="subiu"><path d="M5 1.5 9 8H1z"/></svg>';
+    const down = '<svg class="rk-arrow down" viewBox="0 0 10 10" aria-label="desceu"><path d="M5 8.5 1 2h8z"/></svg>';
+    const same = '<span class="rk-arrow same"></span>';
+    const body = rows.map((r, i) => {
+        const x = byKey.get(r.profileId ? `p${r.profileId}` : `n:${r.name.toLowerCase()}`);
+        const prof = getProfileById(r.profileId ?? null);
+        const photo = r.photoUrl ?? prof?.photo_url ?? null;
+        const zone = i === 0 ? 'leader' : i === 1 ? 'second' : i === 2 ? 'third' : (rows.length >= 4 && i === rows.length - 1) ? 'last' : '';
+        const arrow = x && x.prev_rank ? (x.prev_rank > i + 1 ? up : x.prev_rank < i + 1 ? down : same) : same;
+        const female = x?.gender === 'f' ? '<svg class="ic rk-female" title="Mulher"><use href="#ic-female"/></svg>' : '';
+        const tie = x?.tie ? `<span class="rk-tie" title="Empatou no primeiro critério com a linha de cima; ficou atrás por: ${TIE_LABEL[x.tie] || x.tie}">empate: ${TIE_LABEL[x.tie] || x.tie}</span>` : '';
+        const num = (v: number | undefined | null): string => v === undefined || v === null ? '–' : String(v);
+        return `
+        <tr class="rk-tr ${zone} ${r.profileId ? 'ranking-clickable' : ''}" data-profile="${r.profileId ?? ''}">
+            <td class="c-pos"><span class="rk-pos">${i + 1}</span>${arrow}</td>
+            <td class="c-name"><span class="rk-cell-name">${avatarHtml({ name: r.name, photo_url: photo, color: prof?.color }, 'lc-avatar rk-tavatar')}<span class="rk-tname-wrap"><span class="rk-tname">${escapeHtml(r.name)}${female}</span>${tie}</span></span></td>
+            <td class="c-pts"><b>${r.points}</b></td>
+            <td>${r.matches}</td>
+            <td>${r.wins}</td>
+            <td>${num(x?.podiums)}</td>
+            <td>${num(x?.last_places)}</td>
+            <td>${num(x?.kills)}</td>
+            <td>${num(x?.viado_count)}</td>
+            <td class="c-form">${formDotsHtml(x?.form)}</td>
+        </tr>`;
+    }).join('');
+    return `
+    <div class="rk-tbl-wrap">
+        <table class="rk-tbl">
+            <thead><tr>
+                <th class="c-pos">#</th><th class="c-name">Jogador</th><th class="c-pts" title="Pontos">${unit === 'Elo' ? 'Elo' : 'Pts'}</th>
+                <th title="Partidas jogadas">PJ</th><th title="Vitórias">V</th><th title="Pódios (1º a 3º)">Pód</th><th title="Lanternas (último lugar)">Lant</th>
+                <th title="Eliminações">Elim</th><th title="Vezes sorteado como viado">Viado</th><th class="c-form">Últimas 5</th>
+            </tr></thead>
+            <tbody>${body}</tbody>
+        </table>
+    </div>`;
+}
+
+function rankingLegendHtml(mode: string, criteria: RankingCriterionDTO[]): string {
+    return `
+    <div class="rk-legend">
+        <div class="rk-legend-row"><b>Pts</b> pontos · <b>PJ</b> partidas · <b>V</b> vitórias · <b>Pód</b> pódios (1º a 3º) · <b>Lant</b> lanternas (último lugar) · <b>Elim</b> eliminações · <b>Viado</b> vezes sorteado</div>
+        <div class="rk-legend-row"><b>Últimas 5</b> (mais antiga → mais recente): <span class="rk-fd w">1</span> vitória · <span class="rk-fd p">2</span> pódio · <span class="rk-fd l">4</span> resto · <span class="rk-arrow up inline"></span> subiu / <span class="rk-arrow down inline"></span> desceu desde a última partida</div>
+        <div class="rk-legend-row"><b>Pontuação:</b> ${escapeHtml(scoringText(mode))}</div>
+        <div class="rk-legend-row"><b>Desempate, nesta ordem:</b> ${criteria.map((c, i) => `${i + 1}. ${escapeHtml(c.label)}`).join(' · ')} <button type="button" class="rk-link" id="rk-legend-info">entenda</button></div>
+    </div>`;
+}
+
+function openRankingInfo(criteria: RankingCriterionDTO[], mode: string, tiebreak: 'points' | 'wins'): void {
+    document.getElementById('ranking-info-dyn')?.remove();
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.id = 'ranking-info-dyn';
+    modal.style.zIndex = '2080';
+    const why: Record<string, string> = {
+        points: 'Soma dos pontos de todas as partidas do período.',
+        wins: 'Quantas vezes terminou em 1º.',
+        gender: 'Em empate, a mulher fica na frente. O sexo é definido no perfil (lápis › Sexo).',
+        viado: 'Quem foi sorteado como viado mais vezes fica na frente. O sorteio é um por partida (trava depois de sorteado) e é gravado no ranking quando a partida é encerrada.',
+        matches: 'Quem jogou mais partidas fica na frente.',
+        name: 'Se ainda assim empatar, vale a ordem alfabética.',
+    };
+    const example = mode === 'placement' || mode === '' ? `
+        <table class="rk-ex"><thead><tr><th>Mesa</th><th>1º</th><th>2º</th><th>3º</th><th>4º</th><th>5º</th></tr></thead><tbody>
+            <tr><td>3 jogadores</td><td>3</td><td>2</td><td>1</td><td>–</td><td>–</td></tr>
+            <tr><td>4 jogadores</td><td>4</td><td>3</td><td>2</td><td>1</td><td>–</td></tr>
+            <tr><td>5 jogadores</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td></tr>
+        </tbody></table>` : '';
+    modal.innerHTML = `
+        <div class="modal-content profile-picker-content">
+            <div class="modal-header">
+                <h2><svg class="ic ic-title"><use href="#ic-info"/></svg>Pontuação e desempate</h2>
+                <button class="modal-close" type="button">&times;</button>
+            </div>
+            <div class="profile-picker-body rk-info-body">
+                <div class="podium-section-label">Como se ganha ponto</div>
+                <p class="rk-info-p">${escapeHtml(scoringText(mode))}</p>
+                ${example}
+                <div class="podium-section-label">Desempate (nesta ordem)</div>
+                <ol class="rk-info-list">
+                    ${criteria.map((c) => `<li><b>${escapeHtml(c.label)}</b><span>${escapeHtml(why[c.key] || '')}</span></li>`).join('')}
+                </ol>
+                <div class="podium-section-label">Na tabela</div>
+                <p class="rk-info-p">Quando dois jogadores empatam no primeiro critério, a linha de baixo mostra "desempate: …" dizendo o que a separou da de cima. A seta ao lado da posição compara com a tabela antes da última partida. O primeiro critério (${tiebreak === 'wins' ? 'vitórias' : 'pontos'}) muda na engrenagem do ranking.</p>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+    const close = (): void => modal.remove();
+    modal.querySelector('.modal-close')?.addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
 }
 
 // Pódio (top 3 com foto) no topo do ranking.
@@ -2899,7 +3019,7 @@ function openProfilePage(profileId: number): void {
                 ${p.photo_url ? `<div class="pp-hero-bg" style="background-image:url('${escapeHtml(p.photo_url)}')"></div>` : ''}
                 ${avatarHtml({ name: p.name, photo_url: p.photo_url, color: p.color }, 'lc-avatar pp-avatar')}
                 <div class="pp-hero-info">
-                    <div class="pp-name">${escapeHtml(p.name)} ${(s.trophies || []).map(() => trophyIc).join('')}</div>
+                    <div class="pp-name">${escapeHtml(p.name)}${p.gender === 'f' ? ' <svg class="ic pp-female" title="Mulher"><use href="#ic-female"/></svg>' : ''} ${(s.trophies || []).map(() => trophyIc).join('')}</div>
                     <div class="pp-ranks">
                         <span class="pp-rank-chip ${s.rank_season && s.rank_season <= 3 ? 'top' : ''}">${s.rank_season ? `${medalFor(s.rank_season)} temporada` : 'sem partidas na temporada'}</span>
                         ${s.rank_all ? `<span class="pp-rank-chip ${s.rank_all <= 3 ? 'top' : ''}">${medalFor(s.rank_all)} geral</span>` : ''}
@@ -2918,7 +3038,7 @@ function openProfilePage(profileId: number): void {
             </div>
             ${(s.form || []).length ? `<div class="pp-section"><div class="podium-section-label">Forma recente (últimas ${s.form!.length})</div><div class="pp-form">${formHtml}</div></div>` : ''}
             <div class="pp-stats pp-stats-3">
-                ${stat('eliminações', s.kills ?? 0)}${stat('mortes do cmd.', s.commander_deaths_total ?? 0)}${stat('pts / partida', s.points_per_match ?? 0)}
+                ${stat('eliminações', s.kills ?? 0)}${stat('vezes viado', s.viado_count ?? 0)}${stat('mortes do cmd.', s.commander_deaths_total ?? 0)}${stat('pts / partida', s.points_per_match ?? 0)}
                 ${stat('vida ao vencer', s.avg_final_life_wins ?? '—')}${stat('maior partida', fmtMs(s.longest_ms))}${stat('menor partida', fmtMs(s.shortest_ms))}
                 ${stat('tempo de mesa', fmtH(s.total_time_ms))}${stat('melhor mês', s.best_month ? `${s.best_month.label}<small>${s.best_month.wins}v</small>` : '—')}${stat('desde', s.first_match_at ? fmtDateTime(s.first_match_at).slice(0, 8) : '—')}${stat('começou', `${s.starts ?? 0}<small>${s.starts_rate ?? 0}%</small>`)}${s.starts_win_rate !== null && s.starts_win_rate !== undefined ? stat('vence quando começa', `${s.starts_win_rate}%<small>${s.non_start_win_rate !== null && s.non_start_win_rate !== undefined ? `${s.non_start_win_rate}% sem começar` : ''}</small>`) : ''}
             </div>
@@ -4360,6 +4480,13 @@ function openProfileEditSheet(profileId: number, onChange: () => void): void {
                 <div class="pe-fields">
                     <label class="pe-field"><span>Nome</span><input type="text" value="${escapeHtml(p.name)}" maxlength="40" data-role="name"></label>
                     <label class="pe-field"><span>Apelidos para o comando de voz</span><input type="text" value="${escapeHtml((p.aliases || []).join(', '))}" maxlength="200" placeholder="Zezinho, Zeca" data-role="aliases"></label>
+                    <div class="pe-field"><span>Sexo (desempate do ranking: mulher na frente)</span>
+                        <div class="seg-mini pe-gender" data-role="gender">
+                            <button type="button" data-v="f" class="${p.gender === 'f' ? 'active' : ''}">Mulher</button>
+                            <button type="button" data-v="m" class="${p.gender === 'm' ? 'active' : ''}">Homem</button>
+                            <button type="button" data-v="" class="${!p.gender ? 'active' : ''}">Não dizer</button>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="pe-section">
@@ -4421,6 +4548,21 @@ function openProfileEditSheet(profileId: number, onChange: () => void): void {
         if (!el) return;
         const role = el.dataset.role;
         if (role === 'stats') { openProfilePage(profileId); return; }
+        if (role === 'gender') {
+            const b = (e.target as HTMLElement).closest('button[data-v]') as HTMLElement | null;
+            if (!b) return;
+            try {
+                busy(true);
+                await updateProfile(profileId, { gender: (b.dataset.v || '') as '' | 'f' | 'm' });
+                busy(false);
+                render();
+                onChange();
+            } catch (err: any) {
+                busy(false);
+                showSpecialMoment(`Não deu pra salvar: ${err?.message || err}`, 'danger');
+            }
+            return;
+        }
         if (role === 'sound-del') {
             try {
                 busy(true);
@@ -5734,6 +5876,13 @@ function updateSettingsControls(state: GameState): void {
             viadoResult.style.display = 'none';
         }
     }
+    // v2.7.0: botao mostra que o sorteio desta partida ja foi feito
+    const vbtn = $('sortear-viado-btn');
+    if (vbtn) {
+        const lock = gameState.isViadoLocked();
+        vbtn.classList.toggle('locked', lock);
+        vbtn.innerHTML = `<svg class="ic"><use href="#ic-dice"/></svg>${lock ? 'Viado sorteado (1 por partida)' : 'Sortear o Viado'}`;
+    }
 }
 
 // Life change with hold support - shows shortcuts popup on hold
@@ -6076,6 +6225,12 @@ let viadoAnimationInterval: number | null = null;
 
 function startViadoSelection(): void {
     if (isViadoSelectionRunning) return;
+    // v2.7.0: um viado por partida. Depois de sorteado, trava ate a proxima partida (e vai pro ranking ao encerrar).
+    if (gameState.isViadoLocked()) {
+        const v = gameState.getViado();
+        showSpecialMoment(`O viado desta partida já foi sorteado: ${v?.name || '?'}. Só na próxima.`, 'warning');
+        return;
+    }
     isViadoSelectionRunning = true;
 
     if (viadoAnimationInterval) {
@@ -6166,7 +6321,7 @@ function startViadoSelection(): void {
         if (title) title.textContent = '🏳️‍🌈 Sorteado!';
         if (resultDiv) resultDiv.style.display = 'flex';
         $('viado-winner-name').textContent = winner.name;
-        $('viado-again-btn').style.display = 'inline-block';
+        $('viado-again-btn').style.display = gameState.isViadoLocked() ? 'none' : 'inline-block';
         $('viado-close-btn').style.display = 'inline-block';
 
         isViadoSelectionRunning = false;

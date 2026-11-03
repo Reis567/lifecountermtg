@@ -97,7 +97,7 @@ export async function createProfile(name: string, photo: Blob | null, color?: st
     return created;
 }
 
-export async function updateProfile(id: number, data: { name?: string; color?: string; photo?: Blob | null; aliases?: string[] }): Promise<ProfileDTO> {
+export async function updateProfile(id: number, data: { name?: string; color?: string; photo?: Blob | null; aliases?: string[]; gender?: '' | 'f' | 'm' }): Promise<ProfileDTO> {
     const small = data.photo ? await shrinkImage(data.photo) : null;
     const updated = await apiUpdateProfile(id, { ...data, photo: small });
     setProfiles(getProfiles().map((p) => (p.id === id ? updated : p)));

@@ -100,6 +100,8 @@ export function apiUpdateProfile(id, data) {
     const fd = new FormData();
     if (data.name !== undefined)
         fd.append('name', data.name);
+    if (data.gender !== undefined)
+        fd.append('gender', data.gender);
     if (data.color !== undefined)
         fd.append('color', data.color);
     if (data.active !== undefined)

@@ -132,6 +132,9 @@ def profiles(request):
         return Response({'photo': f'Foto maior que {settings.MAX_PHOTO_SIZE_MB} MB.'}, status=400)
 
     profile = Profile(name=name, color=(request.data.get('color') or '')[:7])
+    g = request.data.get('gender')
+    if g in ('f', 'm', ''):
+        profile.gender = g
     profile.slug = Profile.unique_slug(name)
     aliases = _parse_aliases(request.data.get('aliases'))
     if aliases is not None:
@@ -181,6 +184,11 @@ def profile_detail(request, pk):
     aliases = _parse_aliases(request.data.get('aliases'))
     if aliases is not None:
         profile.aliases = aliases
+    if 'gender' in request.data:
+        g = (request.data.get('gender') or '').strip().lower()
+        if g not in ('f', 'm', ''):
+            return Response({'gender': 'Sexo precisa ser f, m ou vazio.'}, status=400)
+        profile.gender = g
     photo = request.FILES.get('photo')
     if photo:
         if photo.size > settings.MAX_PHOTO_SIZE_MB * 1024 * 1024:
@@ -294,6 +302,9 @@ def _aggregate(request, start=None, end=None, tiebreak='points', mode=None):
                 'photo_url': _abs(request, p.profile.photo.url) if p.profile and p.profile.photo else None,
                 'points': 0, 'matches': 0, 'wins': 0, 'podiums': 0, 'last_places': 0,
                 'last_played': None, 'elo': None,
+                # v2.7.0: desempate (mulher na frente, depois mais vezes viado) + tabela estilo campeonato
+                'gender': (p.profile.gender if p.profile else '') or '',
+                'viado_count': 0, 'kills': 0, '_form': [],
             }
         if mode == 'elo':
             row['elo'] = elo_ratings.get(p.profile_id, scoring.ELO_START) if p.profile_id else scoring.ELO_START
@@ -307,19 +318,76 @@ def _aggregate(request, start=None, end=None, tiebreak='points', mode=None):
             row['podiums'] += 1
         if p.place == p.match.player_count and p.match.player_count > 1:
             row['last_places'] += 1
+        if p.viado:
+            row['viado_count'] += 1
+        row['_form'].append((p.match.ended_at, p.match_id, p.place, p.match.player_count))
         ended = p.match.ended_at
         if row['last_played'] is None or ended > row['last_played']:
             row['last_played'] = ended
 
-    if tiebreak == 'wins':
-        keyf = lambda r: (-r['wins'], -r['points'], -r['matches'], r['name'].lower())
-    else:
-        keyf = lambda r: (-r['points'], -r['wins'], -r['matches'], r['name'].lower())
-    result = sorted(rows.values(), key=keyf)
+    # Eliminações no período: 'eliminado por' guarda o NOME de quem matou.
+    by_name = {}
+    for r in rows.values():
+        by_name.setdefault(r['name'].strip().lower(), r)
+    for p in qs:
+        killer = (p.eliminated_by or '').strip().lower()
+        if not killer:
+            continue
+        kr = by_name.get(killer)
+        victim_key = f'p{p.profile_id}' if p.profile_id else 'n:' + (p.name or '').strip().lower()
+        if kr is not None and kr is not rows.get(victim_key):
+            kr['kills'] += 1
+
+    result = sorted(rows.values(), key=lambda r: _rank_key(r, tiebreak))
+    prev = None
     for i, r in enumerate(result):
         r['rank'] = i + 1
         r['win_rate'] = round(100.0 * r['wins'] / r['matches'], 1) if r['matches'] else 0.0
+        r['losses'] = r['matches'] - r['wins']
+        form = sorted(r.pop('_form'))[-5:]
+        r['form'] = [{'match_id': mid, 'place': pl, 'players': n} for (_, mid, pl, n) in form]
+        r['tie'] = _tie_reason(prev, r, tiebreak) if prev else None
+        prev = r
     return result
+
+
+# v2.7.0: critérios de desempate, na ordem. O primeiro vem da configuração
+# (pontos ou vitórias); depois mulher na frente; depois quem foi sorteado como
+# viado mais vezes; depois o outro número (vitórias/pontos), partidas e nome.
+def _rank_key(r, tiebreak):
+    g = 0 if r.get('gender') == 'f' else 1
+    if tiebreak == 'wins':
+        return (-r['wins'], g, -r.get('viado_count', 0), -r['points'], -r['matches'], r['name'].lower())
+    return (-r['points'], g, -r.get('viado_count', 0), -r['wins'], -r['matches'], r['name'].lower())
+
+
+def _tie_reason(above, r, tiebreak):
+    """Qual critério separou `r` da linha de cima (None se o primeiro critério já decidiu)."""
+    first, second = ('wins', 'points') if tiebreak == 'wins' else ('points', 'wins')
+    if above[first] != r[first]:
+        return None
+    if (above.get('gender') == 'f') != (r.get('gender') == 'f'):
+        return 'gender'
+    if above.get('viado_count', 0) != r.get('viado_count', 0):
+        return 'viado'
+    if above[second] != r[second]:
+        return second
+    if above['matches'] != r['matches']:
+        return 'matches'
+    return 'name'
+
+
+def ranking_criteria(tiebreak):
+    first = ('wins', 'Mais vitórias') if tiebreak == 'wins' else ('points', 'Mais pontos')
+    second = ('points', 'Mais pontos') if tiebreak == 'wins' else ('wins', 'Mais vitórias')
+    return [
+        {'key': first[0], 'label': first[1]},
+        {'key': 'gender', 'label': 'Mulher na frente'},
+        {'key': 'viado', 'label': 'Mais vezes sorteado como viado'},
+        {'key': second[0], 'label': second[1]},
+        {'key': 'matches', 'label': 'Mais partidas'},
+        {'key': 'name', 'label': 'Ordem alfabética'},
+    ]
 
 
 @api_view(['GET'])
@@ -345,6 +413,17 @@ def ranking(request):
     label = None
     if period in ('season', 'prev_season'):
         label = (seasons.season_datetimes() if period == 'season' else seasons.previous_season_datetimes())[2]
+    # v2.7.0: posição antes da última partida do período (seta subiu/desceu na tabela)
+    total = mq.count()
+    if total >= 2:
+        last = mq.order_by('-ended_at', '-id').first()
+        before = _aggregate(request, start, last.ended_at, tiebreak, mode)
+        prev_rank = {(r['profile_id'] or ('n:' + r['name'].lower())): r['rank'] for r in before}
+        for r in result:
+            r['prev_rank'] = prev_rank.get(r['profile_id'] or ('n:' + r['name'].lower()))
+    else:
+        for r in result:
+            r['prev_rank'] = None
     return Response({
         'period': period,
         'since': start,
@@ -352,7 +431,8 @@ def ranking(request):
         'label': label,
         'tiebreak': tiebreak,
         'mode': mode,
-        'total_matches': mq.count(),
+        'criteria': ranking_criteria(tiebreak),
+        'total_matches': total,
         'rows': result,
     })
 
@@ -898,6 +978,7 @@ def profile_stats(request, pk):
     starts_win_rate = round(100.0 * starts_wins / len(started_ids), 1) if started_ids else None
     non_start_win_rate = round(100.0 * non_start_wins / non_start_n, 1) if non_start_n else None
     commander_deaths_total = sum(p.commander_deaths or 0 for p in placements)
+    viado_count = sum(1 for p in placements if p.viado)
     win_lives = [p.final_life for p in placements if p.place == 1 and p.final_life is not None]
     avg_final_life_wins = round(sum(win_lives) / len(win_lives), 1) if win_lives else None
     durations = [p.match.duration_ms for p in placements if p.match.duration_ms]
@@ -922,6 +1003,7 @@ def profile_stats(request, pk):
         'starts_win_rate': starts_win_rate,
         'non_start_win_rate': non_start_win_rate,
         'commander_deaths_total': commander_deaths_total,
+        'viado_count': viado_count,
         'avg_final_life_wins': avg_final_life_wins,
         'longest_ms': max(durations) if durations else 0,
         'shortest_ms': min(durations) if durations else 0,

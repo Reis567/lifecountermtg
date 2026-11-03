@@ -11,8 +11,8 @@
 import { apiCheckUpdate, isAndroidApp, UpdateInfoDTO } from './api.js';
 
 // Mantenha em sincronia com android/app/build.gradle.kts (versionCode/versionName).
-export const APP_VERSION_CODE = 29;
-export const APP_VERSION_NAME = '2.6.0';
+export const APP_VERSION_CODE = 30;
+export const APP_VERSION_NAME = '2.7.0';
 
 const UPDATE_LAST_CHECK_KEY = 'lc_update_last_check_v1';
 const UPDATE_SKIP_KEY = 'lc_update_skipped_code_v1';

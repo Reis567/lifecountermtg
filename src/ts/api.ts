@@ -32,6 +32,7 @@ export interface ProfileDTO {
     is_preset: boolean;
     active: boolean;
     aliases?: string[]; // apelidos pro comando de voz
+    gender?: '' | 'f' | 'm'; // v2.7.0: desempate do ranking (mulher na frente)
     sounds?: Partial<Record<'death' | 'win' | 'damage', string>>; // URLs no servidor
     decks?: DeckDTO[];
 }
@@ -178,6 +179,7 @@ export interface ProfileStatsDTO {
     starts_rate?: number;
     // v2.6.0: vantagem de quem comeca
     starts_wins?: number;
+    viado_count?: number; // v2.7.0
     starts_win_rate?: number | null;
     non_start_win_rate?: number | null;
     commander_deaths_total?: number;
@@ -223,6 +225,7 @@ export interface PlacementDTO {
     eliminated_by?: string;
     death_cause?: string;
     commander_deaths?: number;
+    viado?: boolean; // v2.7.0: sorteado como viado nesta partida
     photo_url?: string | null;
 }
 
@@ -272,13 +275,27 @@ export interface RankingRowDTO {
     last_places: number;
     win_rate: number;
     last_played: string | null;
+    // v2.7.0: tabela estilo campeonato + desempate
+    gender?: '' | 'f' | 'm';
+    viado_count?: number;
+    kills?: number;
+    losses?: number;
+    form?: Array<{ match_id: number; place: number; players: number }>;
+    tie?: 'gender' | 'viado' | 'wins' | 'points' | 'matches' | 'name' | null;
+    prev_rank?: number | null;
 }
+
+export interface RankingCriterionDTO { key: string; label: string; }
 
 export interface RankingDTO {
     period: string;
     since: string | null;
     total_matches: number;
     rows: RankingRowDTO[];
+    label?: string | null;
+    tiebreak?: 'points' | 'wins';
+    mode?: string;
+    criteria?: RankingCriterionDTO[];
 }
 
 export interface UpdateInfoDTO {
@@ -369,9 +386,10 @@ export function apiCreateProfile(name: string, photo: Blob | null, color?: strin
     return apiFetch('/api/profiles/', { method: 'POST', body: fd }, true);
 }
 
-export function apiUpdateProfile(id: number, data: { name?: string; color?: string; photo?: Blob | null; active?: boolean; aliases?: string[] }): Promise<ProfileDTO> {
+export function apiUpdateProfile(id: number, data: { name?: string; color?: string; photo?: Blob | null; active?: boolean; aliases?: string[]; gender?: '' | 'f' | 'm' }): Promise<ProfileDTO> {
     const fd = new FormData();
     if (data.name !== undefined) fd.append('name', data.name);
+    if (data.gender !== undefined) fd.append('gender', data.gender);
     if (data.color !== undefined) fd.append('color', data.color);
     if (data.active !== undefined) fd.append('active', data.active ? '1' : '0');
     if (data.aliases !== undefined) fd.append('aliases', data.aliases.join(','));
