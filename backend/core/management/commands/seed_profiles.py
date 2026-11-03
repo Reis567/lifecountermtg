@@ -27,7 +27,7 @@ PRESETS = [
     ('Leo', 'leo', 'leo.jpg', '#3b82f6'),
 ]
 # Sexo dos pré-setados (só preenche quando ainda não foi informado; o app pode mudar).
-GENDERS = {'laura': 'f', 'maria': 'f', 'ze': 'm', 'reis': 'm', 'mendas': 'm', 'cabral': 'm', 'leo': 'm'}
+GENDERS = {'laura': 'f', 'maria': 'f', 'system': 'f', 'ze': 'm', 'reis': 'm', 'mendas': 'm', 'cabral': 'm', 'leo': 'm'}
 
 
 class Command(BaseCommand):
